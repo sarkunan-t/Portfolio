@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quote Board — Stock Price Lookup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060d1a;
+    --panel: #0b1526;
+    --panel-edge: #14243d;
+    --ink: #dbe7f4;
+    --ink-dim: #6b7f99;
+    --teal: #17e3c2;
+    --teal-dim: rgba(23,227,194,.12);
+    --up: #2fd67b;
+    --down: #ff5d5d;
+    --gold: #e8b64c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Space Grotesk', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 20px 64px;
+    background-image:
+      linear-gradient(rgba(23,227,194,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(23,227,194,.03) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  .wrap { width: 100%; max-width: 640px; }
+
+  header { text-align: center; margin-bottom: 40px; }
+  .logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: .2em;
+    color: var(--teal);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-size: clamp(24px, 5vw, 36px);
+    font-weight: 700;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+  }
+  h1 span { color: var(--teal); }
+  .subtitle {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--ink-dim);
+  }
+
+  .search-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 28px;
+  }
+  .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 140px; }
+  label {
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  input, select {
+    background: #0a1628;
+    border: 1px solid var(--panel-edge);
+    border-radius: 8px;
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    padding: 11px 14px;
+    outline: none;
+    transition: border-color .2s;
+    width: 100%;
+  }
+  input::placeholder { color: var(--ink-dim); }
+  input:focus, select:focus { border-color: var(--teal); }
+  select { cursor: pointer; }
+  select option { background: #0b1526; }
+
+  .go-btn {
+    background: var(--teal);
+    border: none;
+    border-radius: 8px;
+    color: #060d1a;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    padding: 12px 28px;
+    transition: opacity .15s, transform .1s;
+    white-space: nowrap;
+    align-self: flex-end;
+  }
+  .go-btn:hover { opacity: .85; }
+  .go-btn:active { transform: scale(.97); }
+  .go-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* Result card */
+  .result-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 28px;
+    display: none;
+  }
+  .result-card.visible { display: block; }
+  .result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .ticker-name .ticker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--teal);
+  }
+  .ticker-name .company {
+    font-size: 13px;
+    color: var(--ink-dim);
+    margin-top: 3px;
+  }
+  .exchange-badge {
+    background: var(--teal-dim);
+    border: 1px solid rgba(23,227,194,.25);
+    border-radius: 6px;
+    color: var(--teal);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: .08em;
+    padding: 4px 10px;
+  }
+
+  .price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .price {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: clamp(32px, 8vw, 52px);
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1;
+  }
+  .change {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+  }
+  .meta-item {
+    background: #0a1628;
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .meta-label {
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 5px;
+  }
+  .meta-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .market-open { color: var(--up); }
+  .market-closed { color: var(--ink-dim); }
+
+  .updated {
+    margin-top: 16px;
+    font-size: 11px;
+    color: var(--ink-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    text-align: right;
+  }
+
+  /* Error */
+  .error-box {
+    background: rgba(255,93,93,.08);
+    border: 1px solid rgba(255,93,93,.25);
+    border-radius: 10px;
+    color: #ff8a8a;
+    font-size: 13px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .error-box.visible { display: block; }
+
+  /* Spinner */
+  .spinner {
+    display: none;
+    width: 20px; height: 20px;
+    border: 2px solid var(--panel-edge);
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    margin: 0 auto 20px;
+  }
+  .spinner.visible { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Recent chips */
+  .recents { margin-bottom: 8px; }
+  .recents-label {
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 8px;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    background: var(--teal-dim);
+    border: 1px solid rgba(23,227,194,.2);
+    border-radius: 6px;
+    color: var(--teal);
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 5px 12px;
+    transition: background .15s;
+  }
+  .chip:hover { background: rgba(23,227,194,.2); }
+
+  footer {
+    margin-top: 40px;
+    font-size: 11px;
+    color: var(--ink-dim);
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">&#9632; Quote Board</div>
+    <h1>Stock Price <span>Lookup</span></h1>
+    <p class="subtitle">Enter a ticker and exchange to get the current market price</p>
+  </header>
+
+  <div class="search-card">
+    <div class="row">
+      <div class="field">
+        <label>Ticker Symbol</label>
+        <input type="text" id="ticker" placeholder="e.g. AAPL, 1155, BTC" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Exchange</label>
+        <select id="exchange">
+          <option value="">US (NYSE / NASDAQ)</option>
+          <option value=".KL">Bursa Malaysia (.KL)</option>
+          <option value=".SI">SGX Singapore (.SI)</option>
+          <option value=".HK">Hong Kong (.HK)</option>
+          <option value=".L">London (.L)</option>
+          <option value=".AX">ASX Australia (.AX)</option>
+          <option value="-USD">Crypto (e.g. BTC-USD)</option>
+        </select>
+      </div>
+      <button class="go-btn" id="goBtn">Get Price</button>
+    </div>
+
+    <div id="hint" style="margin-top:14px;font-size:12px;color:var(--ink-dim);display:none;">
+      💡 Bursa Malaysia uses numeric codes — e.g. <strong style="color:var(--teal)">1155</strong> for Maybank, <strong style="color:var(--teal)">5347</strong> for Tenaga
+    </div>
+  </div>
+
+  <div class="spinner" id="spinner"></div>
+  <div class="error-box" id="errorBox"></div>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      <div class="ticker-name">
+        <div class="ticker" id="rTicker"></div>
+        <div class="company" id="rCompany"></div>
+      </div>
+      <div class="exchange-badge" id="rExchange"></div>
+    </div>
+    <div class="price-row">
+      <div class="price" id="rPrice"></div>
+      <div class="change" id="rChange"></div>
+    </div>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <div class="meta-label">Prev Close</div>
+        <div class="meta-value" id="rPrevClose"></div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Day Open</div>
+        <div class="meta-value" id="rOpen"></div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Day High</div>
+        <div class="meta-value" id="rHigh"></div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Day Low</div>
+        <div class="meta-value" id="rLow"></div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Volume</div>
+        <div class="meta-value" id="rVolume"></div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Market</div>
+        <div class="meta-value" id="rMarket"></div>
+      </div>
+    </div>
+    <div class="updated" id="rUpdated"></div>
+  </div>
+
+  <div class="recents" id="recentsWrap" style="display:none">
+    <div class="recents-label">Recent lookups</div>
+    <div class="chips" id="chipsEl"></div>
+  </div>
+
+  <footer>
+    Prices sourced from Yahoo Finance &nbsp;·&nbsp; For informational use only<br>
+    Bursa Malaysia requires numeric ticker codes &nbsp;·&nbsp; Crypto uses -USD suffix
+  </footer>
+</div>
+
+<script>
+  const tickerEl = document.getElementById('ticker');
+  const exchangeEl = document.getElementById('exchange');
+  const goBtn = document.getElementById('goBtn');
+  const spinner = document.getElementById('spinner');
+  const errorBox = document.getElementById('errorBox');
+  const resultCard = document.getElementById('resultCard');
+  const hintEl = document.getElementById('hint');
+  const recentsWrap = document.getElementById('recentsWrap');
+  const chipsEl = document.getElementById('chipsEl');
+
+  let recents = JSON.parse(localStorage.getItem('ql_recents') || '[]');
+
+  exchangeEl.addEventListener('change', () => {
+    hintEl.style.display = exchangeEl.value === '.KL' ? 'block' : 'none';
+  });
+
+  function saveRecent(symbol, exchange) {
+    const key = symbol + '||' + exchange;
+    recents = [key, ...recents.filter(r => r !== key)].slice(0, 8);
+    localStorage.setItem('ql_recents', JSON.stringify(recents));
+    renderChips();
+  }
+
+  function renderChips() {
+    if (!recents.length) { recentsWrap.style.display = 'none'; return; }
+    recentsWrap.style.display = 'block';
+    chipsEl.innerHTML = '';
+    recents.forEach(r => {
+      const [sym, exch] = r.split('||');
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.textContent = sym + (exch || '');
+      chip.onclick = () => {
+        tickerEl.value = sym;
+        exchangeEl.value = exch;
+        hintEl.style.display = exch === '.KL' ? 'block' : 'none';
+        lookup();
+      };
+      chipsEl.appendChild(chip);
+    });
+  }
+
+  const PROXIES = [
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  ];
+
+  async function fetchViaProxy(symbol) {
+    const base = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+    for (const proxy of PROXIES) {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(proxy(base), { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!res.ok) continue;
+        const data = await res.json();
+        const q = data?.chart?.result?.[0];
+        if (!q) continue;
+        const meta = q.meta;
+        return {
+          price: meta.regularMarketPrice,
+          prevClose: meta.previousClose ?? meta.chartPreviousClose,
+          open: meta.regularMarketDayHigh ? meta.regularMarketOpen : null,
+          high: meta.regularMarketDayHigh,
+          low: meta.regularMarketDayLow,
+          volume: meta.regularMarketVolume,
+          currency: meta.currency,
+          name: meta.longName || meta.shortName || symbol,
+          marketState: meta.marketState,
+          exchange: meta.exchangeName || meta.fullExchangeName,
+          source: 'yahoo'
+        };
+      } catch (e) { continue; }
+    }
+    return null;
+  }
+
+  async function fetchViaClaudeSearch(symbol) {
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          messages: [{
+            role: 'user',
+            content: `Search for the current stock price of ${symbol} right now. Return ONLY a JSON object with these fields (no markdown, no explanation):
+{"price": number, "prevClose": number, "open": number, "high": number, "low": number, "volume": number, "currency": "USD", "name": "Company Name", "marketState": "REGULAR or CLOSED", "exchange": "Exchange Name"}`
+          }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.filter(b => b.type === 'text').map(b => b.text).join('') || '';
+      const clean = text.replace(/```json|```/g, '').trim();
+      const json = JSON.parse(clean);
+      return { ...json, source: 'claude' };
+    } catch (e) { return null; }
+  }
+
+  function fmt(n, decimals = 2) {
+    if (n == null || isNaN(n)) return '—';
+    return Number(n).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  }
+  function fmtVol(n) {
+    if (!n) return '—';
+    if (n >= 1e9) return (n/1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+    return n.toLocaleString();
+  }
+
+  async function lookup() {
+    const raw = tickerEl.value.trim().toUpperCase();
+    const exch = exchangeEl.value;
+    if (!raw) { tickerEl.focus(); return; }
+
+    const symbol = exch === '-USD'
+      ? (raw.endsWith('-USD') ? raw : raw + '-USD')
+      : raw + exch;
+
+    errorBox.classList.remove('visible');
+    resultCard.classList.remove('visible');
+    spinner.classList.add('visible');
+    goBtn.disabled = true;
+
+    let d = await fetchViaProxy(symbol);
+    if (!d) d = await fetchViaClaudeSearch(symbol);
+
+    spinner.classList.remove('visible');
+    goBtn.disabled = false;
+
+    if (!d) {
+      errorBox.textContent = `Could not retrieve price for "${symbol}". Check the ticker and exchange, then try again.`;
+      errorBox.classList.add('visible');
+      return;
+    }
+
+    saveRecent(raw, exch);
+
+    const change = d.price - d.prevClose;
+    const changePct = (change / d.prevClose) * 100;
+    const isUp = change >= 0;
+    const cur = d.currency || 'USD';
+
+    document.getElementById('rTicker').textContent = symbol;
+    document.getElementById('rCompany').textContent = d.name;
+    document.getElementById('rExchange').textContent = d.source === 'claude' ? 'via Claude search' : (d.exchange || exch || 'US');
+    document.getElementById('rPrice').textContent = cur + ' ' + fmt(d.price);
+    const changeEl = document.getElementById('rChange');
+    changeEl.textContent = `${isUp ? '▲' : '▼'} ${fmt(Math.abs(change))} (${fmt(Math.abs(changePct))}%)`;
+    changeEl.className = 'change ' + (isUp ? 'up' : 'down');
+    document.getElementById('rPrevClose').textContent = fmt(d.prevClose);
+    document.getElementById('rOpen').textContent = fmt(d.open);
+    document.getElementById('rHigh').textContent = fmt(d.high);
+    document.getElementById('rLow').textContent = fmt(d.low);
+    document.getElementById('rVolume').textContent = fmtVol(d.volume);
+    const mktEl = document.getElementById('rMarket');
+    const isOpen = d.marketState === 'REGULAR';
+    mktEl.textContent = isOpen ? 'Open' : 'Closed';
+    mktEl.className = 'meta-value ' + (isOpen ? 'market-open' : 'market-closed');
+    document.getElementById('rUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+    resultCard.classList.add('visible');
+  }
+
+  goBtn.addEventListener('click', lookup);
+  tickerEl.addEventListener('keydown', e => { if (e.key === 'Enter') lookup(); });
+  renderChips();
+</script>
+</body>
+</html>
