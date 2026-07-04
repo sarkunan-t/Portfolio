@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #060d1a;
+    --panel: #0b1526;
+    --panel-edge: #14243d;
+    --ink: #dbe7f4;
+    --ink-dim: #6b7f99;
+    --teal: #17e3c2;
+    --teal-dim: rgba(23,227,194,.12);
+    --up: #2fd67b;
+    --down: #ff5d5d;
+    --gold: #e8b64c;
+    --warn-bg: rgba(232,182,76,.08);
+    --warn-border: rgba(232,182,76,.25);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    background-image:
+      linear-gradient(rgba(23,227,194,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(23,227,194,.025) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+
+  /* ── AUTH SCREEN ── */
+  #authScreen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .auth-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 16px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .auth-logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: .2em;
+    color: var(--teal);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .auth-title { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  .auth-sub { font-size: 13px; color: var(--ink-dim); margin-bottom: 32px; }
+  .auth-tabs {
+    display: flex;
+    gap: 4px;
+    background: #0a1628;
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 24px;
+  }
+  .auth-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    color: var(--ink-dim);
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px;
+    transition: all .2s;
+  }
+  .auth-tab.active { background: var(--panel-edge); color: var(--ink); }
+  .field-group { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .field input {
+    background: #0a1628;
+    border: 1px solid var(--panel-edge);
+    border-radius: 8px;
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    padding: 11px 14px;
+    outline: none;
+    transition: border-color .2s;
+    width: 100%;
+  }
+  .field input:focus { border-color: var(--teal); }
+  .btn-primary {
+    width: 100%;
+    background: var(--teal);
+    border: none;
+    border-radius: 8px;
+    color: #060d1a;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 13px;
+    transition: opacity .15s;
+  }
+  .btn-primary:hover { opacity: .85; }
+  .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+  .auth-msg {
+    margin-top: 14px;
+    font-size: 13px;
+    text-align: center;
+    min-height: 20px;
+  }
+  .auth-msg.err { color: var(--down); }
+  .auth-msg.ok { color: var(--up); }
+
+  /* ── APP SHELL ── */
+  #appScreen { display: none; }
+  .topbar {
+    background: var(--panel);
+    border-bottom: 1px solid var(--panel-edge);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+  }
+  .topbar-logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--teal);
+    letter-spacing: .08em;
+  }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .user-email { font-size: 12px; color: var(--ink-dim); font-family: 'IBM Plex Mono', monospace; }
+  .btn-ghost {
+    background: none;
+    border: 1px solid var(--panel-edge);
+    border-radius: 7px;
+    color: var(--ink-dim);
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    padding: 6px 14px;
+    transition: all .15s;
+  }
+  .btn-ghost:hover { border-color: var(--ink-dim); color: var(--ink); }
+
+  .main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+  /* ── SUMMARY TILES ── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+  .tile {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .tile-label {
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 8px;
+  }
+  .tile-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .tile-sub { font-size: 12px; color: var(--ink-dim); margin-top: 4px; }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .section-title { font-size: 16px; font-weight: 700; }
+  .btn-add {
+    background: var(--teal);
+    border: none;
+    border-radius: 8px;
+    color: #060d1a;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px 20px;
+    transition: opacity .15s;
+  }
+  .btn-add:hover { opacity: .85; }
+
+  /* ── HOLDINGS TABLE ── */
+  .table-wrap {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { border-bottom: 1px solid var(--panel-edge); }
+  th {
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 500;
+    padding: 12px 16px;
+    text-align: left;
+  }
+  th.num { text-align: right; }
+  td {
+    padding: 14px 16px;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(20,36,61,.6);
+    vertical-align: middle;
+  }
+  td.num { text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(23,227,194,.03); }
+  .ticker-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--teal); font-size: 14px; }
+  .company-cell { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+  .neutral { color: var(--ink-dim); }
+  .loading-cell { color: var(--ink-dim); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+
+  .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-edit, .btn-del {
+    background: none;
+    border: 1px solid var(--panel-edge);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 5px 12px;
+    transition: all .15s;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .btn-edit { color: var(--ink-dim); }
+  .btn-edit:hover { border-color: var(--teal); color: var(--teal); }
+  .btn-del { color: var(--ink-dim); }
+  .btn-del:hover { border-color: var(--down); color: var(--down); }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--ink-dim);
+    font-size: 14px;
+  }
+  .empty-state span { display: block; font-size: 28px; margin-bottom: 10px; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(6,13,26,.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    max-width: 480px;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .modal-grid .field.full { grid-column: 1 / -1; }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-cancel {
+    background: none;
+    border: 1px solid var(--panel-edge);
+    border-radius: 8px;
+    color: var(--ink-dim);
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    padding: 10px 20px;
+    transition: all .15s;
+  }
+  .btn-cancel:hover { border-color: var(--ink-dim); color: var(--ink); }
+  .btn-save {
+    background: var(--teal);
+    border: none;
+    border-radius: 8px;
+    color: #060d1a;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 24px;
+    transition: opacity .15s;
+  }
+  .btn-save:hover { opacity: .85; }
+  .btn-save:disabled { opacity: .4; cursor: not-allowed; }
+  .modal-err { font-size: 12px; color: var(--down); margin-bottom: 12px; min-height: 16px; }
+
+  .spinner-inline {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--panel-edge);
+    border-top-color: var(--teal);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--panel);
+    border: 1px solid var(--teal);
+    border-radius: 10px;
+    color: var(--teal);
+    font-size: 13px;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 12px 20px;
+    z-index: 200;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all .25s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 640px) {
+    .modal-grid { grid-template-columns: 1fr; }
+    .modal-grid .field.full { grid-column: 1; }
+    th:nth-child(4), td:nth-child(4),
+    th:nth-child(5), td:nth-child(5) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">&#9632; Quote Board</div>
+    <div class="auth-title">Portfolio Tracker</div>
+    <div class="auth-sub">Sign in to access your holdings</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Sign in</button>
+      <button class="auth-tab" id="tabSignup" onclick="switchTab('signup')">Create account</button>
+    </div>
+    <div class="field-group">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="authEmail" placeholder="you@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+      </div>
+    </div>
+    <button class="btn-primary" id="authBtn" onclick="handleAuth()">Sign in</button>
+    <div class="auth-msg" id="authMsg"></div>
+  </div>
+</div>
+
+<!-- APP SCREEN -->
+<div id="appScreen">
+  <div class="topbar">
+    <div class="topbar-logo">&#9632; Portfolio Tracker</div>
+    <div class="topbar-right">
+      <div class="user-email" id="userEmail"></div>
+      <button class="btn-ghost" onclick="handleSignOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Summary tiles -->
+    <div class="summary-grid">
+      <div class="tile">
+        <div class="tile-label">Total value</div>
+        <div class="tile-value" id="sumValue">—</div>
+        <div class="tile-sub" id="sumValueSub"></div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Total cost</div>
+        <div class="tile-value" id="sumCost">—</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Unrealised P&amp;L</div>
+        <div class="tile-value" id="sumPnl">—</div>
+        <div class="tile-sub" id="sumPnlPct"></div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Holdings</div>
+        <div class="tile-value" id="sumCount">—</div>
+      </div>
+    </div>
+
+    <!-- Holdings table -->
+    <div class="section-header">
+      <div class="section-title">My holdings</div>
+      <button class="btn-add" onclick="openModal()">+ Add holding</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th class="num">Qty</th>
+            <th class="num">Avg cost</th>
+            <th class="num">Current price</th>
+            <th class="num">Market value</th>
+            <th class="num">P&amp;L</th>
+            <th class="num">P&amp;L %</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="holdingsBody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:10px; font-size:11px; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; text-align:right;" id="priceNote"></div>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">Add holding</div>
+    <div class="modal-grid">
+      <div class="field">
+        <label>Ticker symbol</label>
+        <input type="text" id="fTicker" placeholder="AAPL, 1155, BTC">
+      </div>
+      <div class="field">
+        <label>Exchange</label>
+        <select id="fExchange" style="background:#0a1628;border:1px solid var(--panel-edge);border-radius:8px;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:14px;padding:11px 14px;outline:none;width:100%;">
+          <option value="">US (NYSE/NASDAQ)</option>
+          <option value=".KL">Bursa Malaysia (.KL)</option>
+          <option value=".SI">SGX Singapore (.SI)</option>
+          <option value=".HK">Hong Kong (.HK)</option>
+          <option value=".L">London (.L)</option>
+          <option value=".AX">ASX Australia (.AX)</option>
+          <option value="-USD">Crypto (-USD)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="fQty" placeholder="100" min="0" step="any">
+      </div>
+      <div class="field">
+        <label>Avg cost (per share)</label>
+        <input type="number" id="fCost" placeholder="0.00" min="0" step="any">
+      </div>
+      <div class="field">
+        <label>Currency</label>
+        <select id="fCurrency" style="background:#0a1628;border:1px solid var(--panel-edge);border-radius:8px;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:14px;padding:11px 14px;outline:none;width:100%;">
+          <option value="USD">USD</option>
+          <option value="MYR">MYR</option>
+          <option value="SGD">SGD</option>
+          <option value="HKD">HKD</option>
+          <option value="GBP">GBP</option>
+          <option value="AUD">AUD</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Company name (optional)</label>
+        <input type="text" id="fName" placeholder="Apple Inc.">
+      </div>
+      <div class="field full">
+        <label>Notes (optional)</label>
+        <input type="text" id="fNotes" placeholder="e.g. Long term hold">
+      </div>
+    </div>
+    <div class="modal-err" id="modalErr"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" id="saveBtn" onclick="saveHolding()">Save holding</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://yppafsdnzcfkmopqlsgm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwcGFmc2RuemNma21vcHFsc2dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTQ1ODYsImV4cCI6MjA5ODczMDU4Nn0.7lhkzyUIhccr6aPPNR9Xgwj2erlN07rb0FEMxY1GKdQ';
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let holdings = [];
+let editingId = null;
+let priceCache = {};
+
+// ── AUTH ──
+function switchTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('tabLogin').classList.toggle('active', isLogin);
+  document.getElementById('tabSignup').classList.toggle('active', !isLogin);
+  document.getElementById('authBtn').textContent = isLogin ? 'Sign in' : 'Create account';
+  document.getElementById('authMsg').textContent = '';
+  document.getElementById('authMsg').className = 'auth-msg';
+}
+
+async function handleAuth() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const isLogin = document.getElementById('tabLogin').classList.contains('active');
+  const btn = document.getElementById('authBtn');
+  const msg = document.getElementById('authMsg');
+
+  if (!email || !password) { showAuthMsg('Enter your email and password.', true); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Please wait…';
+  msg.textContent = '';
+
+  let result;
+  if (isLogin) {
+    result = await sb.auth.signInWithPassword({ email, password });
+  } else {
+    result = await sb.auth.signUp({ email, password });
+  }
+
+  btn.disabled = false;
+  btn.textContent = isLogin ? 'Sign in' : 'Create account';
+
+  if (result.error) {
+    showAuthMsg(result.error.message, true);
+  } else if (!isLogin && !result.data.session) {
+    showAuthMsg('Check your email to confirm your account, then sign in.', false);
+  } else {
+    currentUser = result.data.user;
+    showApp();
+  }
+}
+
+function showAuthMsg(msg, isErr) {
+  const el = document.getElementById('authMsg');
+  el.textContent = msg;
+  el.className = 'auth-msg ' + (isErr ? 'err' : 'ok');
+}
+
+async function handleSignOut() {
+  await sb.auth.signOut();
+  currentUser = null;
+  holdings = [];
+  priceCache = {};
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'flex';
+}
+
+function showApp() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  document.getElementById('userEmail').textContent = currentUser.email;
+  loadHoldings();
+}
+
+// ── HOLDINGS ──
+async function loadHoldings() {
+  renderTable(null);
+  const { data, error } = await sb.from('holdings').select('*').order('created_at', { ascending: true });
+  if (error) { showToast('Failed to load holdings'); return; }
+  holdings = data || [];
+  renderTable(holdings);
+  fetchAllPrices();
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('holdingsBody');
+  if (rows === null) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><span>↻</span>Loading holdings…</td></tr>`;
+    return;
+  }
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><span>📊</span>No holdings yet — add your first one above.</td></tr>`;
+    updateSummary([]);
+    return;
+  }
+  tbody.innerHTML = rows.map(h => {
+    const symbol = h.exchange === '-USD'
+      ? (h.ticker.endsWith('-USD') ? h.ticker : h.ticker + '-USD')
+      : h.ticker + (h.exchange || '');
+    const cached = priceCache[symbol];
+    const cost = h.quantity * h.avg_cost;
+    let priceCell, valueCell, pnlCell, pnlPctCell;
+    if (!cached) {
+      priceCell = `<span class="loading-cell"><span class="spinner-inline"></span>fetching…</span>`;
+      valueCell = `<span class="loading-cell">—</span>`;
+      pnlCell = `<span class="loading-cell">—</span>`;
+      pnlPctCell = `<span class="loading-cell">—</span>`;
+    } else if (cached === 'err') {
+      priceCell = `<span class="neutral">—</span>`;
+      valueCell = `<span class="neutral">—</span>`;
+      pnlCell = `<span class="neutral">—</span>`;
+      pnlPctCell = `<span class="neutral">—</span>`;
+    } else {
+      const price = cached.price;
+      const value = h.quantity * price;
+      const pnl = value - cost;
+      const pnlPct = (pnl / cost) * 100;
+      const cls = pnl >= 0 ? 'up' : 'down';
+      const sign = pnl >= 0 ? '+' : '';
+      priceCell = `<span class="${cls}">${fmt(price)}</span>`;
+      valueCell = `${fmt(value)}`;
+      pnlCell = `<span class="${cls}">${sign}${fmt(pnl)}</span>`;
+      pnlPctCell = `<span class="${cls}">${sign}${fmt(pnlPct, 2)}%</span>`;
+    }
+    return `<tr>
+      <td>
+        <div class="ticker-cell">${symbol}</div>
+        <div class="company-cell">${h.company_name || ''}</div>
+      </td>
+      <td class="num">${fmt(h.quantity, 0)}</td>
+      <td class="num">${h.currency} ${fmt(h.avg_cost)}</td>
+      <td class="num">${priceCell}</td>
+      <td class="num">${valueCell}</td>
+      <td class="num">${pnlCell}</td>
+      <td class="num">${pnlPctCell}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn-edit" onclick="editHolding('${h.id}')">Edit</button>
+          <button class="btn-del" onclick="deleteHolding('${h.id}')">Delete</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  updateSummary(rows);
+}
+
+function updateSummary(rows) {
+  let totalCost = 0, totalValue = 0, priced = 0;
+  rows.forEach(h => {
+    const symbol = h.exchange === '-USD'
+      ? (h.ticker.endsWith('-USD') ? h.ticker : h.ticker + '-USD')
+      : h.ticker + (h.exchange || '');
+    const cost = h.quantity * h.avg_cost;
+    totalCost += cost;
+    const cached = priceCache[symbol];
+    if (cached && cached !== 'err') {
+      totalValue += h.quantity * cached.price;
+      priced++;
+    }
+  });
+  const pnl = totalValue - totalCost;
+  const pnlPct = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
+  const cls = pnl >= 0 ? 'up' : 'down';
+  const sign = pnl >= 0 ? '+' : '';
+
+  document.getElementById('sumValue').textContent = priced ? fmt(totalValue) : '—';
+  document.getElementById('sumValueSub').textContent = priced < rows.length ? `${priced}/${rows.length} priced` : 'All priced';
+  document.getElementById('sumCost').textContent = fmt(totalCost);
+  document.getElementById('sumPnl').innerHTML = priced ? `<span class="${cls}">${sign}${fmt(pnl)}</span>` : '—';
+  document.getElementById('sumPnlPct').innerHTML = priced ? `<span class="${cls}">${sign}${fmt(pnlPct, 2)}%</span>` : '';
+  document.getElementById('sumCount').textContent = rows.length;
+}
+
+// ── PRICE FETCH ──
+const PROXIES = [
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+];
+
+async function fetchPrice(symbol) {
+  if (priceCache[symbol] !== undefined) return;
+  priceCache[symbol] = null;
+  const base = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+  for (const proxy of PROXIES) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch(proxy(base), { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const meta = data?.chart?.result?.[0]?.meta;
+      if (!meta?.regularMarketPrice) continue;
+      priceCache[symbol] = { price: meta.regularMarketPrice, currency: meta.currency };
+      return;
+    } catch { continue; }
+  }
+  priceCache[symbol] = 'err';
+}
+
+async function fetchAllPrices() {
+  const symbols = holdings.map(h => {
+    return h.exchange === '-USD'
+      ? (h.ticker.endsWith('-USD') ? h.ticker : h.ticker + '-USD')
+      : h.ticker + (h.exchange || '');
+  });
+  const unique = [...new Set(symbols)];
+  await Promise.all(unique.map(s => fetchPrice(s)));
+  renderTable(holdings);
+  document.getElementById('priceNote').textContent = `Prices updated ${new Date().toLocaleTimeString()}`;
+}
+
+// ── MODAL ──
+function openModal(id) {
+  editingId = id || null;
+  document.getElementById('modalTitle').textContent = id ? 'Edit holding' : 'Add holding';
+  document.getElementById('saveBtn').textContent = id ? 'Save changes' : 'Save holding';
+  document.getElementById('modalErr').textContent = '';
+
+  if (id) {
+    const h = holdings.find(x => x.id === id);
+    document.getElementById('fTicker').value = h.ticker;
+    document.getElementById('fExchange').value = h.exchange || '';
+    document.getElementById('fQty').value = h.quantity;
+    document.getElementById('fCost').value = h.avg_cost;
+    document.getElementById('fCurrency').value = h.currency;
+    document.getElementById('fName').value = h.company_name || '';
+    document.getElementById('fNotes').value = h.notes || '';
+  } else {
+    document.getElementById('fTicker').value = '';
+    document.getElementById('fExchange').value = '';
+    document.getElementById('fQty').value = '';
+    document.getElementById('fCost').value = '';
+    document.getElementById('fCurrency').value = 'USD';
+    document.getElementById('fName').value = '';
+    document.getElementById('fNotes').value = '';
+  }
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('fTicker').focus(), 100);
+}
+
+function editHolding(id) { openModal(id); }
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  editingId = null;
+}
+
+async function saveHolding() {
+  const ticker = document.getElementById('fTicker').value.trim().toUpperCase();
+  const exchange = document.getElementById('fExchange').value;
+  const qty = parseFloat(document.getElementById('fQty').value);
+  const cost = parseFloat(document.getElementById('fCost').value);
+  const currency = document.getElementById('fCurrency').value;
+  const name = document.getElementById('fName').value.trim();
+  const notes = document.getElementById('fNotes').value.trim();
+  const errEl = document.getElementById('modalErr');
+
+  if (!ticker) { errEl.textContent = 'Enter a ticker symbol.'; return; }
+  if (!qty || qty <= 0) { errEl.textContent = 'Enter a valid quantity.'; return; }
+  if (!cost || cost <= 0) { errEl.textContent = 'Enter a valid average cost.'; return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const payload = {
+    ticker,
+    exchange,
+    quantity: qty,
+    avg_cost: cost,
+    currency,
+    company_name: name || null,
+    notes: notes || null,
+    user_id: currentUser.id,
+    updated_at: new Date().toISOString()
+  };
+
+  let error;
+  if (editingId) {
+    ({ error } = await sb.from('holdings').update(payload).eq('id', editingId));
+  } else {
+    ({ error } = await sb.from('holdings').insert(payload));
+  }
+
+  btn.disabled = false;
+  btn.textContent = editingId ? 'Save changes' : 'Save holding';
+
+  if (error) { errEl.textContent = error.message; return; }
+
+  closeModal();
+  showToast(editingId ? 'Holding updated' : 'Holding added');
+  priceCache = {};
+  loadHoldings();
+}
+
+async function deleteHolding(id) {
+  const h = holdings.find(x => x.id === id);
+  if (!confirm(`Delete ${h.ticker}${h.exchange || ''}? This cannot be undone.`)) return;
+  const { error } = await sb.from('holdings').delete().eq('id', id);
+  if (error) { showToast('Delete failed'); return; }
+  showToast('Holding deleted');
+  priceCache = {};
+  loadHoldings();
+}
+
+// ── UTILS ──
+function fmt(n, dec = 2) {
+  if (n == null || isNaN(n)) return '—';
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── INIT ──
+document.getElementById('authEmail').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
+document.getElementById('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
+document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+sb.auth.getSession().then(({ data: { session } }) => {
+  if (session) {
+    currentUser = session.user;
+    showApp();
+  }
+});
+</script>
+</body>
+</html>
