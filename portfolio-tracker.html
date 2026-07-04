@@ -61,28 +61,7 @@
   }
   .auth-title { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
   .auth-sub { font-size: 13px; color: var(--ink-dim); margin-bottom: 32px; }
-  .auth-tabs {
-    display: flex;
-    gap: 4px;
-    background: #0a1628;
-    border-radius: 8px;
-    padding: 4px;
-    margin-bottom: 24px;
-  }
-  .auth-tab {
-    flex: 1;
-    background: none;
-    border: none;
-    border-radius: 6px;
-    color: var(--ink-dim);
-    cursor: pointer;
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    padding: 8px;
-    transition: all .2s;
-  }
-  .auth-tab.active { background: var(--panel-edge); color: var(--ink); }
+
   .field-group { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field label {
@@ -372,22 +351,14 @@
   <div class="auth-card">
     <div class="auth-logo">&#9632; Quote Board</div>
     <div class="auth-title">Portfolio Tracker</div>
-    <div class="auth-sub">Sign in to access your holdings</div>
-    <div class="auth-tabs">
-      <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Sign in</button>
-      <button class="auth-tab" id="tabSignup" onclick="switchTab('signup')">Create account</button>
-    </div>
+    <div class="auth-sub">Enter your password to continue</div>
     <div class="field-group">
-      <div class="field">
-        <label>Email</label>
-        <input type="email" id="authEmail" placeholder="you@email.com" autocomplete="email">
-      </div>
       <div class="field">
         <label>Password</label>
         <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
       </div>
     </div>
-    <button class="btn-primary" id="authBtn" onclick="handleAuth()">Sign in</button>
+    <button class="btn-primary" id="authBtn" onclick="handleAuth()">Unlock</button>
     <div class="auth-msg" id="authMsg"></div>
   </div>
 </div>
@@ -523,46 +494,45 @@ let editingId = null;
 let priceCache = {};
 
 // ── AUTH ──
-function switchTab(tab) {
-  const isLogin = tab === 'login';
-  document.getElementById('tabLogin').classList.toggle('active', isLogin);
-  document.getElementById('tabSignup').classList.toggle('active', !isLogin);
-  document.getElementById('authBtn').textContent = isLogin ? 'Sign in' : 'Create account';
-  document.getElementById('authMsg').textContent = '';
-  document.getElementById('authMsg').className = 'auth-msg';
+const PASS_HASH = '60806fd1d4e5822dfc83753ff8a17307323375290c645a270c589c21a05d1ca6';
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function handleAuth() {
-  const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
-  const isLogin = document.getElementById('tabLogin').classList.contains('active');
   const btn = document.getElementById('authBtn');
-  const msg = document.getElementById('authMsg');
 
-  if (!email || !password) { showAuthMsg('Enter your email and password.', true); return; }
+  if (!password) { showAuthMsg('Enter your password.', true); return; }
 
   btn.disabled = true;
-  btn.textContent = 'Please wait…';
-  msg.textContent = '';
+  btn.textContent = 'Checking…';
 
-  let result;
-  if (isLogin) {
-    result = await sb.auth.signInWithPassword({ email, password });
-  } else {
-    result = await sb.auth.signUp({ email, password });
+  const hash = await sha256(password);
+
+  if (hash !== PASS_HASH) {
+    btn.disabled = false;
+    btn.textContent = 'Unlock';
+    showAuthMsg('Incorrect password.', true);
+    return;
   }
 
+  sessionStorage.setItem('pt_auth', '1');
   btn.disabled = false;
-  btn.textContent = isLogin ? 'Sign in' : 'Create account';
+  btn.textContent = 'Unlock';
+  showApp();
+}
 
-  if (result.error) {
-    showAuthMsg(result.error.message, true);
-  } else if (!isLogin && !result.data.session) {
-    showAuthMsg('Check your email to confirm your account, then sign in.', false);
-  } else {
-    currentUser = result.data.user;
-    showApp();
-  }
+function handleSignOut() {
+  sessionStorage.removeItem('pt_auth');
+  holdings = [];
+  priceCache = [];
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authMsg').textContent = '';
 }
 
 function showAuthMsg(msg, isErr) {
@@ -583,7 +553,7 @@ async function handleSignOut() {
 function showApp() {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
-  document.getElementById('userEmail').textContent = currentUser.email;
+  document.getElementById('userEmail').textContent = 'Portfolio Owner';
   loadHoldings();
 }
 
@@ -591,6 +561,7 @@ function showApp() {
 async function loadHoldings() {
   renderTable(null);
   const { data, error } = await sb.from('holdings').select('*').order('created_at', { ascending: true });
+
   if (error) { showToast('Failed to load holdings'); return; }
   holdings = data || [];
   renderTable(holdings);
@@ -788,7 +759,6 @@ async function saveHolding() {
     currency,
     company_name: name || null,
     notes: notes || null,
-    user_id: currentUser.id,
     updated_at: new Date().toISOString()
   };
 
@@ -834,16 +804,53 @@ function showToast(msg) {
 }
 
 // ── INIT ──
-document.getElementById('authEmail').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
 document.getElementById('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
 document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
 
-sb.auth.getSession().then(({ data: { session } }) => {
-  if (session) {
-    currentUser = session.user;
-    showApp();
+async function autoFetchCompanyName() {
+  const ticker = document.getElementById('fTicker').value.trim().toUpperCase();
+  const exchange = document.getElementById('fExchange').value;
+  const nameEl = document.getElementById('fName');
+  if (!ticker) return;
+  const symbol = exchange === '-USD'
+    ? (ticker.endsWith('-USD') ? ticker : ticker + '-USD')
+    : ticker + (exchange || '');
+  const base = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+  const proxies = [
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  ];
+  nameEl.placeholder = 'Fetching name…';
+  for (const proxy of proxies) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const res = await fetch(proxy(base), { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const meta = data?.chart?.result?.[0]?.meta;
+      if (!meta) continue;
+      const name = meta.longName || meta.shortName || '';
+      if (name) nameEl.value = name;
+      nameEl.placeholder = 'Apple Inc.';
+      return;
+    } catch { continue; }
   }
+  nameEl.placeholder = 'Apple Inc.';
+}
+
+document.getElementById('fTicker').addEventListener('blur', () => {
+  if (!document.getElementById('fName').value) autoFetchCompanyName();
 });
+document.getElementById('fExchange').addEventListener('change', () => {
+  document.getElementById('fName').value = '';
+  autoFetchCompanyName();
+});
+
+if (sessionStorage.getItem('pt_auth') === '1') {
+  showApp();
+}
 </script>
 </body>
 </html>
