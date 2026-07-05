@@ -257,6 +257,7 @@ input[list]::-webkit-calendar-picker-indicator{display:none;}
         <select class="filter-select" id="filterCDS" onchange="renderTransactions()"><option value="">All Accounts</option><option value="Maybank">Maybank</option><option value="RHB">RHB</option><option value="Rakuten">Rakuten</option></select>
         <select class="filter-select" id="filterType" onchange="renderTransactions()"><option value="">All Types</option><option value="Buy">Buy</option><option value="Sell">Sell</option></select>
         <select class="filter-select" id="filterYear" onchange="renderTransactions()"><option value="">All Years</option></select>
+        <select class="filter-select" id="filterStock" onchange="renderTransactions()"><option value="">All Stocks</option></select>
       </div>
       <div class="table-wrap">
         <table class="std">
@@ -480,6 +481,7 @@ async function loadAll(){
   transactions=txRes.data||[];
   dividends=divRes.data||[];
   populateYearFilter();
+  populateStockFilter();
   renderSummary();
   renderHoldings();
   renderTransactions();
@@ -492,6 +494,12 @@ function populateYearFilter(){
   const years=[...new Set(transactions.map(t=>new Date(t.tx_date).getFullYear()))].sort((a,b)=>b-a);
   const sel=document.getElementById('filterYear');
   sel.innerHTML='<option value="">All Years</option>'+years.map(y=>`<option value="${y}">${y}</option>`).join('');
+}
+function populateStockFilter(){
+  const stocks=[...new Map(transactions.map(t=>[t.ticker,{ticker:t.ticker,name:t.company_name||t.ticker}])).values()]
+    .sort((a,b)=>a.ticker.localeCompare(b.ticker));
+  const sel=document.getElementById('filterStock');
+  sel.innerHTML='<option value="">All Stocks</option>'+stocks.map(s=>`<option value="${s.ticker}">${s.ticker} — ${s.name}</option>`).join('');
 }
 
 // ── HOLDINGS CALC ──
@@ -664,11 +672,13 @@ function renderTransactions(){
   const cdsF=document.getElementById('filterCDS').value;
   const typF=document.getElementById('filterType').value;
   const yrF=document.getElementById('filterYear').value;
+  const stkF=document.getElementById('filterStock').value;
   let f=transactions.filter(t=>{
     if(mktF&&t.market!==mktF)return false;
     if(cdsF&&t.cds_account!==cdsF)return false;
     if(typF&&t.tx_type!==typF)return false;
     if(yrF&&new Date(t.tx_date).getFullYear()!=yrF)return false;
+    if(stkF&&t.ticker!==stkF)return false;
     return true;
   });
   const tbody=document.getElementById('txBody');
