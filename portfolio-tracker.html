@@ -20,8 +20,6 @@
     --up: #2fd67b;
     --down: #ff5d5d;
     --gold: #e8b64c;
-    --warn-bg: rgba(232,182,76,.08);
-    --warn-border: rgba(232,182,76,.25);
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -35,354 +33,161 @@
     background-size: 44px 44px;
   }
 
-  /* ── AUTH SCREEN ── */
-  #authScreen {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: 20px;
-  }
-  .auth-card {
-    background: var(--panel);
-    border: 1px solid var(--panel-edge);
-    border-radius: 16px;
-    padding: 40px 36px;
-    width: 100%;
-    max-width: 400px;
-  }
-  .auth-logo {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: .2em;
-    color: var(--teal);
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  .auth-title { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
-  .auth-sub { font-size: 13px; color: var(--ink-dim); margin-bottom: 32px; }
-
-  .field-group { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
-  .field { display: flex; flex-direction: column; gap: 6px; }
-  .field label {
-    font-size: 11px;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
-    font-family: 'IBM Plex Mono', monospace;
-  }
-  .field input {
-    background: #0a1628;
-    border: 1px solid var(--panel-edge);
-    border-radius: 8px;
-    color: var(--ink);
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 14px;
-    padding: 11px 14px;
-    outline: none;
-    transition: border-color .2s;
-    width: 100%;
-  }
-  .field input:focus { border-color: var(--teal); }
-  .btn-primary {
-    width: 100%;
-    background: var(--teal);
-    border: none;
-    border-radius: 8px;
-    color: #060d1a;
-    cursor: pointer;
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    padding: 13px;
-    transition: opacity .15s;
-  }
-  .btn-primary:hover { opacity: .85; }
-  .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
-  .auth-msg {
-    margin-top: 14px;
-    font-size: 13px;
-    text-align: center;
-    min-height: 20px;
-  }
-  .auth-msg.err { color: var(--down); }
-  .auth-msg.ok { color: var(--up); }
+  /* ── AUTH ── */
+  #authScreen { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+  .auth-card { background:var(--panel); border:1px solid var(--panel-edge); border-radius:16px; padding:40px 36px; width:100%; max-width:400px; }
+  .auth-logo { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.2em; color:var(--teal); text-transform:uppercase; margin-bottom:8px; }
+  .auth-title { font-size:26px; font-weight:700; margin-bottom:6px; }
+  .auth-sub { font-size:13px; color:var(--ink-dim); margin-bottom:28px; }
+  .auth-msg { margin-top:14px; font-size:13px; text-align:center; min-height:20px; }
+  .auth-msg.err { color:var(--down); }
+  .auth-msg.ok { color:var(--up); }
 
   /* ── APP SHELL ── */
-  #appScreen { display: none; }
-  .topbar {
-    background: var(--panel);
-    border-bottom: 1px solid var(--panel-edge);
-    padding: 0 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 56px;
-  }
-  .topbar-logo {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--teal);
-    letter-spacing: .08em;
-  }
-  .topbar-right { display: flex; align-items: center; gap: 16px; }
-  .user-email { font-size: 12px; color: var(--ink-dim); font-family: 'IBM Plex Mono', monospace; }
-  .btn-ghost {
-    background: none;
-    border: 1px solid var(--panel-edge);
-    border-radius: 7px;
-    color: var(--ink-dim);
-    cursor: pointer;
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 12px;
-    padding: 6px 14px;
-    transition: all .15s;
-  }
-  .btn-ghost:hover { border-color: var(--ink-dim); color: var(--ink); }
+  #appScreen { display:none; }
+  .topbar { background:var(--panel); border-bottom:1px solid var(--panel-edge); padding:0 24px; display:flex; align-items:center; justify-content:space-between; height:56px; position:sticky; top:0; z-index:50; }
+  .topbar-logo { font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:var(--teal); letter-spacing:.08em; }
+  .topbar-right { display:flex; align-items:center; gap:12px; }
 
-  .main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  /* ── TABS ── */
+  .tabs { display:flex; gap:4px; background:#0a1628; border-radius:8px; padding:4px; }
+  .tab-btn { background:none; border:none; border-radius:6px; color:var(--ink-dim); cursor:pointer; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:500; padding:7px 16px; transition:all .2s; white-space:nowrap; }
+  .tab-btn.active { background:var(--panel-edge); color:var(--ink); }
+
+  .main { max-width:1200px; margin:0 auto; padding:28px 24px; }
 
   /* ── SUMMARY TILES ── */
-  .summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 14px;
-    margin-bottom: 32px;
-  }
-  .tile {
-    background: var(--panel);
-    border: 1px solid var(--panel-edge);
-    border-radius: 12px;
-    padding: 18px 20px;
-  }
-  .tile-label {
-    font-size: 10px;
-    letter-spacing: .14em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
-    font-family: 'IBM Plex Mono', monospace;
-    margin-bottom: 8px;
-  }
-  .tile-value {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 22px;
-    font-weight: 600;
-  }
-  .tile-sub { font-size: 12px; color: var(--ink-dim); margin-top: 4px; }
+  .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:28px; }
+  .tile { background:var(--panel); border:1px solid var(--panel-edge); border-radius:12px; padding:16px 18px; }
+  .tile-label { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; margin-bottom:7px; }
+  .tile-value { font-family:'IBM Plex Mono',monospace; font-size:20px; font-weight:600; }
+  .tile-sub { font-size:11px; color:var(--ink-dim); margin-top:3px; }
 
   /* ── SECTION HEADER ── */
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
-  .section-title { font-size: 16px; font-weight: 700; }
-  .btn-add {
-    background: var(--teal);
-    border: none;
-    border-radius: 8px;
-    color: #060d1a;
-    cursor: pointer;
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 13px;
-    font-weight: 700;
-    padding: 9px 20px;
-    transition: opacity .15s;
-  }
-  .btn-add:hover { opacity: .85; }
+  .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+  .section-title { font-size:15px; font-weight:700; }
 
-  /* ── HOLDINGS TABLE ── */
-  .table-wrap {
-    background: var(--panel);
-    border: 1px solid var(--panel-edge);
-    border-radius: 12px;
-    overflow: hidden;
-  }
-  table { width: 100%; border-collapse: collapse; }
-  thead tr { border-bottom: 1px solid var(--panel-edge); }
-  th {
-    font-size: 10px;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
-    font-family: 'IBM Plex Mono', monospace;
-    font-weight: 500;
-    padding: 12px 16px;
-    text-align: left;
-  }
-  th.num { text-align: right; }
-  td {
-    padding: 14px 16px;
-    font-size: 14px;
-    border-bottom: 1px solid rgba(20,36,61,.6);
-    vertical-align: middle;
-  }
-  td.num { text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr:hover { background: rgba(23,227,194,.03); }
-  .ticker-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--teal); font-size: 14px; }
-  .company-cell { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
-  .up { color: var(--up); }
-  .down { color: var(--down); }
-  .neutral { color: var(--ink-dim); }
-  .loading-cell { color: var(--ink-dim); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+  /* ── TABLE ── */
+  .table-wrap { background:var(--panel); border:1px solid var(--panel-edge); border-radius:12px; overflow:auto; }
+  table { width:100%; border-collapse:collapse; min-width:700px; }
+  thead tr { border-bottom:1px solid var(--panel-edge); }
+  th { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; font-weight:500; padding:11px 14px; text-align:left; white-space:nowrap; }
+  th.num { text-align:right; }
+  td { padding:12px 14px; font-size:13px; border-bottom:1px solid rgba(20,36,61,.5); vertical-align:middle; }
+  td.num { text-align:right; font-family:'IBM Plex Mono',monospace; font-size:12px; }
+  tbody tr:last-child td { border-bottom:none; }
+  tbody tr:hover { background:rgba(23,227,194,.025); }
+  .ticker-cell { font-family:'IBM Plex Mono',monospace; font-weight:600; color:var(--teal); font-size:13px; }
+  .sub-cell { font-size:11px; color:var(--ink-dim); margin-top:2px; }
+  .up { color:var(--up); }
+  .down { color:var(--down); }
+  .neutral { color:var(--ink-dim); }
+  .badge { display:inline-block; font-size:10px; font-family:'IBM Plex Mono',monospace; padding:2px 8px; border-radius:4px; font-weight:600; letter-spacing:.04em; }
+  .badge-buy { background:rgba(47,214,123,.12); color:var(--up); border:1px solid rgba(47,214,123,.25); }
+  .badge-sell { background:rgba(255,93,93,.1); color:var(--down); border:1px solid rgba(255,93,93,.2); }
+  .badge-contra { background:rgba(232,182,76,.1); color:var(--gold); border:1px solid rgba(232,182,76,.2); }
+  .empty-state { text-align:center; padding:48px 20px; color:var(--ink-dim); font-size:14px; }
+  .empty-state span { display:block; font-size:28px; margin-bottom:10px; }
 
-  .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
-  .btn-edit, .btn-del {
-    background: none;
-    border: 1px solid var(--panel-edge);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    padding: 5px 12px;
-    transition: all .15s;
-    font-family: 'Space Grotesk', sans-serif;
-  }
-  .btn-edit { color: var(--ink-dim); }
-  .btn-edit:hover { border-color: var(--teal); color: var(--teal); }
-  .btn-del { color: var(--ink-dim); }
-  .btn-del:hover { border-color: var(--down); color: var(--down); }
-
-  .empty-state {
-    text-align: center;
-    padding: 48px 20px;
-    color: var(--ink-dim);
-    font-size: 14px;
-  }
-  .empty-state span { display: block; font-size: 28px; margin-bottom: 10px; }
+  /* ── BUTTONS ── */
+  .btn-primary { background:var(--teal); border:none; border-radius:8px; color:#060d1a; cursor:pointer; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; padding:9px 20px; transition:opacity .15s; white-space:nowrap; }
+  .btn-primary:hover { opacity:.85; }
+  .btn-primary:disabled { opacity:.4; cursor:not-allowed; }
+  .btn-ghost { background:none; border:1px solid var(--panel-edge); border-radius:7px; color:var(--ink-dim); cursor:pointer; font-family:'Space Grotesk',sans-serif; font-size:12px; padding:6px 14px; transition:all .15s; }
+  .btn-ghost:hover { border-color:var(--ink-dim); color:var(--ink); }
+  .btn-edit, .btn-del { background:none; border:1px solid var(--panel-edge); border-radius:6px; cursor:pointer; font-size:11px; padding:4px 10px; transition:all .15s; font-family:'Space Grotesk',sans-serif; white-space:nowrap; }
+  .btn-edit { color:var(--ink-dim); }
+  .btn-edit:hover { border-color:var(--teal); color:var(--teal); }
+  .btn-del { color:var(--ink-dim); }
+  .btn-del:hover { border-color:var(--down); color:var(--down); }
+  .action-btns { display:flex; gap:6px; justify-content:flex-end; }
 
   /* ── MODAL ── */
-  .modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(6,13,26,.85);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-  }
-  .modal-overlay.open { display: flex; }
-  .modal {
-    background: var(--panel);
-    border: 1px solid var(--panel-edge);
-    border-radius: 16px;
-    padding: 32px;
-    width: 100%;
-    max-width: 480px;
-  }
-  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; }
-  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
-  .modal-grid .field.full { grid-column: 1 / -1; }
-  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; }
-  .btn-cancel {
-    background: none;
-    border: 1px solid var(--panel-edge);
-    border-radius: 8px;
-    color: var(--ink-dim);
-    cursor: pointer;
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 13px;
-    padding: 10px 20px;
-    transition: all .15s;
-  }
-  .btn-cancel:hover { border-color: var(--ink-dim); color: var(--ink); }
-  .btn-save {
-    background: var(--teal);
-    border: none;
-    border-radius: 8px;
-    color: #060d1a;
-    cursor: pointer;
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 13px;
-    font-weight: 700;
-    padding: 10px 24px;
-    transition: opacity .15s;
-  }
-  .btn-save:hover { opacity: .85; }
-  .btn-save:disabled { opacity: .4; cursor: not-allowed; }
-  .modal-err { font-size: 12px; color: var(--down); margin-bottom: 12px; min-height: 16px; }
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(6,13,26,.88); z-index:100; align-items:center; justify-content:center; padding:20px; overflow-y:auto; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--panel); border:1px solid var(--panel-edge); border-radius:16px; padding:30px; width:100%; max-width:540px; margin:auto; }
+  .modal-title { font-size:18px; font-weight:700; margin-bottom:22px; }
+  .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:13px; margin-bottom:18px; }
+  .modal-grid .full { grid-column:1/-1; }
+  .modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:4px; }
+  .modal-err { font-size:12px; color:var(--down); margin-bottom:10px; min-height:16px; }
+  .btn-cancel { background:none; border:1px solid var(--panel-edge); border-radius:8px; color:var(--ink-dim); cursor:pointer; font-family:'Space Grotesk',sans-serif; font-size:13px; padding:10px 20px; transition:all .15s; }
+  .btn-cancel:hover { border-color:var(--ink-dim); color:var(--ink); }
+  .btn-save { background:var(--teal); border:none; border-radius:8px; color:#060d1a; cursor:pointer; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; padding:10px 24px; transition:opacity .15s; }
+  .btn-save:hover { opacity:.85; }
+  .btn-save:disabled { opacity:.4; cursor:not-allowed; }
 
-  .spinner-inline {
-    display: inline-block;
-    width: 14px; height: 14px;
-    border: 2px solid var(--panel-edge);
-    border-top-color: var(--teal);
-    border-radius: 50%;
-    animation: spin .7s linear infinite;
-    vertical-align: middle;
-    margin-right: 6px;
+  /* ── FORM FIELDS ── */
+  .field { display:flex; flex-direction:column; gap:5px; }
+  .field label { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; }
+  .field input, .field select {
+    background:#0a1628; border:1px solid var(--panel-edge); border-radius:8px;
+    color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:14px;
+    padding:10px 12px; outline:none; transition:border-color .2s; width:100%;
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .field input:focus, .field select:focus { border-color:var(--teal); }
+  .field input::placeholder { color:var(--ink-dim); }
+  .field select option { background:#0b1526; }
+  .toggle-row { display:flex; gap:8px; }
+  .toggle-btn { flex:1; background:#0a1628; border:1px solid var(--panel-edge); border-radius:8px; color:var(--ink-dim); cursor:pointer; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:500; padding:10px; transition:all .2s; }
+  .toggle-btn.active-buy { background:rgba(47,214,123,.12); border-color:rgba(47,214,123,.4); color:var(--up); }
+  .toggle-btn.active-sell { background:rgba(255,93,93,.1); border-color:rgba(255,93,93,.35); color:var(--down); }
+  .toggle-btn.active-yes { background:rgba(232,182,76,.1); border-color:rgba(232,182,76,.35); color:var(--gold); }
+  .toggle-btn.active-no { background:var(--teal-dim); border-color:rgba(23,227,194,.3); color:var(--teal); }
 
-  .toast {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: var(--panel);
-    border: 1px solid var(--teal);
-    border-radius: 10px;
-    color: var(--teal);
-    font-size: 13px;
-    font-family: 'IBM Plex Mono', monospace;
-    padding: 12px 20px;
-    z-index: 200;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: all .25s;
-    pointer-events: none;
-  }
-  .toast.show { opacity: 1; transform: translateY(0); }
+  /* ── FILTERS ── */
+  .filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .filter-select { background:var(--panel); border:1px solid var(--panel-edge); border-radius:8px; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; font-size:12px; padding:7px 12px; outline:none; cursor:pointer; }
+  .filter-select:focus { border-color:var(--teal); }
 
-  @media (max-width: 640px) {
-    .modal-grid { grid-template-columns: 1fr; }
-    .modal-grid .field.full { grid-column: 1; }
-    th:nth-child(4), td:nth-child(4),
-    th:nth-child(5), td:nth-child(5) { display: none; }
-  }
+  /* ── SPINNER / TOAST ── */
+  .spinner-inline { display:inline-block; width:12px; height:12px; border:2px solid var(--panel-edge); border-top-color:var(--teal); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:5px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .toast { position:fixed; bottom:24px; right:24px; background:var(--panel); border:1px solid var(--teal); border-radius:10px; color:var(--teal); font-size:13px; font-family:'IBM Plex Mono',monospace; padding:12px 20px; z-index:200; opacity:0; transform:translateY(8px); transition:all .25s; pointer-events:none; }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .price-note { margin-top:8px; font-size:11px; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; text-align:right; }
 </style>
 </head>
 <body>
 
-<!-- AUTH SCREEN -->
+<!-- AUTH -->
 <div id="authScreen">
   <div class="auth-card">
     <div class="auth-logo">&#9632; Quote Board</div>
     <div class="auth-title">Portfolio Tracker</div>
     <div class="auth-sub">Enter your password to continue</div>
-    <div class="field-group">
-      <div class="field">
-        <label>Password</label>
-        <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
-      </div>
+    <div class="field" style="margin-bottom:16px;">
+      <label>Password</label>
+      <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
     </div>
-    <button class="btn-primary" id="authBtn" onclick="handleAuth()">Unlock</button>
+    <button class="btn-primary" id="authBtn" onclick="handleAuth()" style="width:100%;padding:13px;">Unlock</button>
     <div class="auth-msg" id="authMsg"></div>
   </div>
 </div>
 
-<!-- APP SCREEN -->
+<!-- APP -->
 <div id="appScreen">
   <div class="topbar">
     <div class="topbar-logo">&#9632; Portfolio Tracker</div>
     <div class="topbar-right">
-      <div class="user-email" id="userEmail"></div>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchView('holdings')">Holdings</button>
+        <button class="tab-btn" onclick="switchView('transactions')">Transactions</button>
+      </div>
       <button class="btn-ghost" onclick="handleSignOut()">Sign out</button>
     </div>
   </div>
 
   <div class="main">
-    <!-- Summary tiles -->
+    <!-- Summary -->
     <div class="summary-grid">
       <div class="tile">
-        <div class="tile-label">Total value</div>
+        <div class="tile-label">Total Market Value</div>
         <div class="tile-value" id="sumValue">—</div>
         <div class="tile-sub" id="sumValueSub"></div>
       </div>
       <div class="tile">
-        <div class="tile-label">Total cost</div>
+        <div class="tile-label">Total Cost</div>
         <div class="tile-value" id="sumCost">—</div>
       </div>
       <div class="tile">
@@ -391,49 +196,107 @@
         <div class="tile-sub" id="sumPnlPct"></div>
       </div>
       <div class="tile">
-        <div class="tile-label">Holdings</div>
-        <div class="tile-value" id="sumCount">—</div>
+        <div class="tile-label">Positions</div>
+        <div class="tile-value" id="sumPositions">—</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Transactions</div>
+        <div class="tile-value" id="sumTxCount">—</div>
       </div>
     </div>
 
-    <!-- Holdings table -->
-    <div class="section-header">
-      <div class="section-title">My holdings</div>
-      <button class="btn-add" onclick="openModal()">+ Add holding</button>
+    <!-- HOLDINGS VIEW -->
+    <div id="viewHoldings">
+      <div class="section-header">
+        <div class="section-title">Current Positions</div>
+        <button class="btn-primary" onclick="refreshPrices()">↻ Refresh Prices</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>CDS Account</th>
+              <th class="num">Shares</th>
+              <th class="num">Avg Cost</th>
+              <th class="num">Current Price</th>
+              <th class="num">Market Value</th>
+              <th class="num">P&amp;L</th>
+              <th class="num">P&amp;L %</th>
+            </tr>
+          </thead>
+          <tbody id="holdingsBody"></tbody>
+        </table>
+      </div>
+      <div class="price-note" id="priceNote"></div>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Ticker</th>
-            <th class="num">Qty</th>
-            <th class="num">Avg cost</th>
-            <th class="num">Current price</th>
-            <th class="num">Market value</th>
-            <th class="num">P&amp;L</th>
-            <th class="num">P&amp;L %</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="holdingsBody"></tbody>
-      </table>
+
+    <!-- TRANSACTIONS VIEW -->
+    <div id="viewTransactions" style="display:none;">
+      <div class="section-header">
+        <div class="section-title">Transaction Log</div>
+        <button class="btn-primary" onclick="openModal()">+ Add Transaction</button>
+      </div>
+      <div class="filters">
+        <select class="filter-select" id="filterCDS" onchange="renderTransactions()">
+          <option value="">All Accounts</option>
+          <option value="Maybank">Maybank</option>
+          <option value="RHB">RHB</option>
+          <option value="Rakuten">Rakuten</option>
+        </select>
+        <select class="filter-select" id="filterType" onchange="renderTransactions()">
+          <option value="">All Types</option>
+          <option value="Buy">Buy</option>
+          <option value="Sell">Sell</option>
+        </select>
+        <select class="filter-select" id="filterYear" onchange="renderTransactions()">
+          <option value="">All Years</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Ticker</th>
+              <th>Type</th>
+              <th>CDS Account</th>
+              <th>Contra</th>
+              <th class="num">Qty</th>
+              <th class="num">Price</th>
+              <th class="num">Total</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="txBody"></tbody>
+        </table>
+      </div>
     </div>
-    <div style="margin-top:10px; font-size:11px; color:var(--ink-dim); font-family:'IBM Plex Mono',monospace; text-align:right;" id="priceNote"></div>
   </div>
 </div>
 
-<!-- ADD/EDIT MODAL -->
+<!-- MODAL -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
-    <div class="modal-title" id="modalTitle">Add holding</div>
+    <div class="modal-title" id="modalTitle">Add Transaction</div>
     <div class="modal-grid">
+
+      <div class="field full">
+        <label>Transaction Type</label>
+        <div class="toggle-row">
+          <button class="toggle-btn active-buy" id="typeBuy" onclick="setType('Buy')">▲ Buy</button>
+          <button class="toggle-btn" id="typeSell" onclick="setType('Sell')">▼ Sell</button>
+        </div>
+      </div>
+
       <div class="field">
-        <label>Ticker symbol</label>
-        <input type="text" id="fTicker" placeholder="AAPL, 1155, BTC">
+        <label>Ticker Symbol</label>
+        <input type="text" id="fTicker" placeholder="AAPL, 1155, GOOGL">
       </div>
       <div class="field">
         <label>Exchange</label>
-        <select id="fExchange" style="background:#0a1628;border:1px solid var(--panel-edge);border-radius:8px;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:14px;padding:11px 14px;outline:none;width:100%;">
+        <select id="fExchange">
           <option value="">US (NYSE/NASDAQ)</option>
           <option value=".KL">Bursa Malaysia (.KL)</option>
           <option value=".SI">SGX Singapore (.SI)</option>
@@ -443,38 +306,63 @@
           <option value="-USD">Crypto (-USD)</option>
         </select>
       </div>
-      <div class="field">
-        <label>Quantity</label>
-        <input type="number" id="fQty" placeholder="100" min="0" step="any">
+
+      <div class="field full">
+        <label>Company Name</label>
+        <input type="text" id="fName" placeholder="Auto-fetched from ticker…">
       </div>
+
       <div class="field">
-        <label>Avg cost (per share)</label>
-        <input type="number" id="fCost" placeholder="0.00" min="0" step="any">
+        <label>Transaction Date</label>
+        <input type="date" id="fDate">
       </div>
       <div class="field">
         <label>Currency</label>
-        <select id="fCurrency" style="background:#0a1628;border:1px solid var(--panel-edge);border-radius:8px;color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:14px;padding:11px 14px;outline:none;width:100%;">
-          <option value="USD">USD</option>
+        <select id="fCurrency">
           <option value="MYR">MYR</option>
+          <option value="USD">USD</option>
           <option value="SGD">SGD</option>
           <option value="HKD">HKD</option>
           <option value="GBP">GBP</option>
           <option value="AUD">AUD</option>
         </select>
       </div>
+
       <div class="field">
-        <label>Company name (optional)</label>
-        <input type="text" id="fName" placeholder="Apple Inc.">
+        <label>Quantity</label>
+        <input type="number" id="fQty" placeholder="100" min="0" step="any">
       </div>
+      <div class="field">
+        <label>Price Per Share</label>
+        <input type="number" id="fPrice" placeholder="0.00" min="0" step="any">
+      </div>
+
+      <div class="field">
+        <label>CDS Account</label>
+        <select id="fCDS">
+          <option value="Maybank">Maybank</option>
+          <option value="RHB">RHB</option>
+          <option value="Rakuten">Rakuten</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Contra Trade?</label>
+        <div class="toggle-row">
+          <button class="toggle-btn active-no" id="contraNo" onclick="setContra(false)">No</button>
+          <button class="toggle-btn" id="contraYes" onclick="setContra(true)">Yes</button>
+        </div>
+      </div>
+
       <div class="field full">
         <label>Notes (optional)</label>
-        <input type="text" id="fNotes" placeholder="e.g. Long term hold">
+        <input type="text" id="fNotes" placeholder="e.g. Dividend reinvestment">
       </div>
+
     </div>
     <div class="modal-err" id="modalErr"></div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-      <button class="btn-save" id="saveBtn" onclick="saveHolding()">Save holding</button>
+      <button class="btn-save" id="saveBtn" onclick="saveTransaction()">Save Transaction</button>
     </div>
   </div>
 </div>
@@ -484,177 +372,231 @@
 <script>
 const SUPABASE_URL = 'https://yppafsdnzcfkmopqlsgm.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwcGFmc2RuemNma21vcHFsc2dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTQ1ODYsImV4cCI6MjA5ODczMDU4Nn0.7lhkzyUIhccr6aPPNR9Xgwj2erlN07rb0FEMxY1GKdQ';
+const PASS_HASH = '60806fd1d4e5822dfc83753ff8a17307323375290c645a270c589c21a05d1ca6';
 
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let currentUser = null;
-let holdings = [];
-let editingId = null;
+let transactions = [];
 let priceCache = {};
+let editingId = null;
+let txType = 'Buy';
+let isContra = false;
+let currentView = 'holdings';
 
 // ── AUTH ──
-const PASS_HASH = '60806fd1d4e5822dfc83753ff8a17307323375290c645a270c589c21a05d1ca6';
-
 async function sha256(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
-
 async function handleAuth() {
-  const password = document.getElementById('authPassword').value;
+  const pw = document.getElementById('authPassword').value;
   const btn = document.getElementById('authBtn');
-
-  if (!password) { showAuthMsg('Enter your password.', true); return; }
-
-  btn.disabled = true;
-  btn.textContent = 'Checking…';
-
-  const hash = await sha256(password);
-
-  if (hash !== PASS_HASH) {
-    btn.disabled = false;
-    btn.textContent = 'Unlock';
-    showAuthMsg('Incorrect password.', true);
-    return;
-  }
-
-  sessionStorage.setItem('pt_auth', '1');
-  btn.disabled = false;
-  btn.textContent = 'Unlock';
+  if (!pw) { showAuthMsg('Enter your password.', true); return; }
+  btn.disabled = true; btn.textContent = 'Checking…';
+  const hash = await sha256(pw);
+  btn.disabled = false; btn.textContent = 'Unlock';
+  if (hash !== PASS_HASH) { showAuthMsg('Incorrect password.', true); return; }
+  sessionStorage.setItem('pt_auth','1');
   showApp();
 }
-
-function handleSignOut() {
-  sessionStorage.removeItem('pt_auth');
-  holdings = [];
-  priceCache = [];
-  document.getElementById('appScreen').style.display = 'none';
-  document.getElementById('authScreen').style.display = 'flex';
-  document.getElementById('authPassword').value = '';
-  document.getElementById('authMsg').textContent = '';
-}
-
 function showAuthMsg(msg, isErr) {
   const el = document.getElementById('authMsg');
   el.textContent = msg;
   el.className = 'auth-msg ' + (isErr ? 'err' : 'ok');
 }
-
-async function handleSignOut() {
-  await sb.auth.signOut();
-  currentUser = null;
-  holdings = [];
-  priceCache = {};
+function handleSignOut() {
+  sessionStorage.removeItem('pt_auth');
+  transactions = []; priceCache = {};
   document.getElementById('appScreen').style.display = 'none';
   document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('authPassword').value = '';
+  document.getElementById('authMsg').textContent = '';
 }
-
 function showApp() {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
-  document.getElementById('userEmail').textContent = 'Portfolio Owner';
-  loadHoldings();
+  loadTransactions();
 }
 
-// ── HOLDINGS ──
-async function loadHoldings() {
-  renderTable(null);
-  const { data, error } = await sb.from('holdings').select('*').order('created_at', { ascending: true });
+// ── VIEWS ──
+function switchView(view) {
+  currentView = view;
+  document.getElementById('viewHoldings').style.display = view === 'holdings' ? 'block' : 'none';
+  document.getElementById('viewTransactions').style.display = view === 'transactions' ? 'block' : 'none';
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', (i===0 && view==='holdings') || (i===1 && view==='transactions'));
+  });
+}
 
-  if (error) { showToast('Failed to load holdings'); return; }
-  holdings = data || [];
-  renderTable(holdings);
+// ── LOAD ──
+async function loadTransactions() {
+  const { data, error } = await sb.from('transactions').select('*').order('tx_date', { ascending: false });
+  if (error) { showToast('Failed to load transactions'); return; }
+  transactions = data || [];
+  populateYearFilter();
+  renderHoldings();
+  renderTransactions();
+  updateSummary();
   fetchAllPrices();
 }
 
-function renderTable(rows) {
+function populateYearFilter() {
+  const years = [...new Set(transactions.map(t => new Date(t.tx_date).getFullYear()))].sort((a,b) => b-a);
+  const sel = document.getElementById('filterYear');
+  sel.innerHTML = '<option value="">All Years</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+}
+
+// ── HOLDINGS CALCULATION ──
+function calcHoldings() {
+  const map = {};
+  const sorted = [...transactions].sort((a,b) => new Date(a.tx_date) - new Date(b.tx_date));
+  sorted.forEach(t => {
+    const key = t.ticker + (t.exchange || '');
+    if (!map[key]) map[key] = { ticker:t.ticker, exchange:t.exchange||'', company_name:t.company_name||'', currency:t.currency, cds_accounts:new Set(), qty:0, totalCost:0 };
+    const h = map[key];
+    h.cds_accounts.add(t.cds_account);
+    if (t.tx_type === 'Buy') {
+      h.totalCost += t.quantity * t.price;
+      h.qty += t.quantity;
+    } else {
+      const avgCost = h.qty > 0 ? h.totalCost / h.qty : 0;
+      h.totalCost -= avgCost * t.quantity;
+      h.qty -= t.quantity;
+    }
+  });
+  return Object.values(map).filter(h => h.qty > 0.0001);
+}
+
+function renderHoldings() {
+  const holdings = calcHoldings();
   const tbody = document.getElementById('holdingsBody');
-  if (rows === null) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><span>↻</span>Loading holdings…</td></tr>`;
+  if (!holdings.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><span>📊</span>No positions yet — add transactions first.</td></tr>`;
     return;
   }
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-state"><span>📊</span>No holdings yet — add your first one above.</td></tr>`;
-    updateSummary([]);
-    return;
-  }
-  tbody.innerHTML = rows.map(h => {
+  tbody.innerHTML = holdings.map(h => {
     const symbol = h.exchange === '-USD'
       ? (h.ticker.endsWith('-USD') ? h.ticker : h.ticker + '-USD')
-      : h.ticker + (h.exchange || '');
+      : h.ticker + h.exchange;
+    const avgCost = h.qty > 0 ? h.totalCost / h.qty : 0;
     const cached = priceCache[symbol];
-    const cost = h.quantity * h.avg_cost;
-    let priceCell, valueCell, pnlCell, pnlPctCell;
-    if (!cached) {
-      priceCell = `<span class="loading-cell"><span class="spinner-inline"></span>fetching…</span>`;
-      valueCell = `<span class="loading-cell">—</span>`;
-      pnlCell = `<span class="loading-cell">—</span>`;
-      pnlPctCell = `<span class="loading-cell">—</span>`;
-    } else if (cached === 'err') {
+    const accounts = [...h.cds_accounts].join(', ');
+
+    let priceCell = `<span class="neutral"><span class="spinner-inline"></span></span>`;
+    let valueCell = '—', pnlCell = '—', pnlPctCell = '—';
+
+    if (cached === 'err') {
       priceCell = `<span class="neutral">—</span>`;
-      valueCell = `<span class="neutral">—</span>`;
-      pnlCell = `<span class="neutral">—</span>`;
-      pnlPctCell = `<span class="neutral">—</span>`;
-    } else {
+    } else if (cached) {
       const price = cached.price;
-      const value = h.quantity * price;
+      const value = h.qty * price;
+      const cost = h.qty * avgCost;
       const pnl = value - cost;
-      const pnlPct = (pnl / cost) * 100;
+      const pnlPct = cost > 0 ? (pnl/cost)*100 : 0;
       const cls = pnl >= 0 ? 'up' : 'down';
       const sign = pnl >= 0 ? '+' : '';
-      priceCell = `<span class="${cls}">${fmt(price)}</span>`;
-      valueCell = `${fmt(value)}`;
+      priceCell = `<span class="${cls}">${h.currency} ${fmt(price)}</span>`;
+      valueCell = `${h.currency} ${fmt(value)}`;
       pnlCell = `<span class="${cls}">${sign}${fmt(pnl)}</span>`;
-      pnlPctCell = `<span class="${cls}">${sign}${fmt(pnlPct, 2)}%</span>`;
+      pnlPctCell = `<span class="${cls}">${sign}${fmt(pnlPct)}%</span>`;
     }
+
     return `<tr>
       <td>
         <div class="ticker-cell">${symbol}</div>
-        <div class="company-cell">${h.company_name || ''}</div>
+        <div class="sub-cell">${h.company_name}</div>
       </td>
-      <td class="num">${fmt(h.quantity, 0)}</td>
-      <td class="num">${h.currency} ${fmt(h.avg_cost)}</td>
+      <td><span style="font-size:12px;">${accounts}</span></td>
+      <td class="num">${fmt(h.qty,0)}</td>
+      <td class="num">${h.currency} ${fmt(avgCost)}</td>
       <td class="num">${priceCell}</td>
       <td class="num">${valueCell}</td>
       <td class="num">${pnlCell}</td>
       <td class="num">${pnlPctCell}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── TRANSACTIONS RENDER ──
+function renderTransactions() {
+  const cdsFilter = document.getElementById('filterCDS').value;
+  const typeFilter = document.getElementById('filterType').value;
+  const yearFilter = document.getElementById('filterYear').value;
+
+  let filtered = transactions.filter(t => {
+    if (cdsFilter && t.cds_account !== cdsFilter) return false;
+    if (typeFilter && t.tx_type !== typeFilter) return false;
+    if (yearFilter && new Date(t.tx_date).getFullYear() != yearFilter) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('txBody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state"><span>📋</span>No transactions found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(t => {
+    const symbol = (t.exchange||'') === '-USD'
+      ? (t.ticker.endsWith('-USD') ? t.ticker : t.ticker + '-USD')
+      : t.ticker + (t.exchange||'');
+    const total = t.quantity * t.price;
+    const date = new Date(t.tx_date).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'});
+    const typeBadge = t.tx_type === 'Buy'
+      ? `<span class="badge badge-buy">BUY</span>`
+      : `<span class="badge badge-sell">SELL</span>`;
+    const contraBadge = t.is_contra
+      ? `<span class="badge badge-contra">CONTRA</span>`
+      : `<span style="color:var(--ink-dim);font-size:11px;">—</span>`;
+    return `<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap;">${date}</td>
+      <td>
+        <div class="ticker-cell">${symbol}</div>
+        <div class="sub-cell">${t.company_name||''}</div>
+      </td>
+      <td>${typeBadge}</td>
+      <td style="font-size:12px;">${t.cds_account}</td>
+      <td>${contraBadge}</td>
+      <td class="num">${fmt(t.quantity,0)}</td>
+      <td class="num">${t.currency} ${fmt(t.price)}</td>
+      <td class="num">${t.currency} ${fmt(total)}</td>
+      <td style="font-size:11px;color:var(--ink-dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.notes||'—'}</td>
       <td>
         <div class="action-btns">
-          <button class="btn-edit" onclick="editHolding('${h.id}')">Edit</button>
-          <button class="btn-del" onclick="deleteHolding('${h.id}')">Delete</button>
+          <button class="btn-edit" onclick="editTransaction('${t.id}')">Edit</button>
+          <button class="btn-del" onclick="deleteTransaction('${t.id}')">Del</button>
         </div>
       </td>
     </tr>`;
   }).join('');
-  updateSummary(rows);
 }
 
-function updateSummary(rows) {
+// ── SUMMARY ──
+function updateSummary() {
+  const holdings = calcHoldings();
   let totalCost = 0, totalValue = 0, priced = 0;
-  rows.forEach(h => {
+  holdings.forEach(h => {
     const symbol = h.exchange === '-USD'
       ? (h.ticker.endsWith('-USD') ? h.ticker : h.ticker + '-USD')
-      : h.ticker + (h.exchange || '');
-    const cost = h.quantity * h.avg_cost;
-    totalCost += cost;
+      : h.ticker + h.exchange;
+    totalCost += h.totalCost;
     const cached = priceCache[symbol];
     if (cached && cached !== 'err') {
-      totalValue += h.quantity * cached.price;
+      totalValue += h.qty * cached.price;
       priced++;
     }
   });
   const pnl = totalValue - totalCost;
-  const pnlPct = totalCost > 0 ? (pnl / totalCost) * 100 : 0;
+  const pnlPct = totalCost > 0 ? (pnl/totalCost)*100 : 0;
   const cls = pnl >= 0 ? 'up' : 'down';
   const sign = pnl >= 0 ? '+' : '';
-
   document.getElementById('sumValue').textContent = priced ? fmt(totalValue) : '—';
-  document.getElementById('sumValueSub').textContent = priced < rows.length ? `${priced}/${rows.length} priced` : 'All priced';
+  document.getElementById('sumValueSub').textContent = priced ? `${priced}/${holdings.length} priced` : '';
   document.getElementById('sumCost').textContent = fmt(totalCost);
   document.getElementById('sumPnl').innerHTML = priced ? `<span class="${cls}">${sign}${fmt(pnl)}</span>` : '—';
-  document.getElementById('sumPnlPct').innerHTML = priced ? `<span class="${cls}">${sign}${fmt(pnlPct, 2)}%</span>` : '';
-  document.getElementById('sumCount').textContent = rows.length;
+  document.getElementById('sumPnlPct').innerHTML = priced ? `<span class="${cls}">${sign}${fmt(pnlPct)}%</span>` : '';
+  document.getElementById('sumPositions').textContent = holdings.length;
+  document.getElementById('sumTxCount').textContent = transactions.length;
 }
 
 // ── PRICE FETCH ──
@@ -663,7 +605,6 @@ const PROXIES = [
   url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
 ];
-
 async function fetchPrice(symbol) {
   if (priceCache[symbol] !== undefined) return;
   priceCache[symbol] = null;
@@ -684,144 +625,145 @@ async function fetchPrice(symbol) {
   }
   priceCache[symbol] = 'err';
 }
-
 async function fetchAllPrices() {
-  const symbols = holdings.map(h => {
-    return h.exchange === '-USD'
-      ? (h.ticker.endsWith('-USD') ? h.ticker : h.ticker + '-USD')
-      : h.ticker + (h.exchange || '');
-  });
-  const unique = [...new Set(symbols)];
-  await Promise.all(unique.map(s => fetchPrice(s)));
-  renderTable(holdings);
+  const holdings = calcHoldings();
+  const symbols = holdings.map(h => h.exchange === '-USD'
+    ? (h.ticker.endsWith('-USD') ? h.ticker : h.ticker+'-USD')
+    : h.ticker + h.exchange);
+  await Promise.all([...new Set(symbols)].map(s => fetchPrice(s)));
+  renderHoldings();
+  updateSummary();
   document.getElementById('priceNote').textContent = `Prices updated ${new Date().toLocaleTimeString()}`;
+}
+async function refreshPrices() {
+  priceCache = {};
+  renderHoldings();
+  await fetchAllPrices();
 }
 
 // ── MODAL ──
+function setType(t) {
+  txType = t;
+  document.getElementById('typeBuy').className = 'toggle-btn' + (t==='Buy' ? ' active-buy' : '');
+  document.getElementById('typeSell').className = 'toggle-btn' + (t==='Sell' ? ' active-sell' : '');
+  // Auto-set currency based on exchange
+  if (document.getElementById('fExchange').value === '.KL') {
+    document.getElementById('fCurrency').value = 'MYR';
+  }
+}
+function setContra(val) {
+  isContra = val;
+  document.getElementById('contraNo').className = 'toggle-btn' + (!val ? ' active-no' : '');
+  document.getElementById('contraYes').className = 'toggle-btn' + (val ? ' active-yes' : '');
+}
+
 function openModal(id) {
   editingId = id || null;
-  document.getElementById('modalTitle').textContent = id ? 'Edit holding' : 'Add holding';
-  document.getElementById('saveBtn').textContent = id ? 'Save changes' : 'Save holding';
+  document.getElementById('modalTitle').textContent = id ? 'Edit Transaction' : 'Add Transaction';
+  document.getElementById('saveBtn').textContent = id ? 'Save Changes' : 'Save Transaction';
   document.getElementById('modalErr').textContent = '';
 
   if (id) {
-    const h = holdings.find(x => x.id === id);
-    document.getElementById('fTicker').value = h.ticker;
-    document.getElementById('fExchange').value = h.exchange || '';
-    document.getElementById('fQty').value = h.quantity;
-    document.getElementById('fCost').value = h.avg_cost;
-    document.getElementById('fCurrency').value = h.currency;
-    document.getElementById('fName').value = h.company_name || '';
-    document.getElementById('fNotes').value = h.notes || '';
+    const t = transactions.find(x => x.id === id);
+    setType(t.tx_type);
+    setContra(t.is_contra);
+    document.getElementById('fTicker').value = t.ticker;
+    document.getElementById('fExchange').value = t.exchange || '';
+    document.getElementById('fName').value = t.company_name || '';
+    document.getElementById('fDate').value = t.tx_date;
+    document.getElementById('fQty').value = t.quantity;
+    document.getElementById('fPrice').value = t.price;
+    document.getElementById('fCDS').value = t.cds_account;
+    document.getElementById('fCurrency').value = t.currency;
+    document.getElementById('fNotes').value = t.notes || '';
   } else {
+    setType('Buy');
+    setContra(false);
     document.getElementById('fTicker').value = '';
     document.getElementById('fExchange').value = '';
-    document.getElementById('fQty').value = '';
-    document.getElementById('fCost').value = '';
-    document.getElementById('fCurrency').value = 'USD';
     document.getElementById('fName').value = '';
+    document.getElementById('fDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('fQty').value = '';
+    document.getElementById('fPrice').value = '';
+    document.getElementById('fCDS').value = 'Maybank';
+    document.getElementById('fCurrency').value = 'MYR';
     document.getElementById('fNotes').value = '';
   }
   document.getElementById('modalOverlay').classList.add('open');
   setTimeout(() => document.getElementById('fTicker').focus(), 100);
 }
 
-function editHolding(id) { openModal(id); }
+function editTransaction(id) { openModal(id); }
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); editingId = null; }
 
-function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('open');
-  editingId = null;
-}
-
-async function saveHolding() {
+async function saveTransaction() {
   const ticker = document.getElementById('fTicker').value.trim().toUpperCase();
   const exchange = document.getElementById('fExchange').value;
-  const qty = parseFloat(document.getElementById('fQty').value);
-  const cost = parseFloat(document.getElementById('fCost').value);
-  const currency = document.getElementById('fCurrency').value;
   const name = document.getElementById('fName').value.trim();
+  const date = document.getElementById('fDate').value;
+  const qty = parseFloat(document.getElementById('fQty').value);
+  const price = parseFloat(document.getElementById('fPrice').value);
+  const cds = document.getElementById('fCDS').value;
+  const currency = document.getElementById('fCurrency').value;
   const notes = document.getElementById('fNotes').value.trim();
   const errEl = document.getElementById('modalErr');
 
   if (!ticker) { errEl.textContent = 'Enter a ticker symbol.'; return; }
+  if (!date) { errEl.textContent = 'Select a transaction date.'; return; }
   if (!qty || qty <= 0) { errEl.textContent = 'Enter a valid quantity.'; return; }
-  if (!cost || cost <= 0) { errEl.textContent = 'Enter a valid average cost.'; return; }
+  if (!price || price <= 0) { errEl.textContent = 'Enter a valid price.'; return; }
 
   const btn = document.getElementById('saveBtn');
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Saving…';
 
   const payload = {
-    ticker,
-    exchange,
-    quantity: qty,
-    avg_cost: cost,
-    currency,
-    company_name: name || null,
-    notes: notes || null,
+    ticker, exchange, company_name: name||null,
+    tx_type: txType, tx_date: date,
+    quantity: qty, price, currency,
+    cds_account: cds, is_contra: isContra,
+    notes: notes||null,
     updated_at: new Date().toISOString()
   };
 
   let error;
   if (editingId) {
-    ({ error } = await sb.from('holdings').update(payload).eq('id', editingId));
+    ({ error } = await sb.from('transactions').update(payload).eq('id', editingId));
   } else {
-    ({ error } = await sb.from('holdings').insert(payload));
+    ({ error } = await sb.from('transactions').insert(payload));
   }
 
   btn.disabled = false;
-  btn.textContent = editingId ? 'Save changes' : 'Save holding';
+  btn.textContent = editingId ? 'Save Changes' : 'Save Transaction';
 
   if (error) { errEl.textContent = error.message; return; }
-
   closeModal();
-  showToast(editingId ? 'Holding updated' : 'Holding added');
+  showToast(editingId ? 'Transaction updated' : 'Transaction added');
   priceCache = {};
-  loadHoldings();
+  loadTransactions();
 }
 
-async function deleteHolding(id) {
-  const h = holdings.find(x => x.id === id);
-  if (!confirm(`Delete ${h.ticker}${h.exchange || ''}? This cannot be undone.`)) return;
-  const { error } = await sb.from('holdings').delete().eq('id', id);
+async function deleteTransaction(id) {
+  const t = transactions.find(x => x.id === id);
+  if (!confirm(`Delete this ${t.tx_type} transaction for ${t.ticker}? This cannot be undone.`)) return;
+  const { error } = await sb.from('transactions').delete().eq('id', id);
   if (error) { showToast('Delete failed'); return; }
-  showToast('Holding deleted');
+  showToast('Transaction deleted');
   priceCache = {};
-  loadHoldings();
+  loadTransactions();
 }
 
-// ── UTILS ──
-function fmt(n, dec = 2) {
-  if (n == null || isNaN(n)) return '—';
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2800);
-}
-
-// ── INIT ──
-document.getElementById('authPassword').addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
-document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
-
+// ── AUTO COMPANY NAME ──
 async function autoFetchCompanyName() {
   const ticker = document.getElementById('fTicker').value.trim().toUpperCase();
   const exchange = document.getElementById('fExchange').value;
   const nameEl = document.getElementById('fName');
-  if (!ticker) return;
+  if (!ticker || nameEl.value) return;
   const symbol = exchange === '-USD'
-    ? (ticker.endsWith('-USD') ? ticker : ticker + '-USD')
-    : ticker + (exchange || '');
+    ? (ticker.endsWith('-USD') ? ticker : ticker+'-USD')
+    : ticker + (exchange||'');
   const base = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-  const proxies = [
-    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  ];
-  nameEl.placeholder = 'Fetching name…';
-  for (const proxy of proxies) {
+  nameEl.placeholder = 'Fetching…';
+  for (const proxy of PROXIES) {
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 6000);
@@ -831,26 +773,36 @@ async function autoFetchCompanyName() {
       const data = await res.json();
       const meta = data?.chart?.result?.[0]?.meta;
       if (!meta) continue;
-      const name = meta.longName || meta.shortName || '';
-      if (name) nameEl.value = name;
-      nameEl.placeholder = 'Apple Inc.';
+      if (meta.longName || meta.shortName) nameEl.value = meta.longName || meta.shortName;
+      // Auto-set currency from exchange
+      if (exchange === '.KL') document.getElementById('fCurrency').value = 'MYR';
+      else if (exchange === '' || !exchange) document.getElementById('fCurrency').value = 'USD';
+      nameEl.placeholder = 'Company Name';
       return;
     } catch { continue; }
   }
-  nameEl.placeholder = 'Apple Inc.';
+  nameEl.placeholder = 'Company Name';
 }
 
-document.getElementById('fTicker').addEventListener('blur', () => {
-  if (!document.getElementById('fName').value) autoFetchCompanyName();
-});
-document.getElementById('fExchange').addEventListener('change', () => {
-  document.getElementById('fName').value = '';
-  autoFetchCompanyName();
-});
-
-if (sessionStorage.getItem('pt_auth') === '1') {
-  showApp();
+// ── UTILS ──
+function fmt(n, dec=2) {
+  if (n==null||isNaN(n)) return '—';
+  return Number(n).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
 }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── INIT ──
+document.getElementById('authPassword').addEventListener('keydown', e => { if(e.key==='Enter') handleAuth(); });
+document.getElementById('modalOverlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+document.getElementById('fTicker').addEventListener('blur', () => { if(!document.getElementById('fName').value) autoFetchCompanyName(); });
+document.getElementById('fExchange').addEventListener('change', () => { document.getElementById('fName').value=''; autoFetchCompanyName(); });
+
+if (sessionStorage.getItem('pt_auth')==='1') showApp();
 </script>
 </body>
 </html>
