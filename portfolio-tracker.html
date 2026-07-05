@@ -147,6 +147,11 @@ table.std tbody tr:hover{background:rgba(23,227,194,.03);}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--panel);border:1px solid var(--teal);border-radius:9px;color:var(--teal);font-size:12px;font-family:'IBM Plex Mono',monospace;padding:10px 18px;z-index:200;opacity:0;transform:translateY(6px);transition:all .25s;pointer-events:none;}
 .toast.show{opacity:1;transform:translateY(0);}
 input[list]::-webkit-calendar-picker-indicator{display:none;}
+.sortable{cursor:pointer;user-select:none;}
+.sortable:hover{color:var(--teal);}
+.sort-icon{font-size:9px;margin-left:3px;color:var(--ink-dim);}
+.sort-icon.asc::after{content:'▲';color:var(--teal);}
+.sort-icon.desc::after{content:'▼';color:var(--teal);}
 
 @media(max-width:640px){.g2,.g3,.g4{grid-template-columns:1fr 1fr;}}
 </style>
@@ -264,12 +269,20 @@ input[list]::-webkit-calendar-picker-indicator{display:none;}
       </div>
       <div class="table-wrap">
         <table class="std">
-          <thead><tr>
-            <th>Date</th><th>Stock</th><th>Type</th><th>Contra</th><th>CDS</th>
-            <th class="num">Units</th><th class="num">Price</th>
-            <th class="num">Gross</th><th class="num">Broker</th>
-            <th class="num">STax</th><th class="num">Stamp</th>
-            <th class="num">Clearing</th><th class="num">Net Amt</th>
+          <thead><tr id="txHeaders">
+            <th class="sortable" onclick="sortTx('tx_date')">Date <span class="sort-icon" id="si_tx_date"></span></th>
+            <th class="sortable" onclick="sortTx('ticker')">Stock <span class="sort-icon" id="si_ticker"></span></th>
+            <th class="sortable" onclick="sortTx('tx_type')">Type <span class="sort-icon" id="si_tx_type"></span></th>
+            <th class="sortable" onclick="sortTx('is_contra')">Contra <span class="sort-icon" id="si_is_contra"></span></th>
+            <th class="sortable" onclick="sortTx('cds_account')">CDS <span class="sort-icon" id="si_cds_account"></span></th>
+            <th class="num sortable" onclick="sortTx('quantity')">Units <span class="sort-icon" id="si_quantity"></span></th>
+            <th class="num sortable" onclick="sortTx('price')">Price <span class="sort-icon" id="si_price"></span></th>
+            <th class="num sortable" onclick="sortTx('gross_amount')">Gross <span class="sort-icon" id="si_gross_amount"></span></th>
+            <th class="num sortable" onclick="sortTx('broker_fee')">Broker <span class="sort-icon" id="si_broker_fee"></span></th>
+            <th class="num sortable" onclick="sortTx('stax')">STax <span class="sort-icon" id="si_stax"></span></th>
+            <th class="num sortable" onclick="sortTx('stamp_duty')">Stamp <span class="sort-icon" id="si_stamp_duty"></span></th>
+            <th class="num sortable" onclick="sortTx('clearing_fee')">Clearing <span class="sort-icon" id="si_clearing_fee"></span></th>
+            <th class="num sortable" onclick="sortTx('net_amount')">Net Amt <span class="sort-icon" id="si_net_amount"></span></th>
             <th>Notes</th><th></th>
           </tr></thead>
           <tbody id="txBody"></tbody>
@@ -433,6 +446,7 @@ const DIV_YEARS=[2020,2021,2022,2023,2024,2025];
 let transactions=[], dividends=[], priceCache={};
 let editingTxId=null, editingDivId=null;
 let txType='Buy', isContra=false, currentMarket='Bursa';
+let txSortCol='tx_date', txSortDir='desc';
 
 // ── AUTH ──
 async function sha256(str){
@@ -670,6 +684,22 @@ function renderHoldings(){
 }
 
 // ── TRANSACTIONS VIEW ──
+function sortTx(col){
+  if(txSortCol===col){ txSortDir=txSortDir==='asc'?'desc':'asc'; }
+  else { txSortCol=col; txSortDir=col==='tx_date'?'desc':'asc'; }
+  renderTransactions();
+}
+
+function updateSortIcons(){
+  const cols=['tx_date','ticker','tx_type','is_contra','cds_account','quantity','price',
+    'gross_amount','broker_fee','stax','stamp_duty','clearing_fee','net_amount'];
+  cols.forEach(c=>{
+    const el=document.getElementById('si_'+c);
+    if(!el)return;
+    el.className='sort-icon'+(txSortCol===c?' '+txSortDir:'');
+  });
+}
+
 function renderTransactions(){
   const mktF=document.getElementById('filterMarket').value;
   const cdsF=document.getElementById('filterCDS').value;
@@ -684,6 +714,18 @@ function renderTransactions(){
     if(stkF&&t.ticker!==stkF)return false;
     return true;
   });
+
+  // Sort
+  f.sort((a,b)=>{
+    let av=a[txSortCol], bv=b[txSortCol];
+    if(txSortCol==='tx_date'){av=new Date(av);bv=new Date(bv);}
+    else if(txSortCol==='is_contra'){av=av?1:0;bv=bv?1:0;}
+    else if(typeof av==='string') {av=av.toLowerCase();bv=bv.toLowerCase();}
+    if(av<bv)return txSortDir==='asc'?-1:1;
+    if(av>bv)return txSortDir==='asc'?1:-1;
+    return 0;
+  });
+  updateSortIcons();
   const tbody=document.getElementById('txBody');
   document.getElementById('txCount').textContent=`${f.length} record${f.length!==1?'s':''}`;
   if(!f.length){tbody.innerHTML=`<tr><td colspan="15" class="empty-state">No transactions found.</td></tr>`;return;}
