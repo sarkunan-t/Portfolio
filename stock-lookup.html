@@ -6,33 +6,33 @@
 <title>Quote Board — Stock Price Lookup</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #060d1a;
-    --panel: #0b1526;
-    --panel-edge: #14243d;
-    --ink: #dbe7f4;
-    --ink-dim: #6b7f99;
-    --teal: #17e3c2;
-    --teal-dim: rgba(23,227,194,.12);
-    --up: #2fd67b;
-    --down: #ff5d5d;
-    --gold: #e8b64c;
+    --bg: #f1f6f5;
+    --panel: #ffffff;
+    --panel-edge: #d8e4e2;
+    --ink: #16302e;
+    --ink-dim: #5f7674;
+    --teal: #00a19c;
+    --teal-dim: rgba(0,161,156,.12);
+    --up: #0e8a45;
+    --down: #d93025;
+    --gold: #c77f00;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; }
   body {
     background: var(--bg);
     color: var(--ink);
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Mulish', sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
     padding: 48px 20px 64px;
     background-image:
-      linear-gradient(rgba(23,227,194,.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(23,227,194,.03) 1px, transparent 1px);
+      linear-gradient(rgba(0,161,156,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,161,156,.05) 1px, transparent 1px);
     background-size: 44px 44px;
   }
   .wrap { width: 100%; max-width: 640px; }
@@ -76,7 +76,7 @@
     font-family: 'IBM Plex Mono', monospace;
   }
   input, select {
-    background: #0a1628;
+    background: #edf4f3;
     border: 1px solid var(--panel-edge);
     border-radius: 8px;
     color: var(--ink);
@@ -90,15 +90,15 @@
   input::placeholder { color: var(--ink-dim); }
   input:focus, select:focus { border-color: var(--teal); }
   select { cursor: pointer; }
-  select option { background: #0b1526; }
+  select option { background: #ffffff; }
 
   .go-btn {
     background: var(--teal);
     border: none;
     border-radius: 8px;
-    color: #060d1a;
+    color: #ffffff;
     cursor: pointer;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Mulish', sans-serif;
     font-size: 14px;
     font-weight: 700;
     letter-spacing: .04em;
@@ -142,7 +142,7 @@
   }
   .exchange-badge {
     background: var(--teal-dim);
-    border: 1px solid rgba(23,227,194,.25);
+    border: 1px solid rgba(0,161,156,.25);
     border-radius: 6px;
     color: var(--teal);
     font-family: 'IBM Plex Mono', monospace;
@@ -179,7 +179,7 @@
     gap: 12px;
   }
   .meta-item {
-    background: #0a1628;
+    background: #edf4f3;
     border-radius: 8px;
     padding: 12px 14px;
   }
@@ -209,10 +209,10 @@
 
   /* Error */
   .error-box {
-    background: rgba(255,93,93,.08);
-    border: 1px solid rgba(255,93,93,.25);
+    background: rgba(217,48,37,.08);
+    border: 1px solid rgba(217,48,37,.25);
     border-radius: 10px;
-    color: #ff8a8a;
+    color: #b3261e;
     font-size: 13px;
     padding: 14px 18px;
     margin-bottom: 20px;
@@ -246,7 +246,7 @@
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
     background: var(--teal-dim);
-    border: 1px solid rgba(23,227,194,.2);
+    border: 1px solid rgba(0,161,156,.2);
     border-radius: 6px;
     color: var(--teal);
     cursor: pointer;
@@ -255,7 +255,7 @@
     padding: 5px 12px;
     transition: background .15s;
   }
-  .chip:hover { background: rgba(23,227,194,.2); }
+  .chip:hover { background: rgba(0,161,156,.2); }
 
   footer {
     margin-top: 40px;
@@ -265,6 +265,12 @@
     font-family: 'IBM Plex Mono', monospace;
     line-height: 1.8;
   }
+
+/* PETRONAS corporate refinements */
+.search-card,.result-card{box-shadow:0 1px 3px rgba(0,51,47,.05);}
+.search-card{border-top:4px solid var(--teal);}
+.go-btn{background:#008a85;color:#fff;}
+.go-btn:hover{background:#00726e;opacity:1;}
 </style>
 </head>
 <body>
