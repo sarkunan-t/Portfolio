@@ -209,6 +209,7 @@ input[list]::-webkit-calendar-picker-indicator{display:none;}
       <div class="tile"><div class="tile-label">Total Dividends</div><div class="tile-value" id="kpiDiv">—</div></div>
       <div class="tile"><div class="tile-label">Net P&amp;L (incl. Div)</div><div class="tile-value" id="kpiNet">—</div></div>
     </div>
+    <div id="kpiFilterNote" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#00a19c;margin:-8px 0 14px;">&#9679; Filtered view — figures reflect active transaction filters</div>
 
     <!-- SUMMARY VIEW -->
     <div id="viewSummary">
@@ -539,9 +540,10 @@ function populateStockFilter(){
 }
 
 // ── HOLDINGS CALC ──
-function calcHoldings(){
+function calcHoldings(txList){
   const map={};
-  const sorted=[...transactions].sort((a,b)=>{
+  const src=txList||transactions;
+  const sorted=[...src].sort((a,b)=>{
     const d=new Date(a.tx_date)-new Date(b.tx_date);
     if(d!==0)return d;
     return (a.tx_type==='Buy'?0:1)-(b.tx_type==='Buy'?0:1);
@@ -723,13 +725,10 @@ function updateSortIcons(){
   });
 }
 
-function renderTransactions(){
-  const mktF=document.getElementById('filterMarket').value;
-  const cdsF=document.getElementById('filterCDS').value;
-  const typF=document.getElementById('filterType').value;
-  const yrF=document.getElementById('filterYear').value;
-  const stkF=document.getElementById('filterStock').value;
-  let f=transactions.filter(t=>{
+function getFilteredTx(){
+  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const mktF=g('filterMarket'),cdsF=g('filterCDS'),typF=g('filterType'),yrF=g('filterYear'),stkF=g('filterStock');
+  const f=transactions.filter(t=>{
     if(mktF&&t.market!==mktF)return false;
     if(cdsF&&t.cds_account!==cdsF)return false;
     if(typF&&t.tx_type!==typF)return false;
@@ -737,6 +736,12 @@ function renderTransactions(){
     if(stkF&&t.ticker!==stkF)return false;
     return true;
   });
+  return {list:f,active:!!(mktF||cdsF||typF||yrF||stkF),yrF,stkF};
+}
+
+function renderTransactions(){
+  const {list}=getFilteredTx();
+  let f=list;
 
   // Sort
   f.sort((a,b)=>{
@@ -776,6 +781,7 @@ function renderTransactions(){
       </div></td>
     </tr>`;
   }).join('');
+  updateKPIs();
 }
 
 // ── DIVIDENDS VIEW ──
@@ -800,7 +806,8 @@ function renderDividends(){
 
 // ── KPI TILES ──
 function updateKPIs(){
-  const holdings=calcHoldings();
+  const {list,active,yrF,stkF}=getFilteredTx();
+  const holdings=calcHoldings(list);
   let totalInvested=0,realised=0,totalEstVal=0,priced=0;
   holdings.forEach(h=>{
     realised+=h.realised;
@@ -810,8 +817,15 @@ function updateKPIs(){
     if(cached&&cached!=='err'&&h.qty>0.001){totalEstVal+=h.qty*cached.price;priced++;}
   });
   const unrealised=totalEstVal-totalInvested;
-  const totalDiv=dividends.reduce((s,d)=>s+Number(d.amount),0);
+  const divs=dividends.filter(d=>{
+    if(yrF&&new Date(d.payout_date).getFullYear()!=yrF)return false;
+    if(stkF&&d.ticker!==stkF)return false;
+    return true;
+  });
+  const totalDiv=divs.reduce((s,d)=>s+Number(d.amount),0);
   const netPL=realised+(totalEstVal>0?unrealised:0)+totalDiv;
+  const badge=document.getElementById('kpiFilterNote');
+  if(badge)badge.style.display=active?'block':'none';
 
   document.getElementById('kpiInvested').textContent=totalInvested>0?'MYR '+fmt(totalInvested):'—';
   document.getElementById('kpiValue').textContent=priced?'MYR '+fmt(totalEstVal):'—';
