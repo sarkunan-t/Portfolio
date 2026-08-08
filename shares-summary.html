@@ -37,14 +37,11 @@
               <th class="th-group" rowspan="2">Nett P/L</th>
               <th class="th-group" rowspan="2">Current Price</th>
               <th class="th-group" rowspan="2">Estimated Value</th>
-              <th colspan="6" class="th-group">Dividend</th>
+              <th class="th-group" id="divGroupTh" colspan="6">Dividend</th>
             </tr>
-            <tr>
+            <tr id="yearRow">
               <th>Units Active</th><th>Average Price</th>
               <th>Nett Buy</th><th>Nett Sell</th>
-              <th id="divY1h">2020</th><th id="divY2h">2021</th>
-              <th id="divY3h">2022</th><th id="divY4h">2023</th>
-              <th id="divY5h">2024</th><th id="divY6h">2025</th>
             </tr>
           </thead>
           <tbody id="summaryBody"></tbody>
@@ -70,7 +67,10 @@ function renderSummary(){
     if(!divByTickerYear[d.ticker]) divByTickerYear[d.ticker]={};
     divByTickerYear[d.ticker][yr]=(divByTickerYear[d.ticker][yr]||0)+Number(d.amount);
   });
-  DIV_YEARS.forEach((y,i)=>setText(`divY${i+1}h`,y));
+  document.getElementById('divGroupTh').colSpan=DIV_YEARS.length;
+  document.getElementById('yearRow').innerHTML=
+    '<th>Units Active</th><th>Average Price</th><th>Nett Buy</th><th>Nett Sell</th>'
+    +DIV_YEARS.map(y=>`<th>${y}</th>`).join('');
 
   const tbody=document.getElementById('summaryBody');
   const tfoot=document.getElementById('summaryFoot');
@@ -78,7 +78,7 @@ function renderSummary(){
   const totDiv={};DIV_YEARS.forEach(y=>totDiv[y]=0);
 
   if(!holdings.length){
-    tbody.innerHTML=`<tr><td colspan="14" class="empty-state">No data</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="${8+DIV_YEARS.length}" class="empty-state">No data</td></tr>`;
     tfoot.innerHTML='';
     return;
   }
