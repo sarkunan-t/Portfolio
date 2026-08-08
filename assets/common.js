@@ -39,7 +39,8 @@ const NAV=[
     {id:'summary',icon:'&#9632;',label:'Summary',href:'shares-summary.html',sub:true},
     {id:'holdings',icon:'&#9632;',label:'Holdings',href:'shares-holdings.html',sub:true},
     {id:'transactions',icon:'&#9632;',label:'Transactions',href:'shares-transactions.html',sub:true},
-    {id:'dividends',icon:'&#9632;',label:'Dividends',href:'shares-dividends.html',sub:true}
+    {id:'dividends',icon:'&#9632;',label:'Dividends',href:'shares-dividends.html',sub:true},
+    {id:'funds',icon:'&#9632;',label:'Funds Invested',href:'shares-funds.html',sub:true}
   ]},
   {group:'Other Assets',items:[
     {id:'metals',icon:'&#9679;',label:'Metals',href:'metals.html'},
