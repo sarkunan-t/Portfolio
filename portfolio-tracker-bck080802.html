@@ -273,7 +273,7 @@ input[list]::-webkit-calendar-picker-indicator{display:none;}
       </div>
       <div class="filters">
         <select class="filter-select" id="filterMarket" onchange="renderTransactions()"><option value="">All Markets</option><option value="Bursa">Bursa</option><option value="US">US</option></select>
-        <select class="filter-select" id="filterCDS" onchange="renderTransactions()"><option value="">All Accounts</option></select>
+        <select class="filter-select" id="filterCDS" onchange="renderTransactions()"><option value="">All Accounts</option><option value="Maybank">Maybank</option><option value="RHB">RHB</option><option value="Rakuten">Rakuten</option></select>
         <select class="filter-select" id="filterType" onchange="renderTransactions()"><option value="">All Types</option><option value="Buy">Buy</option><option value="Sell">Sell</option></select>
         <select class="filter-select" id="filterYear" onchange="renderTransactions()"><option value="">All Years</option></select>
         <select class="filter-select" id="filterStock" onchange="renderTransactions()"><option value="">All Stocks</option></select>
@@ -351,7 +351,7 @@ input[list]::-webkit-calendar-picker-indicator{display:none;}
         </div>
         <div class="field"><label>CDS Account</label>
           <select id="fCDS">
-            <option value="MYB">Maybank (MYB)</option>
+            <option value="Maybank">Maybank</option>
             <option value="RHB">RHB</option>
             <option value="Rakuten">Rakuten</option>
           </select>
@@ -509,7 +509,6 @@ async function loadAll(){
   transactions=txRes.data||[];
   dividends=divRes.data||[];
   populateYearFilter();
-  populateCDSFilter();
   populateStockFilter();
   renderSummary();
   renderHoldings();
@@ -519,13 +518,6 @@ async function loadAll(){
   fetchAllPrices();
 }
 
-function populateCDSFilter(){
-  const accts=[...new Set(transactions.map(t=>t.cds_account).filter(Boolean))].sort();
-  const sel=document.getElementById('filterCDS');
-  const cur=sel.value;
-  sel.innerHTML='<option value="">All Accounts</option>'+accts.map(a=>`<option value="${a}">${a}</option>`).join('');
-  if(accts.includes(cur))sel.value=cur;
-}
 function populateYearFilter(){
   const years=[...new Set(transactions.map(t=>new Date(t.tx_date).getFullYear()))].sort((a,b)=>b-a);
   const sel=document.getElementById('filterYear');
@@ -541,11 +533,7 @@ function populateStockFilter(){
 // ── HOLDINGS CALC ──
 function calcHoldings(){
   const map={};
-  const sorted=[...transactions].sort((a,b)=>{
-    const d=new Date(a.tx_date)-new Date(b.tx_date);
-    if(d!==0)return d;
-    return (a.tx_type==='Buy'?0:1)-(b.tx_type==='Buy'?0:1);
-  });
+  const sorted=[...transactions].sort((a,b)=>new Date(a.tx_date)-new Date(b.tx_date));
   sorted.forEach(t=>{
     const key=t.ticker+'|'+t.market;
     if(!map[key]) map[key]={ticker:t.ticker,market:t.market,company_name:t.company_name||'',
