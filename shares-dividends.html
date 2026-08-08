@@ -69,7 +69,52 @@
 <script>
 requireAuth();
 buildSidebar('dividends');
-injectKPIs();
+document.getElementById('kpiHost').innerHTML=`
+  <div class="summary-grid">
+    <div class="tile"><div class="tile-label">Total Dividends (All Time)</div><div class="tile-value" id="dkTotal">—</div></div>
+    <div class="tile"><div class="tile-label">Dividends YTD</div><div class="tile-value" id="dkYTD">—</div><div class="tile-sub" id="dkYTDSub"></div></div>
+    <div class="tile"><div class="tile-label">Last Year</div><div class="tile-value" id="dkLastYr">—</div><div class="tile-sub" id="dkLastYrSub"></div></div>
+    <div class="tile"><div class="tile-label">Average / Year</div><div class="tile-value" id="dkAvg">—</div><div class="tile-sub" id="dkAvgSub"></div></div>
+    <div class="tile"><div class="tile-label">Top Payer</div><div class="tile-value" id="dkTop">—</div><div class="tile-sub" id="dkTopSub"></div></div>
+    <div class="tile"><div class="tile-label">Latest Payout</div><div class="tile-value" id="dkLast">—</div><div class="tile-sub" id="dkLastSub"></div></div>
+  </div>`;
+
+function renderDivKPIs(){
+  if(!dividends.length){
+    ['dkTotal','dkYTD','dkLastYr','dkAvg','dkTop','dkLast'].forEach(id=>setText(id,'—'));
+    return;
+  }
+  const now=new Date().getFullYear();
+  const byYear={},byStock={};
+  let total=0;
+  dividends.forEach(d=>{
+    const y=new Date(d.payout_date).getFullYear();
+    const amt=Number(d.amount);
+    total+=amt;
+    byYear[y]=(byYear[y]||0)+amt;
+    const key=d.stock_name||d.ticker;
+    byStock[key]=(byStock[key]||0)+amt;
+  });
+  const ytd=byYear[now]||0;
+  const lastYr=byYear[now-1]||0;
+  // average over completed years with payouts (exclude current year)
+  const pastYears=Object.keys(byYear).map(Number).filter(y=>y<now);
+  const avg=pastYears.length?pastYears.reduce((s,y)=>s+byYear[y],0)/pastYears.length:0;
+  const top=Object.entries(byStock).sort((a,b)=>b[1]-a[1])[0];
+  const latest=[...dividends].sort((a,b)=>new Date(b.payout_date)-new Date(a.payout_date))[0];
+
+  setText('dkTotal','MYR '+fmt(total));
+  setText('dkYTD','MYR '+fmt(ytd));
+  setText('dkYTDSub',String(now));
+  setText('dkLastYr','MYR '+fmt(lastYr));
+  setText('dkLastYrSub',String(now-1));
+  setText('dkAvg','MYR '+fmt(avg));
+  setText('dkAvgSub',pastYears.length+' year'+(pastYears.length!==1?'s':'')+' (excl. '+now+')');
+  setText('dkTop',top[0]);
+  setText('dkTopSub','MYR '+fmt(top[1])+' cumulative');
+  setText('dkLast','MYR '+fmt(latest.amount));
+  setText('dkLastSub',(latest.stock_name||latest.ticker)+' · '+new Date(latest.payout_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}));
+}
 
 let editingDivId=null;
 
@@ -150,7 +195,7 @@ async function deleteDividend(id){
   showToast('Deleted ✓');loadShares();
 }
 
-window.onSharesData=function(){initDatalist();renderDividends();};
+window.onSharesData=function(){initDatalist();renderDividends();renderDivKPIs();};
 document.getElementById('divModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDivModal();});
 loadShares();
 </script>
