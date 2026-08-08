@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Summary — Share Holdings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sb-backdrop" id="sbBackdrop"></div>
+  <div class="content">
+    <div class="content-head">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-btn" id="menuBtn">&#9776;</button>
+        <div>
+          <div class="ch-title">Transaction Summary (BSKL)</div>
+          <div class="ch-sub" id="priceNote"></div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="refreshPrices()">&#8635; Refresh Prices</button>
+    </div>
+    <div class="page">
+      <div id="kpiHost"></div>
+      <div class="portfolio-table-wrap">
+        <table class="portfolio-table">
+          <thead>
+            <tr>
+              <th class="left" rowspan="2">Stock Name</th>
+              <th colspan="2" class="th-group">Holding</th>
+              <th colspan="2" class="th-group">Disposed</th>
+              <th class="th-group" rowspan="2">Nett P/L</th>
+              <th class="th-group" rowspan="2">Current Price</th>
+              <th class="th-group" rowspan="2">Estimated Value</th>
+              <th colspan="6" class="th-group">Dividend</th>
+            </tr>
+            <tr>
+              <th>Units Active</th><th>Average Price</th>
+              <th>Nett Buy</th><th>Nett Sell</th>
+              <th id="divY1h">2020</th><th id="divY2h">2021</th>
+              <th id="divY3h">2022</th><th id="divY4h">2023</th>
+              <th id="divY5h">2024</th><th id="divY6h">2025</th>
+            </tr>
+          </thead>
+          <tbody id="summaryBody"></tbody>
+          <tfoot id="summaryFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/common.js"></script>
+<script src="assets/shares.js"></script>
+<script>
+requireAuth();
+buildSidebar('summary');
+injectKPIs();
+
+function renderSummary(){
+  const holdings=calcHoldings();
+  const divByTickerYear={};
+  dividends.forEach(d=>{
+    const yr=new Date(d.payout_date).getFullYear();
+    if(!divByTickerYear[d.ticker]) divByTickerYear[d.ticker]={};
+    divByTickerYear[d.ticker][yr]=(divByTickerYear[d.ticker][yr]||0)+Number(d.amount);
+  });
+  DIV_YEARS.forEach((y,i)=>setText(`divY${i+1}h`,y));
+
+  const tbody=document.getElementById('summaryBody');
+  const tfoot=document.getElementById('summaryFoot');
+  let totUnits=0,totNettBuy=0,totNettSell=0,totPnl=0,totEstVal=0;
+  const totDiv={};DIV_YEARS.forEach(y=>totDiv[y]=0);
+
+  if(!holdings.length){
+    tbody.innerHTML=`<tr><td colspan="14" class="empty-state">No data</td></tr>`;
+    tfoot.innerHTML='';
+    return;
+  }
+
+  const rows=holdings.map(h=>{
+    const symbol=h.market==='Bursa'?h.ticker+'.KL':h.ticker;
+    const avgCost=h.qty>0?h.totalCost/h.qty:0;
+    const cached=priceCache[symbol];
+    const divData=divByTickerYear[h.ticker]||{};
+    const nettPL=h.realised;
+    let estVal=0,unreal=0,priceTd='',estValTd='';
+
+    if(h.qty>0.001){
+      if(!cached||cached===null){
+        priceTd=`<span class="neutral"><span class="spinner-inline"></span></span>`;estValTd='—';
+      } else if(cached==='err'){
+        priceTd='<span class="neutral">N/A</span>';estValTd='—';
+      } else {
+        const price=cached.price;
+        estVal=h.qty*price;unreal=estVal-h.totalCost;
+        priceTd=`<span style="color:var(--teal)">${fmt(price,3)}</span>`;
+        estValTd=`<span class="${unreal>=0?'pnl-pos':'pnl-neg'}">${fmt(estVal)}</span>`;
+      }
+      totUnits+=h.qty;
+    } else {
+      priceTd=`<span class="zero-cell">0.000</span>`;
+      estValTd=`<span class="zero-cell">0.00</span>`;
+    }
+
+    totNettBuy+=h.nettBuy; totNettSell+=h.nettSell;
+    totPnl+=nettPL; totEstVal+=estVal;
+    DIV_YEARS.forEach(y=>{ totDiv[y]+=(divData[y]||0); });
+
+    const pnlCls=nettPL>=0?'pnl-pos':'pnl-neg';
+    const divCells=DIV_YEARS.map(y=>{
+      const v=divData[y]||0;
+      return v>0?`<td class="div-cell">${fmt(v)}</td>`:`<td class="zero-cell">0.00</td>`;
+    }).join('');
+    const unitsDisplay=h.qty>0.001?`<span class="holdings-cell">${fmt(h.qty,0)}</span>`:`<span class="zero-cell">0</span>`;
+    const avgDisplay=h.qty>0.001?fmt(avgCost,4):`<span class="zero-cell">0.00</span>`;
+
+    return `<tr>
+      <td class="left">${h.company_name||h.ticker}</td>
+      <td>${unitsDisplay}</td>
+      <td>${avgDisplay}</td>
+      <td>${fmt(h.nettBuy)}</td>
+      <td>${fmt(h.nettSell)}</td>
+      <td class="${pnlCls}">${fmt(nettPL)}</td>
+      <td>${priceTd}</td>
+      <td>${estValTd}</td>
+      ${divCells}
+    </tr>`;
+  });
+
+  tbody.innerHTML=rows.join('');
+  const totDivCells=DIV_YEARS.map(y=>{
+    const v=totDiv[y]||0;
+    return v>0?`<td class="div-cell">${fmt(v)}</td>`:`<td class="zero-cell">0.00</td>`;
+  }).join('');
+  const totPnlCls=totPnl>=0?'pnl-pos':'pnl-neg';
+  tfoot.innerHTML=`<tr class="total-row">
+    <td class="left" style="color:var(--ink)">TOTAL</td>
+    <td>${fmt(totUnits,0)}</td>
+    <td>—</td>
+    <td>${fmt(totNettBuy)}</td>
+    <td>${fmt(totNettSell)}</td>
+    <td class="${totPnlCls}">${fmt(totPnl)}</td>
+    <td>—</td>
+    <td>${totEstVal>0?fmt(totEstVal):'—'}</td>
+    ${totDivCells}
+  </tr>`;
+}
+
+window.onSharesData=renderSummary;
+window.onPricesUpdated=renderSummary;
+loadShares();
+</script>
+</body>
+</html>

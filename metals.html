@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metals — Markets Suite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sb-backdrop" id="sbBackdrop"></div>
+  <div class="content">
+    <div class="content-head">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-btn" id="menuBtn">&#9776;</button>
+        <div class="ch-title">Metals</div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="placeholder-panel">
+        <div class="ph-icon">&#9679;</div>
+        <div class="ph-title">Metals tracking — coming soon</div>
+        <p>This section will track physical and paper gold/silver holdings: purchases, weight, purity, spot value and gain/loss.</p>
+        <p>To activate it, we'll add a <b>metals</b> table in Supabase (columns like purchase_date, metal, form, weight_g, purity, cost_myr, vendor, notes) and wire this page up the same way as Share Holdings.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/common.js"></script>
+<script>
+requireAuth();
+buildSidebar('metals');
+</script>
+</body>
+</html>

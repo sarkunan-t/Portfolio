@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asset &amp; Liability — Markets Suite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sb-backdrop" id="sbBackdrop"></div>
+  <div class="content">
+    <div class="content-head">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-btn" id="menuBtn">&#9776;</button>
+        <div>
+          <div class="ch-title">Overall Asset &amp; Liability</div>
+          <div class="ch-sub" id="priceNote">Loading…</div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="refreshPrices()">&#8635; Refresh</button>
+    </div>
+    <div class="page">
+
+      <div class="networth-strip">
+        <div class="nw-label">Estimated Net Worth</div>
+        <div class="nw-value" id="nwValue">—</div>
+        <div class="nw-sub" id="nwSub">Shares only — Metals, ASNB and liabilities not yet tracked</div>
+      </div>
+
+      <div class="asset-grid">
+        <a class="asset-card" href="shares-summary.html">
+          <div class="ac-tag">Asset 01</div>
+          <div class="ac-name">Share Holdings</div>
+          <div class="ac-value" id="acShares">—</div>
+          <div class="ac-sub" id="acSharesSub">market value of open positions</div>
+        </a>
+        <a class="asset-card" href="metals.html">
+          <div class="ac-tag">Asset 02</div>
+          <div class="ac-name">Metals</div>
+          <div class="ac-value ac-muted">Not set up</div>
+          <div class="ac-sub">gold &amp; silver holdings</div>
+        </a>
+        <a class="asset-card" href="asnb.html">
+          <div class="ac-tag">Asset 03</div>
+          <div class="ac-name">ASNB</div>
+          <div class="ac-value ac-muted">Not set up</div>
+          <div class="ac-sub">unit trust balances</div>
+        </a>
+        <div class="asset-card" style="border-top-color:#d93025;cursor:default;">
+          <div class="ac-tag" style="color:#d93025;">Liabilities</div>
+          <div class="ac-name">Loans &amp; Debt</div>
+          <div class="ac-value ac-muted">Not set up</div>
+          <div class="ac-sub">to be added later</div>
+        </div>
+      </div>
+
+      <div class="section-header"><div class="section-title">Share Portfolio Snapshot</div></div>
+      <div class="summary-grid">
+        <div class="tile"><div class="tile-label">Total Invested</div><div class="tile-value" id="kpiInvested">—</div></div>
+        <div class="tile"><div class="tile-label">Market Value</div><div class="tile-value" id="kpiValue">—</div><div class="tile-sub" id="kpiValueSub"></div></div>
+        <div class="tile"><div class="tile-label">Unrealised P&amp;L</div><div class="tile-value" id="kpiUnreal">—</div><div class="tile-sub" id="kpiUnrealPct"></div></div>
+        <div class="tile"><div class="tile-label">Realised P&amp;L</div><div class="tile-value" id="kpiReal">—</div></div>
+        <div class="tile"><div class="tile-label">Total Dividends</div><div class="tile-value" id="kpiDiv">—</div></div>
+        <div class="tile"><div class="tile-label">Net P&amp;L (incl. Div)</div><div class="tile-value" id="kpiNet">—</div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="assets/common.js"></script>
+<script src="assets/shares.js"></script>
+<script>
+requireAuth();
+buildSidebar('dashboard');
+
+function renderNetWorth(){
+  const holdings=calcHoldings().filter(h=>h.qty>0.001);
+  let mv=0,cost=0,priced=0;
+  holdings.forEach(h=>{
+    cost+=h.totalCost;
+    const symbol=h.market==='Bursa'?h.ticker+'.KL':h.ticker;
+    const c=priceCache[symbol];
+    if(c&&c!=='err'){mv+=h.qty*c.price;priced++;}
+  });
+  const val=priced>0?mv:cost;
+  setText('nwValue','MYR '+fmt(val));
+  setText('nwSub',priced>0
+    ?'Shares at live market value — Metals, ASNB and liabilities not yet tracked'
+    :'Shares at cost (prices loading) — Metals, ASNB and liabilities not yet tracked');
+  setText('acShares','MYR '+fmt(val));
+  setText('acSharesSub',`${holdings.length} open position${holdings.length!==1?'s':''}${priced>0?' · live prices':''}`);
+}
+window.onSharesData=renderNetWorth;
+window.onPricesUpdated=renderNetWorth;
+loadShares();
+</script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dividends — Share Holdings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sb-backdrop" id="sbBackdrop"></div>
+  <div class="content">
+    <div class="content-head">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-btn" id="menuBtn">&#9776;</button>
+        <div class="ch-title">Dividend Payouts</div>
+      </div>
+      <button class="btn-primary" onclick="openDivModal()">+ Add Dividend</button>
+    </div>
+    <div class="page">
+      <div id="kpiHost"></div>
+      <div class="table-wrap">
+        <table class="std">
+          <thead><tr>
+            <th>Payout Date</th><th>Ticker</th><th>Stock Name</th>
+            <th class="num">Amount (MYR)</th><th>Banked To</th><th></th>
+          </tr></thead>
+          <tbody id="divBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DIVIDEND MODAL -->
+<div class="modal-overlay" id="divModal">
+  <div class="modal">
+    <div class="modal-title" id="divModalTitle">Add Dividend</div>
+    <div class="form-section">
+      <div class="form-section-title">Dividend Details</div>
+      <div class="form-grid g2">
+        <div class="field"><label>Payout Date</label><input type="date" id="dDate"></div>
+        <div class="field"><label>Amount (MYR)</label><input type="number" id="dAmount" placeholder="0.00" min="0" step="any"></div>
+        <div class="field"><label>Stock Code</label>
+          <input type="text" id="dTicker" list="divTickerList" placeholder="e.g. 1155" autocomplete="off" oninput="onDivTickerInput()">
+          <datalist id="divTickerList"></datalist>
+        </div>
+        <div class="field"><label>Stock Name</label><input type="text" id="dName" placeholder="Auto-filled…"></div>
+        <div class="field full"><label>Banked To</label>
+          <input type="text" id="dBanked" placeholder="e.g. Maybank, Rakuten, Maybank &amp; Rakuten">
+        </div>
+      </div>
+    </div>
+    <div class="modal-err" id="divErr"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeDivModal()">Cancel</button>
+      <button class="btn-save" id="divSaveBtn" onclick="saveDividend()">Save Dividend</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/common.js"></script>
+<script src="assets/shares.js"></script>
+<script>
+requireAuth();
+buildSidebar('dividends');
+injectKPIs();
+
+let editingDivId=null;
+
+function initDatalist(){
+  const dl=document.getElementById('divTickerList');
+  dl.innerHTML=BURSA_STOCKS.map(s=>`<option value="${s.code}">${s.code} — ${s.name}</option>`).join('');
+}
+function onDivTickerInput(){
+  const val=document.getElementById('dTicker').value.trim().toUpperCase();
+  const match=BURSA_STOCKS.find(s=>s.code===val||s.name===val);
+  if(match){document.getElementById('dTicker').value=match.code;document.getElementById('dName').value=match.name;}
+}
+function renderDividends(){
+  const tbody=document.getElementById('divBody');
+  if(!dividends.length){tbody.innerHTML=`<tr><td colspan="6" class="empty-state">No dividends yet.</td></tr>`;return;}
+  tbody.innerHTML=dividends.map(d=>{
+    const date=new Date(d.payout_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    return `<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;">${date}</td>
+      <td><div class="ticker-cell">${d.ticker}</div></td>
+      <td style="font-size:12px;">${d.stock_name||''}</td>
+      <td class="num" style="color:var(--gold);font-family:'IBM Plex Mono',monospace;">${fmt(d.amount)}</td>
+      <td style="font-size:11px;color:var(--ink-dim);">${d.banked_to||'—'}</td>
+      <td><div class="action-btns">
+        <button class="btn-sm" onclick="editDividend('${d.id}')">Edit</button>
+        <button class="btn-sm btn-del" onclick="deleteDividend('${d.id}')">Del</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+function openDivModal(id){
+  editingDivId=id||null;
+  setText('divModalTitle',id?'Edit Dividend':'Add Dividend');
+  setText('divSaveBtn',id?'Save Changes':'Save Dividend');
+  setText('divErr','');
+  if(id){
+    const d=dividends.find(x=>x.id===id);
+    document.getElementById('dDate').value=d.payout_date;
+    document.getElementById('dTicker').value=d.ticker;
+    document.getElementById('dName').value=d.stock_name||'';
+    document.getElementById('dAmount').value=d.amount;
+    document.getElementById('dBanked').value=d.banked_to||'';
+  } else {
+    document.getElementById('dDate').value=new Date().toISOString().split('T')[0];
+    ['dTicker','dName','dBanked'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('dAmount').value='';
+  }
+  document.getElementById('divModal').classList.add('open');
+}
+function editDividend(id){openDivModal(id);}
+function closeDivModal(){document.getElementById('divModal').classList.remove('open');editingDivId=null;}
+
+async function saveDividend(){
+  const date=document.getElementById('dDate').value;
+  const ticker=document.getElementById('dTicker').value.trim().toUpperCase();
+  const name=document.getElementById('dName').value.trim();
+  const amount=parseFloat(document.getElementById('dAmount').value);
+  const banked=document.getElementById('dBanked').value.trim();
+  const errEl=document.getElementById('divErr');
+  if(!date){errEl.textContent='Select a payout date.';return;}
+  if(!ticker){errEl.textContent='Enter a ticker.';return;}
+  if(!amount||amount<=0){errEl.textContent='Enter a valid amount.';return;}
+  const btn=document.getElementById('divSaveBtn');
+  btn.disabled=true;btn.textContent='Saving…';
+  const yr=new Date(date).getFullYear();
+  const payload={ticker,stock_name:name||null,payout_date:date,year:yr,amount,banked_to:banked||null};
+  let error;
+  if(editingDivId){({error}=await sb.from('dividends').update(payload).eq('id',editingDivId));}
+  else{({error}=await sb.from('dividends').insert(payload));}
+  btn.disabled=false;btn.textContent=editingDivId?'Save Changes':'Save Dividend';
+  if(error){errEl.textContent=error.message;return;}
+  closeDivModal();showToast('Dividend saved ✓');loadShares();
+}
+async function deleteDividend(id){
+  if(!confirm('Delete this dividend entry?'))return;
+  const{error}=await sb.from('dividends').delete().eq('id',id);
+  if(error){showToast('Delete failed');return;}
+  showToast('Deleted ✓');loadShares();
+}
+
+window.onSharesData=function(){initDatalist();renderDividends();};
+document.getElementById('divModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDivModal();});
+loadShares();
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holdings — Share Holdings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sb-backdrop" id="sbBackdrop"></div>
+  <div class="content">
+    <div class="content-head">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-btn" id="menuBtn">&#9776;</button>
+        <div>
+          <div class="ch-title">Current Positions</div>
+          <div class="ch-sub" id="priceNote"></div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="refreshPrices()">&#8635; Refresh Prices</button>
+    </div>
+    <div class="page">
+      <div id="kpiHost"></div>
+      <div class="table-wrap">
+        <table class="std">
+          <thead><tr>
+            <th>Ticker</th><th>Market</th><th>CDS</th>
+            <th class="num">Shares</th><th class="num">Avg Cost</th>
+            <th class="num">Current Price</th><th class="num">Market Value</th>
+            <th class="num">P&amp;L</th><th class="num">P&amp;L %</th>
+          </tr></thead>
+          <tbody id="holdingsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/common.js"></script>
+<script src="assets/shares.js"></script>
+<script>
+requireAuth();
+buildSidebar('holdings');
+injectKPIs();
+
+function renderHoldings(){
+  const holdings=calcHoldings().filter(h=>h.qty>0.001);
+  const tbody=document.getElementById('holdingsBody');
+  if(!holdings.length){
+    tbody.innerHTML=`<tr><td colspan="9" class="empty-state">No active positions.</td></tr>`;return;
+  }
+  tbody.innerHTML=holdings.map(h=>{
+    const symbol=h.market==='Bursa'?h.ticker+'.KL':h.ticker;
+    const avgCost=h.qty>0?h.totalCost/h.qty:0;
+    const cached=priceCache[symbol];
+    const accounts=[...h.cds_accounts].join(', ');
+    let priceCell=`<span class="neutral"><span class="spinner-inline"></span></span>`;
+    let valueCell='—',pnlCell='—',pnlPctCell='—';
+    if(cached==='err'){priceCell=`<span class="neutral">N/A</span>`;}
+    else if(cached){
+      const price=cached.price,value=h.qty*price,cost=h.qty*avgCost;
+      const pnl=value-cost,pnlPct=cost>0?(pnl/cost)*100:0;
+      const cls=pnl>=0?'up':'down',sign=pnl>=0?'+':'';
+      priceCell=`<span class="${cls}">${h.currency} ${fmt(price)}</span>`;
+      valueCell=`${h.currency} ${fmt(value)}`;
+      pnlCell=`<span class="${cls}">${sign}${fmt(pnl)}</span>`;
+      pnlPctCell=`<span class="${cls}">${sign}${fmt(pnlPct)}%</span>`;
+    }
+    return `<tr>
+      <td><div class="ticker-cell">${h.ticker}</div><div class="sub-cell">${h.company_name}</div></td>
+      <td style="font-size:11px;color:var(--ink-dim);">${h.market}</td>
+      <td style="font-size:11px;">${accounts}</td>
+      <td class="num">${fmt(h.qty,0)}</td>
+      <td class="num">${h.currency} ${fmt(avgCost)}</td>
+      <td class="num">${priceCell}</td>
+      <td class="num">${valueCell}</td>
+      <td class="num">${pnlCell}</td>
+      <td class="num">${pnlPctCell}</td>
+    </tr>`;
+  }).join('');
+}
+
+window.onSharesData=renderHoldings;
+window.onPricesUpdated=renderHoldings;
+loadShares();
+</script>
+</body>
+</html>

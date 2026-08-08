@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transactions — Share Holdings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="sb-backdrop" id="sbBackdrop"></div>
+  <div class="content">
+    <div class="content-head">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="menu-btn" id="menuBtn">&#9776;</button>
+        <div>
+          <div class="ch-title">Transaction Log</div>
+          <div class="ch-sub" id="txCount"></div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="openTxModal()">+ Add Transaction</button>
+    </div>
+    <div class="page">
+      <div id="kpiHost"></div>
+      <div class="filters">
+        <select class="filter-select" id="filterMarket" onchange="renderTransactions()"><option value="">All Markets</option><option value="Bursa">Bursa</option><option value="US">US</option></select>
+        <select class="filter-select" id="filterCDS" onchange="renderTransactions()"><option value="">All Accounts</option></select>
+        <select class="filter-select" id="filterType" onchange="renderTransactions()"><option value="">All Types</option><option value="Buy">Buy</option><option value="Sell">Sell</option></select>
+        <select class="filter-select" id="filterYear" onchange="renderTransactions()"><option value="">All Years</option></select>
+        <select class="filter-select" id="filterStock" onchange="renderTransactions()"><option value="">All Stocks</option></select>
+      </div>
+      <div class="table-wrap">
+        <table class="std">
+          <thead><tr id="txHeaders">
+            <th class="sortable" onclick="sortTx('tx_date')">Date <span class="sort-icon" id="si_tx_date"></span></th>
+            <th class="sortable" onclick="sortTx('ticker')">Stock <span class="sort-icon" id="si_ticker"></span></th>
+            <th class="sortable" onclick="sortTx('tx_type')">Type <span class="sort-icon" id="si_tx_type"></span></th>
+            <th class="sortable" onclick="sortTx('is_contra')">Contra <span class="sort-icon" id="si_is_contra"></span></th>
+            <th class="sortable" onclick="sortTx('cds_account')">CDS <span class="sort-icon" id="si_cds_account"></span></th>
+            <th class="num sortable" onclick="sortTx('quantity')">Units <span class="sort-icon" id="si_quantity"></span></th>
+            <th class="num sortable" onclick="sortTx('price')">Price <span class="sort-icon" id="si_price"></span></th>
+            <th class="num sortable" onclick="sortTx('gross_amount')">Gross <span class="sort-icon" id="si_gross_amount"></span></th>
+            <th class="num sortable" onclick="sortTx('broker_fee')">Broker <span class="sort-icon" id="si_broker_fee"></span></th>
+            <th class="num sortable" onclick="sortTx('stax')">STax <span class="sort-icon" id="si_stax"></span></th>
+            <th class="num sortable" onclick="sortTx('stamp_duty')">Stamp <span class="sort-icon" id="si_stamp_duty"></span></th>
+            <th class="num sortable" onclick="sortTx('clearing_fee')">Clearing <span class="sort-icon" id="si_clearing_fee"></span></th>
+            <th class="num sortable" onclick="sortTx('net_amount')">Net Amt <span class="sort-icon" id="si_net_amount"></span></th>
+            <th>Notes</th><th></th>
+          </tr></thead>
+          <tbody id="txBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TRANSACTION MODAL -->
+<div class="modal-overlay" id="txModal">
+  <div class="modal">
+    <div class="modal-title" id="txModalTitle">Add Transaction</div>
+    <div class="form-section">
+      <div class="form-grid g2">
+        <div class="field"><label>Type</label>
+          <div class="toggle-row">
+            <button class="toggle-btn active-buy" id="typeBuy" onclick="setType('Buy')">&#9650; Buy</button>
+            <button class="toggle-btn" id="typeSell" onclick="setType('Sell')">&#9660; Sell</button>
+          </div>
+        </div>
+        <div class="field"><label>Contra?</label>
+          <div class="toggle-row">
+            <button class="toggle-btn active-no" id="contraNo" onclick="setContra(false)">No</button>
+            <button class="toggle-btn" id="contraYes" onclick="setContra(true)">Yes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Stock Details</div>
+      <div class="form-grid g4" style="margin-bottom:10px;">
+        <div class="field"><label>Market</label>
+          <select id="fMarket" onchange="onMarketChange()">
+            <option value="Bursa">Bursa Malaysia</option>
+            <option value="US">US Stocks</option>
+          </select>
+        </div>
+        <div class="field"><label>CDS Account</label>
+          <select id="fCDS">
+            <option value="MYB">Maybank (MYB)</option>
+            <option value="RHB">RHB</option>
+            <option value="Rakuten">Rakuten</option>
+          </select>
+        </div>
+        <div class="field"><label>Date</label><input type="date" id="fDate"></div>
+        <div class="field"><label>Currency</label><input type="text" id="fCurrency" readonly></div>
+      </div>
+      <div class="form-grid g2">
+        <div class="field"><label>Stock Code</label>
+          <input type="text" id="fTicker" list="tickerList" placeholder="Type or select…" oninput="onTickerInput()" autocomplete="off">
+          <datalist id="tickerList"></datalist>
+        </div>
+        <div class="field"><label>Stock Name</label><input type="text" id="fName" placeholder="Auto-filled…"></div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Trade Details</div>
+      <div class="form-grid g3">
+        <div class="field"><label>Price</label><input type="number" id="fPrice" placeholder="0.00" min="0" step="any" oninput="calcFees()"></div>
+        <div class="field"><label>Units</label><input type="number" id="fQty" placeholder="0" min="0" step="1" oninput="calcFees()"></div>
+        <div class="field"><label>Gross Amount</label><input type="text" id="fGross" readonly></div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section-title">Fees (auto-calculated)</div>
+      <div class="fee-grid">
+        <div class="fee-item"><div class="fee-label">Broker Fee</div><div class="fee-value" id="feeBroker">—</div></div>
+        <div class="fee-item"><div class="fee-label">STax 6%</div><div class="fee-value" id="feeStax">—</div></div>
+        <div class="fee-item"><div class="fee-label">Stamp Duty</div><div class="fee-value" id="feeStamp">—</div></div>
+        <div class="fee-item"><div class="fee-label">Clearing</div><div class="fee-value" id="feeClearing">—</div></div>
+      </div>
+      <div class="net-box"><div class="net-label">NET AMOUNT</div><div class="net-value" id="feeNet">—</div></div>
+    </div>
+    <div class="form-section">
+      <div class="field"><label>Notes (optional)</label><input type="text" id="fNotes" placeholder="e.g. Rights issue"></div>
+    </div>
+    <div class="modal-err" id="txErr"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeTxModal()">Cancel</button>
+      <button class="btn-save" id="txSaveBtn" onclick="saveTransaction()">Save Transaction</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/common.js"></script>
+<script src="assets/shares.js"></script>
+<script>
+requireAuth();
+buildSidebar('transactions');
+injectKPIs();
+
+let editingTxId=null, txType='Buy', isContra=false, currentMarket='Bursa';
+let txSortCol='tx_date', txSortDir='desc';
+
+/* ---- filters ---- */
+function populateCDSFilter(){
+  const accts=[...new Set(transactions.map(t=>t.cds_account).filter(Boolean))].sort();
+  const sel=document.getElementById('filterCDS');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Accounts</option>'+accts.map(a=>`<option value="${a}">${a}</option>`).join('');
+  if(accts.includes(cur))sel.value=cur;
+}
+function populateYearFilter(){
+  const years=[...new Set(transactions.map(t=>new Date(t.tx_date).getFullYear()))].sort((a,b)=>b-a);
+  const sel=document.getElementById('filterYear');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Years</option>'+years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(years.map(String).includes(cur))sel.value=cur;
+}
+function populateStockFilter(){
+  const stocks=[...new Map(transactions.map(t=>[t.ticker,{ticker:t.ticker,name:t.company_name||t.ticker}])).values()]
+    .sort((a,b)=>a.ticker.localeCompare(b.ticker));
+  const sel=document.getElementById('filterStock');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">All Stocks</option>'+stocks.map(s=>`<option value="${s.ticker}">${s.ticker} — ${s.name}</option>`).join('');
+  if(stocks.some(s=>s.ticker===cur))sel.value=cur;
+}
+
+/* ---- table ---- */
+function sortTx(col){
+  if(txSortCol===col){ txSortDir=txSortDir==='asc'?'desc':'asc'; }
+  else { txSortCol=col; txSortDir=col==='tx_date'?'desc':'asc'; }
+  renderTransactions();
+}
+function updateSortIcons(){
+  ['tx_date','ticker','tx_type','is_contra','cds_account','quantity','price',
+   'gross_amount','broker_fee','stax','stamp_duty','clearing_fee','net_amount'].forEach(c=>{
+    const el=document.getElementById('si_'+c);
+    if(!el)return;
+    el.className='sort-icon'+(txSortCol===c?' '+txSortDir:'');
+  });
+}
+function renderTransactions(){
+  const {list}=getFilteredTx();
+  let f=list;
+  f.sort((a,b)=>{
+    let av=a[txSortCol], bv=b[txSortCol];
+    if(txSortCol==='tx_date'){av=new Date(av);bv=new Date(bv);}
+    else if(txSortCol==='is_contra'){av=av?1:0;bv=bv?1:0;}
+    else if(typeof av==='string'){av=av.toLowerCase();bv=bv.toLowerCase();}
+    if(av<bv)return txSortDir==='asc'?-1:1;
+    if(av>bv)return txSortDir==='asc'?1:-1;
+    return 0;
+  });
+  updateSortIcons();
+  const tbody=document.getElementById('txBody');
+  setText('txCount',`${f.length} record${f.length!==1?'s':''}`);
+  if(!f.length){tbody.innerHTML=`<tr><td colspan="15" class="empty-state">No transactions found.</td></tr>`;updateKPIs();return;}
+  tbody.innerHTML=f.map(t=>{
+    const date=new Date(t.tx_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const tb=t.tx_type==='Buy'?`<span class="badge badge-buy">BUY</span>`:`<span class="badge badge-sell">SELL</span>`;
+    const cb=t.is_contra?`<span class="badge badge-contra">YES</span>`:`<span class="neutral" style="font-size:10px;">—</span>`;
+    return `<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;white-space:nowrap;">${date}</td>
+      <td><div class="ticker-cell">${t.ticker}</div><div class="sub-cell">${t.company_name||''}</div></td>
+      <td>${tb}</td><td>${cb}</td>
+      <td style="font-size:11px;">${t.cds_account}</td>
+      <td class="num">${fmt(t.quantity,0)}</td>
+      <td class="num">${t.currency} ${fmt(t.price)}</td>
+      <td class="num">${fmt(t.gross_amount)}</td>
+      <td class="num">${fmt(t.broker_fee)}</td>
+      <td class="num">${fmt(t.stax)}</td>
+      <td class="num">${fmt(t.stamp_duty)}</td>
+      <td class="num">${fmt(t.clearing_fee)}</td>
+      <td class="num" style="color:var(--teal);font-weight:600;">${fmt(t.net_amount)}</td>
+      <td style="font-size:10px;color:var(--ink-dim);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.notes||'—'}</td>
+      <td><div class="action-btns">
+        <button class="btn-sm" onclick="editTransaction('${t.id}')">Edit</button>
+        <button class="btn-sm btn-del" onclick="deleteTx('${t.id}')">Del</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+  updateKPIs();
+}
+
+/* ---- modal ---- */
+function populateTickerList(market){
+  const list=document.getElementById('tickerList');
+  const stocks=market==='Bursa'?BURSA_STOCKS:US_STOCKS;
+  list.innerHTML=stocks.map(s=>`<option value="${s.code}">${s.code} — ${s.name}</option>`).join('');
+}
+function setType(t){
+  txType=t;
+  document.getElementById('typeBuy').className='toggle-btn'+(t==='Buy'?' active-buy':'');
+  document.getElementById('typeSell').className='toggle-btn'+(t==='Sell'?' active-sell':'');
+  calcFees();
+}
+function setContra(val){
+  isContra=val;
+  document.getElementById('contraNo').className='toggle-btn'+(!val?' active-no':'');
+  document.getElementById('contraYes').className='toggle-btn'+(val?' active-yes':'');
+}
+function onMarketChange(){
+  currentMarket=document.getElementById('fMarket').value;
+  document.getElementById('fCurrency').value=currentMarket==='Bursa'?'MYR':'USD';
+  document.getElementById('fTicker').value='';document.getElementById('fName').value='';
+  populateTickerList(currentMarket);calcFees();
+}
+function onTickerInput(){
+  const val=document.getElementById('fTicker').value.trim().toUpperCase();
+  const stocks=currentMarket==='Bursa'?BURSA_STOCKS:US_STOCKS;
+  const match=stocks.find(s=>s.code===val||s.name===val);
+  if(match){document.getElementById('fTicker').value=match.code;document.getElementById('fName').value=match.name;}
+}
+function calcFees(){
+  const price=parseFloat(document.getElementById('fPrice').value)||0;
+  const qty=parseFloat(document.getElementById('fQty').value)||0;
+  const market=document.getElementById('fMarket').value;
+  const gross=price*qty;
+  const cur=market==='Bursa'?'MYR':'USD';
+  document.getElementById('fGross').value=gross>0?fmt(gross):'';
+  if(gross<=0){['feeBroker','feeStax','feeStamp','feeClearing','feeNet'].forEach(id=>setText(id,'—'));return;}
+  let brokerFee,stax,stamp,clearing;
+  if(market==='Bursa'){
+    brokerFee=Math.max(gross*0.0042,8);stax=brokerFee*0.06;
+    stamp=Math.min(Math.ceil(gross/1000),200);clearing=Math.min(gross*0.0003,1000);
+  } else {
+    brokerFee=Math.max(gross*0.003,3);stax=0;stamp=0;clearing=0;
+  }
+  const totalFees=brokerFee+stax+stamp+clearing;
+  const net=txType==='Buy'?gross+totalFees:gross-totalFees;
+  setText('feeBroker',cur+' '+fmt(brokerFee));
+  setText('feeStax',cur+' '+fmt(stax));
+  setText('feeStamp',cur+' '+fmt(stamp));
+  setText('feeClearing',cur+' '+fmt(clearing));
+  setText('feeNet',cur+' '+fmt(net));
+}
+function openTxModal(id){
+  editingTxId=id||null;
+  setText('txModalTitle',id?'Edit Transaction':'Add Transaction');
+  setText('txSaveBtn',id?'Save Changes':'Save Transaction');
+  setText('txErr','');
+  if(id){
+    const t=transactions.find(x=>x.id===id);
+    setType(t.tx_type);setContra(t.is_contra);
+    currentMarket=t.market;
+    document.getElementById('fMarket').value=t.market;
+    document.getElementById('fCurrency').value=t.currency;
+    document.getElementById('fCDS').value=t.cds_account;
+    document.getElementById('fDate').value=t.tx_date;
+    document.getElementById('fTicker').value=t.ticker;
+    document.getElementById('fName').value=t.company_name||'';
+    document.getElementById('fPrice').value=t.price;
+    document.getElementById('fQty').value=t.quantity;
+    document.getElementById('fNotes').value=t.notes||'';
+    populateTickerList(t.market);calcFees();
+  } else {
+    setType('Buy');setContra(false);currentMarket='Bursa';
+    document.getElementById('fMarket').value='Bursa';
+    document.getElementById('fCurrency').value='MYR';
+    document.getElementById('fCDS').value='RHB';
+    document.getElementById('fDate').value=new Date().toISOString().split('T')[0];
+    ['fTicker','fName','fNotes'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('fPrice').value='';document.getElementById('fQty').value='';
+    document.getElementById('fGross').value='';
+    ['feeBroker','feeStax','feeStamp','feeClearing','feeNet'].forEach(id=>setText(id,'—'));
+    populateTickerList('Bursa');
+  }
+  document.getElementById('txModal').classList.add('open');
+  setTimeout(()=>document.getElementById('fTicker').focus(),100);
+}
+function editTransaction(id){openTxModal(id);}
+function closeTxModal(){document.getElementById('txModal').classList.remove('open');editingTxId=null;}
+
+async function saveTransaction(){
+  const ticker=document.getElementById('fTicker').value.trim().toUpperCase();
+  const market=document.getElementById('fMarket').value;
+  const name=document.getElementById('fName').value.trim();
+  const date=document.getElementById('fDate').value;
+  const qty=parseFloat(document.getElementById('fQty').value);
+  const price=parseFloat(document.getElementById('fPrice').value);
+  const cds=document.getElementById('fCDS').value;
+  const currency=document.getElementById('fCurrency').value;
+  const notes=document.getElementById('fNotes').value.trim();
+  const errEl=document.getElementById('txErr');
+  if(!ticker){errEl.textContent='Enter a stock code.';return;}
+  if(!date){errEl.textContent='Select a date.';return;}
+  if(!qty||qty<=0){errEl.textContent='Enter a valid quantity.';return;}
+  if(!price||price<=0){errEl.textContent='Enter a valid price.';return;}
+  const gross=price*qty;
+  let brokerFee,stax,stamp,clearing;
+  if(market==='Bursa'){
+    brokerFee=Math.max(gross*0.0042,8);stax=brokerFee*0.06;
+    stamp=Math.min(Math.ceil(gross/1000),200);clearing=Math.min(gross*0.0003,1000);
+  } else {brokerFee=Math.max(gross*0.003,3);stax=0;stamp=0;clearing=0;}
+  const totalFees=brokerFee+stax+stamp+clearing;
+  const net=txType==='Buy'?gross+totalFees:gross-totalFees;
+  const btn=document.getElementById('txSaveBtn');
+  btn.disabled=true;btn.textContent='Saving…';
+  const payload={ticker,market,company_name:name||null,tx_type:txType,tx_date:date,
+    quantity:qty,price,currency,cds_account:cds,is_contra:isContra,
+    gross_amount:parseFloat(gross.toFixed(2)),broker_fee:parseFloat(brokerFee.toFixed(2)),
+    stax:parseFloat(stax.toFixed(2)),stamp_duty:parseFloat(stamp.toFixed(2)),
+    clearing_fee:parseFloat(clearing.toFixed(2)),net_amount:parseFloat(net.toFixed(2)),
+    notes:notes||null,updated_at:new Date().toISOString()};
+  let error;
+  if(editingTxId){({error}=await sb.from('transactions').update(payload).eq('id',editingTxId));}
+  else{({error}=await sb.from('transactions').insert(payload));}
+  btn.disabled=false;btn.textContent=editingTxId?'Save Changes':'Save Transaction';
+  if(error){errEl.textContent=error.message;return;}
+  closeTxModal();showToast('Transaction saved ✓');priceCache={};loadShares();
+}
+async function deleteTx(id){
+  const t=transactions.find(x=>x.id===id);
+  if(!confirm(`Delete ${t.tx_type} of ${t.ticker} on ${t.tx_date}?`))return;
+  const{error}=await sb.from('transactions').delete().eq('id',id);
+  if(error){showToast('Delete failed');return;}
+  showToast('Deleted ✓');priceCache={};loadShares();
+}
+
+/* ---- hooks & init ---- */
+window.onSharesData=function(){
+  populateCDSFilter();populateYearFilter();populateStockFilter();
+  renderTransactions();
+};
+window.onPricesUpdated=function(){/* KPIs refreshed by fetchAllPrices */};
+document.getElementById('txModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTxModal();});
+loadShares();
+</script>
+</body>
+</html>
