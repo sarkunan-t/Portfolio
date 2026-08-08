@@ -56,7 +56,6 @@ body{background:var(--bg);color:var(--ink);font-family:'Mulish',sans-serif;min-h
 .btn-primary{background:var(--teal);border:none;border-radius:7px;color:#ffffff;cursor:pointer;font-family:'Mulish',sans-serif;font-size:12px;font-weight:700;padding:8px 18px;transition:opacity .15s;white-space:nowrap;}
 .btn-primary:hover{opacity:.85;}.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
 .btn-ghost{background:none;border:1px solid var(--panel-edge);border-radius:6px;color:var(--ink-dim);cursor:pointer;font-family:'Mulish',sans-serif;font-size:11px;padding:5px 12px;transition:all .15s;}
-.btn-danger-ghost:hover{border-color:var(--down);color:var(--down);}
 .btn-ghost:hover{border-color:var(--ink-dim);color:var(--ink);}
 .btn-sm{background:none;border:1px solid var(--panel-edge);border-radius:5px;cursor:pointer;font-size:10px;padding:3px 8px;transition:all .15s;font-family:'Mulish',sans-serif;white-space:nowrap;color:var(--ink-dim);}
 .btn-sm:hover{border-color:var(--teal);color:var(--teal);}
@@ -194,7 +193,6 @@ input[list]::-webkit-calendar-picker-indicator{display:none;}
         <button class="tab-btn" onclick="switchView('transactions')">Transactions</button>
         <button class="tab-btn" onclick="switchView('dividends')">Dividends</button>
       </div>
-      <button class="btn-ghost btn-danger-ghost" onclick="resetAllData()">Reset data</button>
       <button class="btn-ghost" onclick="handleSignOut()">Sign out</button>
     </div>
   </div>
@@ -537,14 +535,13 @@ function calcHoldings(){
   sorted.forEach(t=>{
     const key=t.ticker+'|'+t.market;
     if(!map[key]) map[key]={ticker:t.ticker,market:t.market,company_name:t.company_name||'',
-      currency:t.currency,cds_accounts:new Set(),qty:0,totalCost:0,nettBuy:0,nettSell:0,realised:0};
+      currency:t.currency,cds_accounts:new Set(),qty:0,totalCost:0,nettBuy:0,nettSell:0};
     const h=map[key];
     h.cds_accounts.add(t.cds_account);
     if(t.tx_type==='Buy'){
       h.totalCost+=t.net_amount; h.qty+=t.quantity; h.nettBuy+=t.net_amount;
     } else {
       const avg=h.qty>0?h.totalCost/h.qty:0;
-      h.realised+=t.net_amount-avg*t.quantity;   // proceeds − avg cost of units sold
       h.totalCost-=avg*t.quantity; h.qty-=t.quantity; h.nettSell+=t.net_amount;
     }
   });
@@ -584,7 +581,7 @@ function renderSummary(){
     const cached=priceCache[symbol];
     const divData=divByTickerYear[h.ticker]||{};
 
-    const nettPL=h.realised;   // realised P/L on disposed units only
+    const nettPL=(h.nettSell-h.nettBuy);
     let estVal=0,unreal=0;
     let priceTd='';
     let estValTd='';
@@ -609,6 +606,7 @@ function renderSummary(){
       estValTd=`<span class="zero-cell">0.00</span>`;
     }
 
+    const pnlTotal=nettPL+(estVal>0?unreal:0);
     totNettBuy+=h.nettBuy; totNettSell+=h.nettSell;
     totPnl+=nettPL; totEstVal+=estVal;
     DIV_YEARS.forEach(y=>{ totDiv[y]+=(divData[y]||0); });
@@ -649,7 +647,7 @@ function renderSummary(){
     <td>—</td>
     <td>${fmt(totNettBuy)}</td>
     <td>${fmt(totNettSell)}</td>
-    <td class="${totPnlCls}">${fmt(totPnl)}</td>
+    <td class="${totPnlCls}">${fmt(totNettSell-totNettBuy)}</td>
     <td>—</td>
     <td>${totEstVal>0?fmt(totEstVal):'—'}</td>
     ${totDivCells}
@@ -789,14 +787,15 @@ function renderDividends(){
 // ── KPI TILES ──
 function updateKPIs(){
   const holdings=calcHoldings();
-  let totalInvested=0,realised=0,totalEstVal=0,priced=0;
+  let totalInvested=0,totalNettBuy=0,totalNettSell=0,totalEstVal=0,priced=0;
   holdings.forEach(h=>{
-    realised+=h.realised;
+    totalNettBuy+=h.nettBuy; totalNettSell+=h.nettSell;
     if(h.qty>0.001) totalInvested+=h.totalCost;
     const symbol=h.market==='Bursa'?h.ticker+'.KL':h.ticker;
     const cached=priceCache[symbol];
     if(cached&&cached!=='err'&&h.qty>0.001){totalEstVal+=h.qty*cached.price;priced++;}
   });
+  const realised=totalNettSell-totalNettBuy;
   const unrealised=totalEstVal-totalInvested;
   const totalDiv=dividends.reduce((s,d)=>s+Number(d.amount),0);
   const netPL=realised+(totalEstVal>0?unrealised:0)+totalDiv;
@@ -986,25 +985,6 @@ async function saveTransaction(){
   if(error){errEl.textContent=error.message;return;}
   closeTxModal();showToast('Transaction saved ✓');priceCache={};loadAll();
 }
-// ── RESET ALL DATA ──
-async function resetAllData(){
-  const pw=prompt('This will permanently delete ALL transactions and dividends.\n\nEnter your password to continue:');
-  if(pw===null)return;
-  const hash=await sha256(pw);
-  if(hash!==PASS_HASH){showToast('Incorrect password');return;}
-  const word=prompt('Final check — type RESET to confirm:');
-  if(word===null)return;
-  if(word.trim().toUpperCase()!=='RESET'){showToast('Reset cancelled');return;}
-  const [txDel,divDel]=await Promise.all([
-    sb.from('transactions').delete().not('id','is',null),
-    sb.from('dividends').delete().not('id','is',null)
-  ]);
-  if(txDel.error||divDel.error){showToast('Reset failed — check connection');return;}
-  priceCache={};transactions=[];dividends=[];
-  showToast('All data cleared ✓');
-  loadAll();
-}
-
 async function deleteTx(id){
   const t=transactions.find(x=>x.id===id);
   if(!confirm(`Delete ${t.tx_type} of ${t.ticker} on ${t.tx_date}?`))return;
