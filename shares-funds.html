@@ -27,10 +27,9 @@
     </div>
     <div class="page">
 
-      <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+      <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
         <div class="tile"><div class="tile-label">Net Capital Invested</div><div class="tile-value" id="fkNet">—</div><div class="tile-sub">deposits − withdrawals</div></div>
-        <div class="tile"><div class="tile-label">Deposited YTD</div><div class="tile-value" id="fkDepYTD">—</div><div class="tile-sub" id="fkDepYTDSub"></div></div>
-        <div class="tile"><div class="tile-label">Withdrawn YTD</div><div class="tile-value" id="fkWdYTD">—</div><div class="tile-sub" id="fkWdYTDSub"></div></div>
+        <div class="tile"><div class="tile-label">Net Capital Withdrawn</div><div class="tile-value" id="fkWdTotal">—</div><div class="tile-sub" id="fkWdTotalSub"></div></div>
       </div>
       <div id="fdFilterNote" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#00a19c;margin:-8px 0 14px;">&#9679; Filtered view — cards reflect active filters</div>
 
@@ -163,13 +162,12 @@ function renderFdKPIs(){
   document.getElementById('fdFilterNote').style.display=active?'block':'none';
   const chartEl=document.getElementById('fdChart');
   if(!list.length){
-    ['fkNet','fkDepYTD','fkWdYTD'].forEach(id=>setText(id,'—'));
-    ['fkDepYTDSub','fkWdYTDSub'].forEach(id=>setText(id,''));
+    ['fkNet','fkWdTotal'].forEach(id=>setText(id,'—'));
+    setText('fkWdTotalSub','');
     chartEl.innerHTML='<div class="empty-state" style="padding:30px 0;">No data</div>';
     return;
   }
-  const now=new Date().getFullYear();
-  let dep=0,wd=0,depYTD=0,wdYTD=0,depYTDn=0,wdYTDn=0;
+  let dep=0,wd=0,wdN=0;
   const byYear={};
   list.forEach(f=>{
     const amt=Number(f.amount);
@@ -177,18 +175,14 @@ function renderFdKPIs(){
     if(!byYear[y])byYear[y]={dep:0,wd:0};
     if(f.txn_type==='Deposit'){
       dep+=amt;byYear[y].dep+=amt;
-      if(y===now){depYTD+=amt;depYTDn++;}
     } else {
-      wd+=amt;byYear[y].wd+=amt;
-      if(y===now){wdYTD+=amt;wdYTDn++;}
+      wd+=amt;byYear[y].wd+=amt;wdN++;
     }
   });
   const net=dep-wd;
   setHTML('fkNet',`<span class="${net>=0?'up':'down'}">MYR ${fmt(net)}</span>`);
-  setHTML('fkDepYTD',`<span class="up">MYR ${fmt(depYTD)}</span>`);
-  setText('fkDepYTDSub',`${now} · ${depYTDn} deposit${depYTDn!==1?'s':''}`);
-  setHTML('fkWdYTD',wdYTD>0?`<span class="down">MYR ${fmt(wdYTD)}</span>`:'MYR 0.00');
-  setText('fkWdYTDSub',`${now} · ${wdYTDn} withdrawal${wdYTDn!==1?'s':''}`);
+  setHTML('fkWdTotal',wd>0?`<span class="down">MYR ${fmt(wd)}</span>`:'MYR 0.00');
+  setText('fkWdTotalSub',wdN+' withdrawal'+(wdN!==1?'s':''));
   renderFdChart(byYear);
 }
 
