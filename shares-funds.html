@@ -28,6 +28,7 @@
     <div class="page">
 
       <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
+        <div class="tile"><div class="tile-label">Available Capital</div><div class="tile-value" id="fkAvail">—</div><div class="tile-sub">net funds in − net invested in shares</div></div>
         <div class="tile"><div class="tile-label">Net Capital Invested</div><div class="tile-value" id="fkNet">—</div><div class="tile-sub">deposits − withdrawals</div></div>
         <div class="tile"><div class="tile-label">Net Capital Withdrawn</div><div class="tile-value" id="fkWdTotal">—</div><div class="tile-sub" id="fkWdTotalSub"></div></div>
       </div>
@@ -111,17 +112,21 @@
 requireAuth();
 buildSidebar('funds');
 
-let funds=[], editingFdId=null, fdType='Deposit';
+let funds=[], fundsTx=[], editingFdId=null, fdType='Deposit';
 
 /* ---- data ---- */
 async function loadFunds(){
-  const {data,error}=await sb.from('funds').select('*').order('txn_date',{ascending:false});
-  if(error){
+  const [fdRes,txRes]=await Promise.all([
+    sb.from('funds').select('*').order('txn_date',{ascending:false}),
+    sb.from('transactions').select('tx_date,tx_type,cds_account,net_amount')
+  ]);
+  if(fdRes.error){
     document.getElementById('fdBody').innerHTML=
       `<tr><td colspan="7" class="empty-state">Could not load — has the <b>funds</b> table been created in Supabase? (run funds-setup.sql)</td></tr>`;
     return;
   }
-  funds=data||[];
+  funds=fdRes.data||[];
+  fundsTx=txRes.data||[];
   populateFdFilters();
   refreshFdView();
 }
@@ -162,7 +167,7 @@ function renderFdKPIs(){
   document.getElementById('fdFilterNote').style.display=active?'block':'none';
   const chartEl=document.getElementById('fdChart');
   if(!list.length){
-    ['fkNet','fkWdTotal'].forEach(id=>setText(id,'—'));
+    ['fkAvail','fkNet','fkWdTotal'].forEach(id=>setText(id,'—'));
     setText('fkWdTotalSub','');
     chartEl.innerHTML='<div class="empty-state" style="padding:30px 0;">No data</div>';
     return;
@@ -180,6 +185,20 @@ function renderFdKPIs(){
     }
   });
   const net=dep-wd;
+
+  // Available capital: net funds in minus net cash used on shares,
+  // matched to the same Year/CDS filters (bank & type filters apply to funds only)
+  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const yrF=g('fdFilterYear'),cdsF=g('fdFilterCDS');
+  let sharesNet=0;
+  fundsTx.forEach(t=>{
+    if(yrF&&new Date(t.tx_date).getFullYear()!=yrF)return;
+    if(cdsF&&t.cds_account!==cdsF)return;
+    sharesNet+=t.tx_type==='Buy'?Number(t.net_amount):-Number(t.net_amount);
+  });
+  const avail=net-sharesNet;
+  setHTML('fkAvail',`<span class="${avail>=0?'up':'down'}">MYR ${fmt(avail)}</span>`);
+
   setHTML('fkNet',`<span class="${net>=0?'up':'down'}">MYR ${fmt(net)}</span>`);
   setHTML('fkWdTotal',wd>0?`<span class="down">MYR ${fmt(wd)}</span>`:'MYR 0.00');
   setText('fkWdTotalSub',wdN+' withdrawal'+(wdN!==1?'s':''));
