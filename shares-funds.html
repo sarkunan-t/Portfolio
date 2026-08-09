@@ -27,15 +27,23 @@
     </div>
     <div class="page">
 
-      <div class="summary-grid">
+      <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
         <div class="tile"><div class="tile-label">Net Capital Invested</div><div class="tile-value" id="fkNet">—</div><div class="tile-sub">deposits − withdrawals</div></div>
-        <div class="tile"><div class="tile-label">Total Deposits</div><div class="tile-value" id="fkDep">—</div><div class="tile-sub" id="fkDepSub"></div></div>
-        <div class="tile"><div class="tile-label">Total Withdrawals</div><div class="tile-value" id="fkWd">—</div><div class="tile-sub" id="fkWdSub"></div></div>
-        <div class="tile"><div class="tile-label">Net Flow YTD</div><div class="tile-value" id="fkYTD">—</div><div class="tile-sub" id="fkYTDSub"></div></div>
-        <div class="tile"><div class="tile-label">Top CDS by Capital</div><div class="tile-value" id="fkTop">—</div><div class="tile-sub" id="fkTopSub"></div></div>
-        <div class="tile"><div class="tile-label">Latest Movement</div><div class="tile-value" id="fkLast">—</div><div class="tile-sub" id="fkLastSub"></div></div>
+        <div class="tile"><div class="tile-label">Deposited YTD</div><div class="tile-value" id="fkDepYTD">—</div><div class="tile-sub" id="fkDepYTDSub"></div></div>
+        <div class="tile"><div class="tile-label">Withdrawn YTD</div><div class="tile-value" id="fkWdYTD">—</div><div class="tile-sub" id="fkWdYTDSub"></div></div>
       </div>
       <div id="fdFilterNote" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#00a19c;margin:-8px 0 14px;">&#9679; Filtered view — cards reflect active filters</div>
+
+      <div class="table-wrap" style="padding:16px 18px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:800;">Year-on-Year Flow</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-dim);">
+            <span style="color:#00a19c;">&#9632;</span> Deposits &nbsp;
+            <span style="color:#d93025;">&#9632;</span> Withdrawals
+          </div>
+        </div>
+        <div id="fdChart" style="overflow-x:auto;"></div>
+      </div>
 
       <div class="filters">
         <select class="filter-select" id="fdFilterYear" onchange="refreshFdView()"><option value="">All Years</option></select>
@@ -149,40 +157,66 @@ function populateFdFilters(){
 }
 function refreshFdView(){renderFunds();renderFdKPIs();}
 
-/* ---- cards ---- */
+/* ---- cards + chart ---- */
 function renderFdKPIs(){
   const {list,active}=getFilteredFunds();
   document.getElementById('fdFilterNote').style.display=active?'block':'none';
+  const chartEl=document.getElementById('fdChart');
   if(!list.length){
-    ['fkNet','fkDep','fkWd','fkYTD','fkTop','fkLast'].forEach(id=>setText(id,'—'));
-    ['fkDepSub','fkWdSub','fkYTDSub','fkTopSub','fkLastSub'].forEach(id=>setText(id,''));
+    ['fkNet','fkDepYTD','fkWdYTD'].forEach(id=>setText(id,'—'));
+    ['fkDepYTDSub','fkWdYTDSub'].forEach(id=>setText(id,''));
+    chartEl.innerHTML='<div class="empty-state" style="padding:30px 0;">No data</div>';
     return;
   }
   const now=new Date().getFullYear();
-  let dep=0,wd=0,depN=0,wdN=0,ytd=0;
-  const byCDS={};
+  let dep=0,wd=0,depYTD=0,wdYTD=0,depYTDn=0,wdYTDn=0;
+  const byYear={};
   list.forEach(f=>{
     const amt=Number(f.amount);
-    const signed=f.txn_type==='Deposit'?amt:-amt;
-    if(f.txn_type==='Deposit'){dep+=amt;depN++;}else{wd+=amt;wdN++;}
-    if(new Date(f.txn_date).getFullYear()===now)ytd+=signed;
-    if(f.cds_account)byCDS[f.cds_account]=(byCDS[f.cds_account]||0)+signed;
+    const y=new Date(f.txn_date).getFullYear();
+    if(!byYear[y])byYear[y]={dep:0,wd:0};
+    if(f.txn_type==='Deposit'){
+      dep+=amt;byYear[y].dep+=amt;
+      if(y===now){depYTD+=amt;depYTDn++;}
+    } else {
+      wd+=amt;byYear[y].wd+=amt;
+      if(y===now){wdYTD+=amt;wdYTDn++;}
+    }
   });
   const net=dep-wd;
-  const top=Object.entries(byCDS).sort((a,b)=>b[1]-a[1])[0];
-  const latest=[...list].sort((a,b)=>new Date(b.txn_date)-new Date(a.txn_date))[0];
-
   setHTML('fkNet',`<span class="${net>=0?'up':'down'}">MYR ${fmt(net)}</span>`);
-  setText('fkDep','MYR '+fmt(dep));
-  setText('fkDepSub',depN+' deposit'+(depN!==1?'s':''));
-  setHTML('fkWd',wd>0?`<span class="down">MYR ${fmt(wd)}</span>`:'MYR 0.00');
-  setText('fkWdSub',wdN+' withdrawal'+(wdN!==1?'s':''));
-  setHTML('fkYTD',`<span class="${ytd>=0?'up':'down'}">${ytd>=0?'+':''}MYR ${fmt(ytd)}</span>`);
-  setText('fkYTDSub',String(now));
-  setText('fkTop',top?top[0]:'—');
-  setText('fkTopSub',top?'MYR '+fmt(top[1])+' net':'');
-  setHTML('fkLast',`<span class="${latest.txn_type==='Deposit'?'up':'down'}">${latest.txn_type==='Deposit'?'+':'−'}MYR ${fmt(latest.amount)}</span>`);
-  setText('fkLastSub',latest.cds_account+' · '+new Date(latest.txn_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}));
+  setHTML('fkDepYTD',`<span class="up">MYR ${fmt(depYTD)}</span>`);
+  setText('fkDepYTDSub',`${now} · ${depYTDn} deposit${depYTDn!==1?'s':''}`);
+  setHTML('fkWdYTD',wdYTD>0?`<span class="down">MYR ${fmt(wdYTD)}</span>`:'MYR 0.00');
+  setText('fkWdYTDSub',`${now} · ${wdYTDn} withdrawal${wdYTDn!==1?'s':''}`);
+  renderFdChart(byYear);
+}
+
+function renderFdChart(byYear){
+  const chartEl=document.getElementById('fdChart');
+  const years=Object.keys(byYear).map(Number).sort((a,b)=>a-b);
+  const maxVal=Math.max(...years.map(y=>Math.max(byYear[y].dep,byYear[y].wd)),1);
+  const kFmt=v=>v>=1000?(v/1000).toLocaleString('en-US',{maximumFractionDigits:v>=100000?0:1})+'k':String(Math.round(v));
+  const groupW=86,barW=26,gap=6,padL=14,padR=14,padT=26,padB=26,chartH=150;
+  const W=padL+years.length*groupW+padR, H=padT+chartH+padB;
+  let bars='';
+  years.forEach((y,i)=>{
+    const gx=padL+i*groupW+(groupW-(barW*2+gap))/2;
+    const d=byYear[y].dep,w=byYear[y].wd;
+    const dh=Math.round(d/maxVal*chartH), wh=Math.round(w/maxVal*chartH);
+    // deposit bar
+    bars+=`<rect x="${gx}" y="${padT+chartH-dh}" width="${barW}" height="${Math.max(dh,d>0?2:0)}" rx="3" fill="#00a19c"/>`;
+    if(d>0)bars+=`<text x="${gx+barW/2}" y="${padT+chartH-dh-5}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono,monospace" fill="#00514d">${kFmt(d)}</text>`;
+    // withdrawal bar
+    bars+=`<rect x="${gx+barW+gap}" y="${padT+chartH-wh}" width="${barW}" height="${Math.max(wh,w>0?2:0)}" rx="3" fill="#d93025"/>`;
+    if(w>0)bars+=`<text x="${gx+barW+gap+barW/2}" y="${padT+chartH-wh-5}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono,monospace" fill="#a4231a">${kFmt(w)}</text>`;
+    // year label
+    bars+=`<text x="${padL+i*groupW+groupW/2}" y="${padT+chartH+17}" text-anchor="middle" font-size="10" font-weight="700" font-family="IBM Plex Mono,monospace" fill="#5f7674">${y}</text>`;
+  });
+  chartEl.innerHTML=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">
+    <line x1="${padL-4}" y1="${padT+chartH}" x2="${W-padR+4}" y2="${padT+chartH}" stroke="#d8e4e2" stroke-width="1"/>
+    ${bars}
+  </svg>`;
 }
 
 /* ---- table ---- */
