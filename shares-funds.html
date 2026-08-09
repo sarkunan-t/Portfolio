@@ -28,7 +28,6 @@
     <div class="page">
 
       <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
-        <div class="tile"><div class="tile-label">Available Capital</div><div class="tile-value" id="fkAvail">—</div><div class="tile-sub">net funds in − net invested in shares</div></div>
         <div class="tile"><div class="tile-label">Net Capital Invested</div><div class="tile-value" id="fkNet">—</div><div class="tile-sub">deposits − withdrawals</div></div>
         <div class="tile"><div class="tile-label">Net Capital Withdrawn</div><div class="tile-value" id="fkWdTotal">—</div><div class="tile-sub" id="fkWdTotalSub"></div></div>
       </div>
@@ -167,7 +166,7 @@ function renderFdKPIs(){
   document.getElementById('fdFilterNote').style.display=active?'block':'none';
   const chartEl=document.getElementById('fdChart');
   if(!list.length){
-    ['fkAvail','fkNet','fkWdTotal'].forEach(id=>setText(id,'—'));
+    ['fkNet','fkWdTotal'].forEach(id=>setText(id,'—'));
     setText('fkWdTotalSub','');
     chartEl.innerHTML='<div class="empty-state" style="padding:30px 0;">No data</div>';
     return;
@@ -185,20 +184,6 @@ function renderFdKPIs(){
     }
   });
   const net=dep-wd;
-
-  // Available capital: net funds in minus net cash used on shares,
-  // matched to the same Year/CDS filters (bank & type filters apply to funds only)
-  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
-  const yrF=g('fdFilterYear'),cdsF=g('fdFilterCDS');
-  let sharesNet=0;
-  fundsTx.forEach(t=>{
-    if(yrF&&new Date(t.tx_date).getFullYear()!=yrF)return;
-    if(cdsF&&t.cds_account!==cdsF)return;
-    sharesNet+=t.tx_type==='Buy'?Number(t.net_amount):-Number(t.net_amount);
-  });
-  const avail=net-sharesNet;
-  setHTML('fkAvail',`<span class="${avail>=0?'up':'down'}">MYR ${fmt(avail)}</span>`);
-
   setHTML('fkNet',`<span class="${net>=0?'up':'down'}">MYR ${fmt(net)}</span>`);
   setHTML('fkWdTotal',wd>0?`<span class="down">MYR ${fmt(wd)}</span>`:'MYR 0.00');
   setText('fkWdTotalSub',wdN+' withdrawal'+(wdN!==1?'s':''));
