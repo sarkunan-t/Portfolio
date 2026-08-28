@@ -23,7 +23,15 @@ const US_STOCKS=[
 ];
 const TICKER_NAME={};
 [...BURSA_STOCKS,...US_STOCKS].forEach(s=>TICKER_NAME[s.code]=s.name);
-const DIV_YEARS=[2020,2021,2022,2023,2024,2025];
+let DIV_YEARS=[];
+function computeDivYears(){
+  const now=new Date().getFullYear();
+  const ys=dividends.map(d=>new Date(d.payout_date).getFullYear()).filter(y=>!isNaN(y));
+  if(!ys.length)return [now];
+  const min=Math.min(...ys), max=Math.max(Math.max(...ys),now);
+  const out=[];for(let y=min;y<=max;y++)out.push(y);
+  return out;
+}
 
 let transactions=[], dividends=[], priceCache={};
 
@@ -35,6 +43,7 @@ async function loadShares(){
   ]);
   transactions=txRes.data||[];
   dividends=divRes.data||[];
+  DIV_YEARS=computeDivYears();
   if(window.onSharesData)window.onSharesData();
   updateKPIs();
   fetchAllPrices();

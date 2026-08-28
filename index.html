@@ -8,42 +8,66 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="login-wrap">
   <div class="auth-card">
     <div class="auth-logo">&#9632; Markets Suite</div>
     <div class="auth-title">Finance Console</div>
-    <div class="auth-sub">Enter your password to continue</div>
+    <div class="auth-sub">Sign in to continue</div>
+
+    <div class="field" style="margin-bottom:14px;">
+      <label>Email</label>
+      <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="username">
+    </div>
     <div class="field" style="margin-bottom:14px;">
       <label>Password</label>
-      <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+      <input type="password" id="authPassword" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password">
     </div>
-    <button class="btn-primary" id="authBtn" onclick="handleAuth()" style="width:100%;padding:12px;">Unlock</button>
+
+    <button class="btn-primary" id="authBtn" onclick="handleAuth()" style="width:100%;padding:12px;">Sign in</button>
     <div class="auth-msg" id="authMsg"></div>
   </div>
 </div>
 
 <script>
-const PASS_HASH='60806fd1d4e5822dfc83753ff8a17307323375290c645a270c589c21a05d1ca6';
-async function sha256(str){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+const SUPABASE_URL='https://yppafsdnzcfkmopqlsgm.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwcGFmc2RuemNma21vcHFsc2dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTQ1ODYsImV4cCI6MjA5ODczMDU4Nn0.7lhkzyUIhccr6aPPNR9Xgwj2erlN07rb0FEMxY1GKdQ';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+const emailEl=document.getElementById('authEmail');
+const passEl=document.getElementById('authPassword');
+const btn=document.getElementById('authBtn');
+const msg=document.getElementById('authMsg');
+
+// If already signed in, skip the form
+sb.auth.getSession().then(({data:{session}})=>{
+  if(session)location.replace('dashboard.html');
+});
+
 async function handleAuth(){
-  const pw=document.getElementById('authPassword').value;
-  const btn=document.getElementById('authBtn');
-  const msg=document.getElementById('authMsg');
-  if(!pw){msg.textContent='Enter your password.';msg.className='auth-msg err';return;}
-  btn.disabled=true;btn.textContent='Checking…';
-  const hash=await sha256(pw);
-  btn.disabled=false;btn.textContent='Unlock';
-  if(hash!==PASS_HASH){msg.textContent='Incorrect password.';msg.className='auth-msg err';return;}
-  sessionStorage.setItem('pt_auth','1');
+  const email=emailEl.value.trim();
+  const password=passEl.value;
+  msg.textContent='';msg.className='auth-msg';
+  if(!email||!password){msg.textContent='Enter your email and password.';msg.className='auth-msg err';return;}
+  btn.disabled=true;btn.textContent='Signing in…';
+
+  const {error}=await sb.auth.signInWithPassword({email,password});
+
+  btn.disabled=false;btn.textContent='Sign in';
+  if(error){
+    msg.textContent=error.message==='Invalid login credentials'
+      ? 'Incorrect email or password.'
+      : error.message;
+    msg.className='auth-msg err';
+    return;
+  }
   location.replace('dashboard.html');
 }
-document.getElementById('authPassword').addEventListener('keydown',e=>{if(e.key==='Enter')handleAuth();});
-if(sessionStorage.getItem('pt_auth')==='1')location.replace('dashboard.html');
+
+emailEl.addEventListener('keydown',e=>{if(e.key==='Enter')handleAuth();});
+passEl.addEventListener('keydown',e=>{if(e.key==='Enter')handleAuth();});
 </script>
 </body>
 </html>

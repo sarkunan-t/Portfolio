@@ -1,22 +1,20 @@
 /* ===== Markets Suite — shared core =====
    Supabase client, auth guard, sidebar, utilities.
-   Every page (except index.html) loads this first. */
+   Every page (except index.html) loads this first.
+   AUTH: now uses Supabase Auth (session-based) to match the new index.html. */
 
 const SUPABASE_URL='https://yppafsdnzcfkmopqlsgm.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwcGFmc2RuemNma21vcHFsc2dtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNTQ1ODYsImV4cCI6MjA5ODczMDU4Nn0.7lhkzyUIhccr6aPPNR9Xgwj2erlN07rb0FEMxY1GKdQ';
-const PASS_HASH='60806fd1d4e5822dfc83753ff8a17307323375290c645a270c589c21a05d1ca6';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-/* ---- auth guard (redirect to login if not authed) ---- */
+/* ---- auth guard (redirect to login if no Supabase session) ---- */
 function requireAuth(){
-  if(sessionStorage.getItem('pt_auth')!=='1'){location.replace('index.html');}
+  sb.auth.getSession().then(({data:{session}})=>{
+    if(!session){location.replace('index.html');}
+  });
 }
 
 /* ---- utilities ---- */
-async function sha256(str){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
 function fmt(n,dec=2){
   if(n==null||isNaN(n))return '—';
   return Number(n).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
@@ -78,16 +76,13 @@ function buildSidebar(activeId){
 }
 
 /* ---- session actions ---- */
-function handleSignOut(){
-  sessionStorage.removeItem('pt_auth');
+async function handleSignOut(){
+  await sb.auth.signOut();
   location.replace('index.html');
 }
 
 async function resetAllData(){
-  const pw=prompt('This will permanently delete ALL transactions and dividends.\n\nEnter your password to continue:');
-  if(pw===null)return;
-  const hash=await sha256(pw);
-  if(hash!==PASS_HASH){showToast('Incorrect password');return;}
+  if(!confirm('This will permanently delete ALL transactions and dividends.\n\nContinue?'))return;
   const word=prompt('Final check — type RESET to confirm:');
   if(word===null)return;
   if(word.trim().toUpperCase()!=='RESET'){showToast('Reset cancelled');return;}
