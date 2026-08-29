@@ -27,36 +27,79 @@
     </div>
     <div class="page">
 
-      <div id="fdKpiHost"></div>
-      <div id="fdFilterNote" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#00a19c;margin:-8px 0 14px;">&#9679; Filtered view — cards reflect active filters</div>
+      <!-- ── NET CAPITAL (3-way) ── -->
+      <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+        <div class="tile" style="border-top-color:#00514d;">
+          <div class="tile-label">Total Net Capital (in MYR)</div>
+          <div class="tile-value" id="ncTotal">—</div>
+          <div class="tile-sub" id="ncRateNote">fetching live USD/MYR…</div>
+        </div>
+        <div class="tile">
+          <div class="tile-label">MYR Cash</div>
+          <div class="tile-value" id="ncMyr">—</div>
+          <div class="tile-sub">ringgit across all CDS</div>
+        </div>
+        <div class="tile">
+          <div class="tile-label">USD Cash</div>
+          <div class="tile-value" id="ncUsd">—</div>
+          <div class="tile-sub" id="ncUsdInMyr"></div>
+        </div>
+      </div>
 
+      <!-- ── AVAILABLE FUNDS BY CDS ── -->
+      <div class="table-wrap" style="padding:16px 18px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+          <div style="font-size:13px;font-weight:800;">Available Funds by CDS</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:11px;font-weight:700;color:var(--ink-dim);">As of</label>
+            <input type="date" id="asOfDate" onchange="refreshFdView()" style="width:auto;background:#fbfdfd;border:1px solid var(--panel-edge);border-radius:9px;font-family:'Mulish',sans-serif;font-size:12px;padding:6px 9px;">
+            <button class="btn-sm" onclick="clearAsOf()">Now</button>
+          </div>
+        </div>
+        <table class="std">
+          <thead><tr><th>CDS Account</th><th class="num">MYR</th><th class="num">USD</th></tr></thead>
+          <tbody id="balBody"></tbody>
+          <tfoot id="balFoot"></tfoot>
+        </table>
+        <div style="font-size:10px;color:var(--ink-dim);margin-top:8px;">
+          Available = deposits − withdrawals ± transfers − share purchases + sale proceeds, per account &amp; currency.
+        </div>
+      </div>
+
+      <!-- ── YOY EXTERNAL CAPITAL FLOW ── -->
       <div class="table-wrap" style="padding:16px 18px;margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
-          <div style="font-size:13px;font-weight:800;">Year-on-Year Flow</div>
+          <div style="font-size:13px;font-weight:800;">External Capital — Year on Year</div>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-dim);">
             <span style="color:#00a19c;">&#9632;</span> Deposits &nbsp;
-            <span style="color:#d93025;">&#9632;</span> Withdrawals
+            <span style="color:#d93025;">&#9632;</span> Withdrawals &nbsp;
+            <span style="font-style:italic;">(transfers excluded — internal moves)</span>
           </div>
         </div>
         <div id="fdChart" style="overflow-x:auto;"></div>
       </div>
 
+      <!-- ── MOVEMENTS ── -->
       <div class="filters">
-        <select class="filter-select" id="fdFilterCcy" onchange="refreshFdView()"><option value="">All Currencies</option><option value="MYR">MYR</option><option value="USD">USD</option></select>
-        <select class="filter-select" id="fdFilterYear" onchange="refreshFdView()"><option value="">All Years</option></select>
-        <select class="filter-select" id="fdFilterCDS" onchange="refreshFdView()"><option value="">All CDS</option></select>
-        <select class="filter-select" id="fdFilterBank" onchange="refreshFdView()"><option value="">All Bank Accounts</option></select>
-        <select class="filter-select" id="fdFilterType" onchange="refreshFdView()"><option value="">All Types</option><option value="Deposit">Deposit</option><option value="Withdraw">Withdraw</option></select>
+        <select class="filter-select" id="fdFilterCcy" onchange="renderFunds()"><option value="">All Currencies</option><option value="MYR">MYR</option><option value="USD">USD</option></select>
+        <select class="filter-select" id="fdFilterYear" onchange="renderFunds()"><option value="">All Years</option></select>
+        <select class="filter-select" id="fdFilterCDS" onchange="renderFunds()"><option value="">All CDS</option></select>
+        <select class="filter-select" id="fdFilterType" onchange="renderFunds()">
+          <option value="">All Types</option>
+          <option value="Deposit">Deposit</option>
+          <option value="Withdraw">Withdraw</option>
+          <option value="Transfer In">Transfer In</option>
+          <option value="Transfer Out">Transfer Out</option>
+        </select>
       </div>
 
       <div class="table-wrap">
         <table class="std">
           <thead><tr>
-            <th>Date</th><th>Type</th><th>Ccy</th><th>CDS</th><th>Bank Account</th>
+            <th>Date</th><th>Type</th><th>Ccy</th><th>CDS</th><th>Detail</th>
             <th class="num">Amount</th><th>Notes</th><th></th>
           </tr></thead>
           <tbody id="fdBody"></tbody>
-          <tfoot id="fdFoot"></tfoot>
         </table>
       </div>
 
@@ -64,47 +107,79 @@
   </div>
 </div>
 
-<!-- FUNDS MODAL -->
+<!-- ═══ MODAL ═══ -->
 <div class="modal-overlay" id="fdModal">
   <div class="modal">
     <div class="modal-title" id="fdModalTitle">Add Movement</div>
+
     <div class="form-section">
       <div class="field"><label>Type</label>
         <div class="toggle-row">
-          <button class="toggle-btn active-buy" id="fdTypeDep" onclick="setFdType('Deposit')">&#9650; Deposit</button>
-          <button class="toggle-btn" id="fdTypeWd" onclick="setFdType('Withdraw')">&#9660; Withdraw</button>
+          <button class="toggle-btn active-buy" id="fdModeDep" onclick="setFdMode('Deposit')">&#9650; Deposit</button>
+          <button class="toggle-btn" id="fdModeWd" onclick="setFdMode('Withdraw')">&#9660; Withdraw</button>
+          <button class="toggle-btn" id="fdModeXf" onclick="setFdMode('Transfer')">&#8646; Transfer</button>
         </div>
       </div>
     </div>
-    <div class="form-section">
-      <div class="form-section-title">Details</div>
-      <div class="form-grid g2">
-        <div class="field"><label>Date</label><input type="date" id="fdDate"></div>
-        <div class="field"><label>Currency</label>
-          <select id="fdCurrency" onchange="onFdCurrencyChange()">
-            <option value="MYR">MYR — Ringgit</option>
-            <option value="USD">USD — US Dollar</option>
-          </select>
+
+    <!-- Deposit / Withdraw -->
+    <div id="fdStd">
+      <div class="form-section">
+        <div class="form-section-title">Details</div>
+        <div class="form-grid g2">
+          <div class="field"><label>Date</label><input type="date" id="fdDate"></div>
+          <div class="field"><label>Currency</label>
+            <select id="fdCurrency" onchange="onFdCurrencyChange()">
+              <option value="MYR">MYR — Ringgit</option>
+              <option value="USD">USD — US Dollar</option>
+            </select>
+          </div>
+          <div class="field"><label>Amount (<span id="fdAmtCcy">MYR</span>)</label><input type="number" id="fdAmount" placeholder="0.00" min="0" step="any"></div>
+          <div class="field"><label>CDS Account</label>
+            <select id="fdCDS"><option value="MYB">Maybank (MYB)</option><option value="RHB">RHB</option><option value="RKT">Rakuten (RKT)</option></select>
+          </div>
+          <div class="field"><label>Bank Account</label>
+            <input type="text" id="fdBank" list="fdBankList" placeholder="e.g. Maybank" autocomplete="off">
+            <datalist id="fdBankList"></datalist>
+          </div>
+          <div class="field full"><label>Notes (optional)</label><input type="text" id="fdNotes" placeholder="e.g. Salary savings"></div>
         </div>
-        <div class="field"><label>Amount (<span id="fdAmtCcy">MYR</span>)</label><input type="number" id="fdAmount" placeholder="0.00" min="0" step="any"></div>
-        <div class="field"><label>CDS Account</label>
-          <select id="fdCDS">
-            <option value="MYB">Maybank (MYB)</option>
-            <option value="RHB">RHB</option>
-            <option value="RKT">Rakuten (RKT)</option>
-          </select>
-        </div>
-        <div class="field"><label>Bank Account</label>
-          <input type="text" id="fdBank" list="fdBankList" placeholder="e.g. Maybank" autocomplete="off">
-          <datalist id="fdBankList"></datalist>
-        </div>
-        <div class="field full"><label>Notes (optional)</label><input type="text" id="fdNotes" placeholder="e.g. Dividend reinvested"></div>
       </div>
     </div>
+
+    <!-- Transfer / FX conversion -->
+    <div id="fdXfer" style="display:none;">
+      <div class="form-section">
+        <div class="form-section-title">Convert / Transfer between accounts</div>
+        <div class="form-grid g2">
+          <div class="field"><label>Date</label><input type="date" id="xfDate" onchange="autoFillXferRate()"></div>
+          <div class="field"><label>&nbsp;</label>
+            <button type="button" class="btn-primary" style="width:100%;padding:8px;" onclick="autoFillXferRate()">&#8635; Fetch rate for date</button>
+          </div>
+          <div class="field"><label>From CDS</label>
+            <select id="xfFromCds"><option value="MYB">Maybank (MYB)</option><option value="RHB">RHB</option><option value="RKT">Rakuten (RKT)</option></select>
+          </div>
+          <div class="field"><label>From Currency</label>
+            <select id="xfFromCcy" onchange="onXferCcyChange()"><option value="MYR">MYR</option><option value="USD">USD</option></select>
+          </div>
+          <div class="field"><label>From Amount (<span id="xfFromCcyLbl">MYR</span>)</label><input type="number" id="xfFromAmt" placeholder="0.00" min="0" step="any" oninput="recalcXfer()"></div>
+          <div class="field"><label>To CDS</label>
+            <select id="xfToCds"><option value="RKT">Rakuten (RKT)</option><option value="MYB">Maybank (MYB)</option><option value="RHB">RHB</option></select>
+          </div>
+          <div class="field"><label>To Currency</label>
+            <select id="xfToCcy" onchange="onXferCcyChange()"><option value="USD">USD</option><option value="MYR">MYR</option></select>
+          </div>
+          <div class="field"><label>To Amount (<span id="xfToCcyLbl">USD</span>) — actual received</label><input type="number" id="xfToAmt" placeholder="0.00" min="0" step="any" oninput="onXferToAmtEdited()"></div>
+          <div class="field full"><label>Notes (optional)</label><input type="text" id="xfNotes" placeholder="e.g. Funding US account"></div>
+        </div>
+        <div id="xfRateNote" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-dim);margin-top:6px;min-height:16px;"></div>
+      </div>
+    </div>
+
     <div class="modal-err" id="fdErr"></div>
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeFdModal()">Cancel</button>
-      <button class="btn-save" id="fdSaveBtn" onclick="saveFund()">Save Movement</button>
+      <button class="btn-save" id="fdSaveBtn" onclick="saveMovement()">Save Movement</button>
     </div>
   </div>
 </div>
@@ -115,111 +190,183 @@
 requireAuth();
 buildSidebar('funds');
 
-let funds=[], fundsTx=[], editingFdId=null, fdType='Deposit';
+/* If true, "available" nets out share purchases (+ sale proceeds).
+   Set to false to show capital CONTRIBUTED (deposits/withdrawals/transfers only). */
+const NET_OF_SHARE_SPEND = true;
+const CDS_LIST = ['MYB','RHB','RKT'];
 
-/* ---- data ---- */
+let funds=[], fundsTx=[], liveFx=null;
+let fdMode='Deposit', editingFdId=null, editingXferGroup=null;
+let xferAutoRate=null, xferToManual=false;
+
+function uuid(){return crypto.randomUUID?crypto.randomUUID():'xf-'+Date.now()+'-'+Math.random().toString(16).slice(2);}
+
+/* ═══ data ═══ */
 async function loadFunds(){
   const [fdRes,txRes]=await Promise.all([
     sb.from('funds').select('*').order('txn_date',{ascending:false}),
-    sb.from('transactions').select('tx_date,tx_type,cds_account,net_amount,currency')
+    sb.from('transactions').select('tx_date,tx_type,cds_account,net_amount,currency,market')
   ]);
   if(fdRes.error){
     document.getElementById('fdBody').innerHTML=
-      `<tr><td colspan="8" class="empty-state">Could not load — has the <b>funds</b> table been created in Supabase?</td></tr>`;
+      `<tr><td colspan="8" class="empty-state">Could not load — has the <b>funds</b> table been created (and the transfer columns added)?</td></tr>`;
     return;
   }
   funds=fdRes.data||[];
   fundsTx=txRes.data||[];
   populateFdFilters();
   refreshFdView();
+  loadLiveFx();
 }
 
-/* ---- filters ---- */
-function getFilteredFunds(){
-  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
-  const ccyF=g('fdFilterCcy'),yrF=g('fdFilterYear'),cdsF=g('fdFilterCDS'),bnkF=g('fdFilterBank'),typF=g('fdFilterType');
-  const list=funds.filter(f=>{
-    if(ccyF&&(f.currency||'MYR')!==ccyF)return false;
-    if(yrF&&new Date(f.txn_date).getFullYear()!=yrF)return false;
-    if(cdsF&&f.cds_account!==cdsF)return false;
-    if(bnkF&&(f.bank_account||'')!==bnkF)return false;
-    if(typF&&f.txn_type!==typF)return false;
-    return true;
-  });
-  return {list,active:!!(ccyF||yrF||cdsF||bnkF||typF)};
+async function loadLiveFx(){
+  try{
+    await fetchPrice('USDMYR=X');           // reuse shares.js fetcher + proxies
+    const c=priceCache['USDMYR=X'];
+    if(c&&c!=='err')liveFx=c.price;         // MYR per 1 USD
+  }catch(e){}
+  renderBalancesAndNet(currentAsOf());
 }
+
+/* ═══ balances ═══ */
+function currentAsOf(){return document.getElementById('asOfDate').value||'';}
+function clearAsOf(){document.getElementById('asOfDate').value='';refreshFdView();}
+
+function computeBalances(asOf){
+  const bal={};
+  const cell=cds=>{const k=cds||'—';if(!bal[k])bal[k]={MYR:0,USD:0};return bal[k];};
+  funds.forEach(f=>{
+    if(asOf && f.txn_date && f.txn_date>asOf)return;
+    const ccy=f.currency||'MYR'; if(ccy!=='MYR'&&ccy!=='USD')return;
+    const amt=Number(f.amount)||0, b=cell(f.cds_account);
+    if(f.txn_type==='Deposit'||f.txn_type==='Transfer In')b[ccy]+=amt;
+    else b[ccy]-=amt;                       // Withdraw / Transfer Out
+  });
+  if(NET_OF_SHARE_SPEND){
+    fundsTx.forEach(t=>{
+      if(asOf && t.tx_date && t.tx_date>asOf)return;
+      const ccy=t.currency||(t.market==='Bursa'?'MYR':'USD'); if(ccy!=='MYR'&&ccy!=='USD')return;
+      const amt=Number(t.net_amount)||0, b=cell(t.cds_account);
+      if(t.tx_type==='Buy')b[ccy]-=amt; else b[ccy]+=amt;   // Buy spends cash, Sell returns it
+    });
+  }
+  CDS_LIST.forEach(c=>cell(c));             // always show the standard accounts
+  return bal;
+}
+
+function renderBalancesAndNet(asOf){
+  const bal=computeBalances(asOf);
+  const cdsList=Object.keys(bal).sort();
+  const money=(v,ccy)=>`<span class="${v>=0?'up':'down'}">${ccy} ${fmt(v)}</span>`;
+  document.getElementById('balBody').innerHTML=cdsList.map(c=>`
+    <tr>
+      <td style="font-weight:700;">${c}</td>
+      <td class="num">${money(bal[c].MYR,'MYR')}</td>
+      <td class="num">${money(bal[c].USD,'USD')}</td>
+    </tr>`).join('');
+  let tMYR=0,tUSD=0; cdsList.forEach(c=>{tMYR+=bal[c].MYR;tUSD+=bal[c].USD;});
+  document.getElementById('balFoot').innerHTML=`
+    <tr class="total-row">
+      <td style="font-weight:800;">TOTAL</td>
+      <td class="num">${money(tMYR,'MYR')}</td>
+      <td class="num">${money(tUSD,'USD')}</td>
+    </tr>`;
+
+  // NET card
+  setText('ncMyr','MYR '+fmt(tMYR));
+  setText('ncUsd','USD '+fmt(tUSD));
+  if(liveFx){
+    document.getElementById('ncUsdInMyr').innerHTML='&#8776; MYR '+fmt(tUSD*liveFx);
+    setText('ncTotal','MYR '+fmt(tMYR+tUSD*liveFx));
+    setText('ncRateNote','USD marked live @ USDMYR '+fmt(liveFx,4)+(asOf?' · as of '+asOf:''));
+  } else {
+    document.getElementById('ncUsdInMyr').innerHTML='live rate pending…';
+    setText('ncTotal','MYR '+fmt(tMYR)+'  +  USD '+fmt(tUSD));
+    setText('ncRateNote','fetching live USD/MYR…');
+  }
+}
+
+/* ═══ filters + movements table ═══ */
 function populateFdFilters(){
-  const keep=(sel,vals,label)=>{
-    const cur=sel.value;
-    sel.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${v}">${v}</option>`).join('');
-    if(vals.map(String).includes(cur))sel.value=cur;
-  };
-  keep(document.getElementById('fdFilterYear'),
-    [...new Set(funds.map(f=>new Date(f.txn_date).getFullYear()))].sort((a,b)=>b-a),'All Years');
-  keep(document.getElementById('fdFilterCDS'),
-    [...new Set(funds.map(f=>f.cds_account).filter(Boolean))].sort(),'All CDS');
-  keep(document.getElementById('fdFilterBank'),
-    [...new Set(funds.map(f=>f.bank_account).filter(Boolean))].sort(),'All Bank Accounts');
+  const keep=(sel,vals,label)=>{const cur=sel.value;sel.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${v}">${v}</option>`).join('');if(vals.map(String).includes(cur))sel.value=cur;};
+  keep(document.getElementById('fdFilterYear'),[...new Set(funds.map(f=>new Date(f.txn_date).getFullYear()))].sort((a,b)=>b-a),'All Years');
+  keep(document.getElementById('fdFilterCDS'),[...new Set(funds.map(f=>f.cds_account).filter(Boolean))].sort(),'All CDS');
   const banks=[...new Set(funds.map(f=>f.bank_account).filter(Boolean))].sort();
   document.getElementById('fdBankList').innerHTML=banks.map(b=>`<option value="${b}">`).join('');
 }
-function refreshFdView(){renderFunds();renderFdKPIs();}
+function getFilteredFunds(){
+  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+  const ccyF=g('fdFilterCcy'),yrF=g('fdFilterYear'),cdsF=g('fdFilterCDS'),typF=g('fdFilterType');
+  return funds.filter(f=>{
+    if(ccyF&&(f.currency||'MYR')!==ccyF)return false;
+    if(yrF&&new Date(f.txn_date).getFullYear()!=yrF)return false;
+    if(cdsF&&f.cds_account!==cdsF)return false;
+    if(typF&&f.txn_type!==typF)return false;
+    return true;
+  });
+}
+function refreshFdView(){renderBalancesAndNet(currentAsOf());renderCapitalChart();renderFunds();}
 
-/* ---- cards + charts (split by currency) ---- */
-function renderFdKPIs(){
-  const {list,active}=getFilteredFunds();
-  document.getElementById('fdFilterNote').style.display=active?'block':'none';
-  const kpiHost=document.getElementById('fdKpiHost');
+function renderFunds(){
+  const list=getFilteredFunds();
+  const tbody=document.getElementById('fdBody');
+  setText('fdCount',`${list.length} movement${list.length!==1?'s':''}`);
+  if(!list.length){tbody.innerHTML=`<tr><td colspan="8" class="empty-state">No movements found.</td></tr>`;return;}
+  tbody.innerHTML=list.map(f=>{
+    const ccy=f.currency||'MYR';
+    const date=new Date(f.txn_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const plus=(f.txn_type==='Deposit'||f.txn_type==='Transfer In');
+    let badge,detail;
+    if(f.txn_type==='Deposit'){badge='<span class="badge badge-buy">DEPOSIT</span>';detail=f.bank_account||'—';}
+    else if(f.txn_type==='Withdraw'){badge='<span class="badge badge-sell">WITHDRAW</span>';detail=f.bank_account||'—';}
+    else if(f.txn_type==='Transfer In'){badge='<span class="badge badge-buy">XFER IN</span>';detail=f.fx_rate?`&#8646; @ USDMYR ${fmt(f.fx_rate,4)}`:'&#8646; transfer';}
+    else{badge='<span class="badge badge-sell">XFER OUT</span>';detail=f.fx_rate?`&#8646; @ USDMYR ${fmt(f.fx_rate,4)}`:'&#8646; transfer';}
+    const isXfer=!!f.transfer_group;
+    const editCall=isXfer?`editTransfer('${f.transfer_group}')`:`editFund('${f.id}')`;
+    return `<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap;">${date}</td>
+      <td>${badge}</td>
+      <td style="font-size:11px;font-weight:700;">${ccy}</td>
+      <td style="font-size:11px;">${f.cds_account||'—'}</td>
+      <td style="font-size:11px;color:var(--ink-dim);">${detail}</td>
+      <td class="num"><span class="${plus?'up':'down'}">${plus?'+':'−'}${fmt(f.amount)}</span></td>
+      <td style="font-size:10px;color:var(--ink-dim);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.notes||'—'}</td>
+      <td><div class="action-btns">
+        <button class="btn-sm" onclick="${editCall}">Edit</button>
+        <button class="btn-sm btn-del" onclick="deleteFund('${f.id}')">Del</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ═══ YoY external-capital chart (deposits/withdrawals only) ═══ */
+function renderCapitalChart(){
+  const list=getFilteredFunds().filter(f=>f.txn_type==='Deposit'||f.txn_type==='Withdraw');
   const chartEl=document.getElementById('fdChart');
-  if(!list.length){
-    kpiHost.innerHTML=`<div class="summary-grid"><div class="tile"><div class="tile-label">Net Capital Invested</div><div class="tile-value">—</div></div></div>`;
-    chartEl.innerHTML='<div class="empty-state" style="padding:30px 0;">No data</div>';
-    return;
-  }
-  // group everything by currency
+  if(!list.length){chartEl.innerHTML='<div class="empty-state" style="padding:30px 0;">No deposits or withdrawals</div>';return;}
   const byCcy={};
   list.forEach(f=>{
     const ccy=f.currency||'MYR';
-    if(!byCcy[ccy])byCcy[ccy]={dep:0,wd:0,wdN:0,byYear:{}};
-    const amt=Number(f.amount);
+    if(!byCcy[ccy])byCcy[ccy]={};
     const y=new Date(f.txn_date).getFullYear();
-    if(!byCcy[ccy].byYear[y])byCcy[ccy].byYear[y]={dep:0,wd:0};
-    if(f.txn_type==='Deposit'){byCcy[ccy].dep+=amt;byCcy[ccy].byYear[y].dep+=amt;}
-    else{byCcy[ccy].wd+=amt;byCcy[ccy].wdN++;byCcy[ccy].byYear[y].wd+=amt;}
+    if(!byCcy[ccy][y])byCcy[ccy][y]={dep:0,wd:0};
+    if(f.txn_type==='Deposit')byCcy[ccy][y].dep+=Number(f.amount);
+    else byCcy[ccy][y].wd+=Number(f.amount);
   });
-  const ccys=Object.keys(byCcy).sort();
-
-  // KPI cards — one Net Capital + one Withdrawn card per currency
-  let cards='';
-  ccys.forEach(ccy=>{
-    const d=byCcy[ccy], net=d.dep-d.wd;
-    cards+=`<div class="tile">
-      <div class="tile-label">Net Capital · ${ccy}</div>
-      <div class="tile-value"><span class="${net>=0?'up':'down'}">${ccy} ${fmt(net)}</span></div>
-      <div class="tile-sub">deposits − withdrawals</div></div>`;
-    cards+=`<div class="tile">
-      <div class="tile-label">Withdrawn · ${ccy}</div>
-      <div class="tile-value">${d.wd>0?`<span class="down">${ccy} ${fmt(d.wd)}</span>`:`${ccy} 0.00`}</div>
-      <div class="tile-sub">${d.wdN} withdrawal${d.wdN!==1?'s':''}</div></div>`;
-  });
-  kpiHost.innerHTML=`<div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">${cards}</div>`;
-
-  // one YoY chart per currency
-  chartEl.innerHTML=ccys.map(ccy=>renderFdChartFor(ccy,byCcy[ccy].byYear)).join('');
+  chartEl.innerHTML=Object.keys(byCcy).sort().map(ccy=>chartFor(ccy,byCcy[ccy])).join('');
 }
-
-function renderFdChartFor(ccy,byYear){
+function chartFor(ccy,byYear){
   const years=Object.keys(byYear).map(Number).sort((a,b)=>a-b);
   if(!years.length)return '';
   const maxVal=Math.max(...years.map(y=>Math.max(byYear[y].dep,byYear[y].wd)),1);
   const kFmt=v=>v>=1000?(v/1000).toLocaleString('en-US',{maximumFractionDigits:v>=100000?0:1})+'k':String(Math.round(v));
-  const groupW=86,barW=26,gap=6,padL=14,padR=14,padT=26,padB=26,chartH=150;
-  const W=padL+years.length*groupW+padR, H=padT+chartH+padB;
+  const groupW=86,barW=26,gap=6,padL=14,padR=14,padT=26,chartH=150;
+  const W=padL+years.length*groupW+padR,H=padT+chartH+26;
   let bars='';
   years.forEach((y,i)=>{
     const gx=padL+i*groupW+(groupW-(barW*2+gap))/2;
     const d=byYear[y].dep,w=byYear[y].wd;
-    const dh=Math.round(d/maxVal*chartH), wh=Math.round(w/maxVal*chartH);
+    const dh=Math.round(d/maxVal*chartH),wh=Math.round(w/maxVal*chartH);
     bars+=`<rect x="${gx}" y="${padT+chartH-dh}" width="${barW}" height="${Math.max(dh,d>0?2:0)}" rx="3" fill="#00a19c"/>`;
     if(d>0)bars+=`<text x="${gx+barW/2}" y="${padT+chartH-dh-5}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono,monospace" fill="#00514d">${kFmt(d)}</text>`;
     bars+=`<rect x="${gx+barW+gap}" y="${padT+chartH-wh}" width="${barW}" height="${Math.max(wh,w>0?2:0)}" rx="3" fill="#d93025"/>`;
@@ -229,90 +376,129 @@ function renderFdChartFor(ccy,byYear){
   return `<div style="margin-bottom:14px;">
     <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:600;margin-bottom:2px;">${ccy}</div>
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">
-      <line x1="${padL-4}" y1="${padT+chartH}" x2="${W-padR+4}" y2="${padT+chartH}" stroke="#d8e4e2" stroke-width="1"/>
-      ${bars}
-    </svg>
-  </div>`;
+      <line x1="${padL-4}" y1="${padT+chartH}" x2="${W-padR+4}" y2="${padT+chartH}" stroke="#d8e4e2" stroke-width="1"/>${bars}
+    </svg></div>`;
 }
 
-/* ---- table ---- */
-function renderFunds(){
-  const {list}=getFilteredFunds();
-  const tbody=document.getElementById('fdBody');
-  const tfoot=document.getElementById('fdFoot');
-  setText('fdCount',`${list.length} movement${list.length!==1?'s':''}`);
-  if(!list.length){tbody.innerHTML=`<tr><td colspan="8" class="empty-state">No movements found.</td></tr>`;tfoot.innerHTML='';return;}
-  const netByCcy={};
-  tbody.innerHTML=list.map(f=>{
-    const ccy=f.currency||'MYR';
-    const date=new Date(f.txn_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-    const isDep=f.txn_type==='Deposit';
-    netByCcy[ccy]=(netByCcy[ccy]||0)+(isDep?Number(f.amount):-Number(f.amount));
-    const badge=isDep?`<span class="badge badge-buy">DEPOSIT</span>`:`<span class="badge badge-sell">WITHDRAW</span>`;
-    return `<tr>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap;">${date}</td>
-      <td>${badge}</td>
-      <td style="font-size:11px;font-weight:700;">${ccy}</td>
-      <td style="font-size:11px;">${f.cds_account||'—'}</td>
-      <td style="font-size:12px;">${f.bank_account||'—'}</td>
-      <td class="num"><span class="${isDep?'up':'down'}">${isDep?'+':'−'}${fmt(f.amount)}</span></td>
-      <td style="font-size:10px;color:var(--ink-dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.notes||'—'}</td>
-      <td><div class="action-btns">
-        <button class="btn-sm" onclick="editFund('${f.id}')">Edit</button>
-        <button class="btn-sm btn-del" onclick="deleteFund('${f.id}')">Del</button>
-      </div></td>
-    </tr>`;
-  }).join('');
-  // one NET row per currency (never summed across currencies)
-  tfoot.innerHTML=Object.keys(netByCcy).sort().map(ccy=>{
-    const net=netByCcy[ccy];
-    return `<tr class="total-row">
-      <td colspan="5" style="text-align:right;font-weight:700;">NET ${ccy} (shown rows)</td>
-      <td class="num"><span class="${net>=0?'up':'down'}">${net>=0?'+':'−'}${ccy} ${fmt(Math.abs(net))}</span></td>
-      <td colspan="2"></td>
-    </tr>`;
-  }).join('');
-}
-
-/* ---- modal ---- */
-function setFdType(t){
-  fdType=t;
-  document.getElementById('fdTypeDep').className='toggle-btn'+(t==='Deposit'?' active-buy':'');
-  document.getElementById('fdTypeWd').className='toggle-btn'+(t==='Withdraw'?' active-sell':'');
-}
-function onFdCurrencyChange(){
-  setText('fdAmtCcy',document.getElementById('fdCurrency').value);
-}
-function openFdModal(id){
-  editingFdId=id||null;
-  setText('fdModalTitle',id?'Edit Movement':'Add Movement');
-  setText('fdSaveBtn',id?'Save Changes':'Save Movement');
-  setText('fdErr','');
-  if(id){
-    const f=funds.find(x=>x.id===id);
-    setFdType(f.txn_type);
-    document.getElementById('fdDate').value=f.txn_date;
-    document.getElementById('fdCurrency').value=f.currency||'MYR';
-    document.getElementById('fdAmount').value=f.amount;
-    document.getElementById('fdCDS').value=f.cds_account||'MYB';
-    document.getElementById('fdBank').value=f.bank_account||'';
-    document.getElementById('fdNotes').value=f.notes||'';
-  } else {
-    setFdType('Deposit');
-    document.getElementById('fdDate').value=new Date().toISOString().split('T')[0];
-    document.getElementById('fdCurrency').value='MYR';
-    document.getElementById('fdAmount').value='';
-    document.getElementById('fdCDS').value='MYB';
-    document.getElementById('fdBank').value='Maybank';
-    document.getElementById('fdNotes').value='';
+/* ═══ historical FX (for transfer auto-fill) ═══ */
+async function fetchHistFxRate(dateStr){
+  const d=new Date(dateStr+'T00:00:00');
+  const p1=Math.floor(d.getTime()/1000)-4*86400, p2=Math.floor(d.getTime()/1000)+2*86400;
+  const base=`https://query1.finance.yahoo.com/v8/finance/chart/USDMYR=X?period1=${p1}&period2=${p2}&interval=1d`;
+  for(const proxy of PROXIES){
+    try{
+      const res=await fetch(proxy(base));
+      if(!res.ok)continue;
+      const data=await res.json();
+      const r=data?.chart?.result?.[0]; const ts=r?.timestamp||[]; const cl=r?.indicators?.quote?.[0]?.close||[];
+      const target=d.getTime()/1000; let best=null,bestDiff=Infinity;
+      ts.forEach((t,i)=>{if(cl[i]==null)return;const diff=Math.abs(t-target);if(diff<bestDiff){bestDiff=diff;best=cl[i];}});
+      if(best!=null)return best;
+    }catch(e){continue;}
   }
-  onFdCurrencyChange();
+  return null;
+}
+
+/* ═══ modal ═══ */
+function setFdMode(m){
+  fdMode=m;
+  document.getElementById('fdModeDep').className='toggle-btn'+(m==='Deposit'?' active-buy':'');
+  document.getElementById('fdModeWd').className='toggle-btn'+(m==='Withdraw'?' active-sell':'');
+  document.getElementById('fdModeXf').className='toggle-btn'+(m==='Transfer'?' active-buy':'');
+  document.getElementById('fdStd').style.display=(m==='Transfer')?'none':'';
+  document.getElementById('fdXfer').style.display=(m==='Transfer')?'':'none';
+}
+function onFdCurrencyChange(){setText('fdAmtCcy',document.getElementById('fdCurrency').value);}
+function onXferCcyChange(){
+  const fc=document.getElementById('xfFromCcy').value, tc=document.getElementById('xfToCcy').value;
+  setText('xfFromCcyLbl',fc);setText('xfToCcyLbl',tc);
+  xferToManual=false;recalcXfer();
+}
+async function autoFillXferRate(){
+  const date=document.getElementById('xfDate').value;
+  const note=document.getElementById('xfRateNote');
+  if(!date){note.textContent='Pick a date first.';return;}
+  note.textContent='Fetching market rate…';
+  const rate=await fetchHistFxRate(date);
+  if(rate==null){note.textContent='Could not fetch a rate — enter the received amount manually.';return;}
+  xferAutoRate=rate; xferToManual=false; recalcXfer();
+  note.textContent='Market rate on '+date+': USDMYR '+fmt(rate,4)+' — adjust "To Amount" to your actual received amount.';
+}
+function recalcXfer(){
+  if(xferAutoRate==null||xferToManual)return;
+  const fc=document.getElementById('xfFromCcy').value,tc=document.getElementById('xfToCcy').value;
+  const fa=parseFloat(document.getElementById('xfFromAmt').value)||0;
+  let ta=0;
+  if(fc===tc)ta=fa;
+  else if(fc==='MYR'&&tc==='USD')ta=fa/xferAutoRate;
+  else if(fc==='USD'&&tc==='MYR')ta=fa*xferAutoRate;
+  document.getElementById('xfToAmt').value=ta?ta.toFixed(2):'';
+  updateXferImplied();
+}
+function onXferToAmtEdited(){xferToManual=true;updateXferImplied();}
+function updateXferImplied(){
+  const fc=document.getElementById('xfFromCcy').value,tc=document.getElementById('xfToCcy').value;
+  const fa=parseFloat(document.getElementById('xfFromAmt').value)||0, ta=parseFloat(document.getElementById('xfToAmt').value)||0;
+  if(fc!==tc&&fa>0&&ta>0){
+    const myr=(fc==='MYR')?fa:ta, usd=(fc==='USD')?fa:ta;
+    document.getElementById('xfRateNote').textContent='Effective rate: USDMYR '+fmt(myr/usd,4)+(xferToManual?' (from your amounts)':' (market)');
+  }
+}
+
+function openFdModal(){
+  editingFdId=null;editingXferGroup=null;xferAutoRate=null;xferToManual=false;
+  setText('fdModalTitle','Add Movement');setText('fdSaveBtn','Save Movement');setText('fdErr','');
+  setFdMode('Deposit');
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('fdDate').value=today;
+  document.getElementById('fdCurrency').value='MYR';onFdCurrencyChange();
+  document.getElementById('fdAmount').value='';
+  document.getElementById('fdCDS').value='MYB';
+  document.getElementById('fdBank').value='Maybank';
+  document.getElementById('fdNotes').value='';
+  document.getElementById('xfDate').value=today;
+  document.getElementById('xfFromCcy').value='MYR';document.getElementById('xfToCcy').value='USD';onXferCcyChange();
+  document.getElementById('xfFromCds').value='MYB';document.getElementById('xfToCds').value='RKT';
+  ['xfFromAmt','xfToAmt','xfNotes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('xfRateNote').textContent='';
   document.getElementById('fdModal').classList.add('open');
 }
-function editFund(id){openFdModal(id);}
-function closeFdModal(){document.getElementById('fdModal').classList.remove('open');editingFdId=null;}
+function editFund(id){
+  const f=funds.find(x=>x.id===id); if(!f)return;
+  editingFdId=id;editingXferGroup=null;
+  setText('fdModalTitle','Edit Movement');setText('fdSaveBtn','Save Changes');setText('fdErr','');
+  setFdMode(f.txn_type==='Withdraw'?'Withdraw':'Deposit');
+  document.getElementById('fdDate').value=f.txn_date;
+  document.getElementById('fdCurrency').value=f.currency||'MYR';onFdCurrencyChange();
+  document.getElementById('fdAmount').value=f.amount;
+  document.getElementById('fdCDS').value=f.cds_account||'MYB';
+  document.getElementById('fdBank').value=f.bank_account||'';
+  document.getElementById('fdNotes').value=f.notes||'';
+  document.getElementById('fdModal').classList.add('open');
+}
+function editTransfer(group){
+  const rows=funds.filter(f=>f.transfer_group===group);
+  const out=rows.find(r=>r.txn_type==='Transfer Out'), inn=rows.find(r=>r.txn_type==='Transfer In');
+  if(!out||!inn)return;
+  editingFdId=null;editingXferGroup=group;xferAutoRate=out.fx_rate||null;xferToManual=true;
+  setText('fdModalTitle','Edit Transfer');setText('fdSaveBtn','Save Changes');setText('fdErr','');
+  setFdMode('Transfer');
+  document.getElementById('xfDate').value=out.txn_date;
+  document.getElementById('xfFromCds').value=out.cds_account||'MYB';
+  document.getElementById('xfFromCcy').value=out.currency||'MYR';
+  document.getElementById('xfFromAmt').value=out.amount;
+  document.getElementById('xfToCds').value=inn.cds_account||'RKT';
+  document.getElementById('xfToCcy').value=inn.currency||'USD';
+  document.getElementById('xfToAmt').value=inn.amount;
+  document.getElementById('xfNotes').value=out.notes||'';
+  onXferCcyChange();xferToManual=true;updateXferImplied();
+  document.getElementById('fdModal').classList.add('open');
+}
+function closeFdModal(){document.getElementById('fdModal').classList.remove('open');editingFdId=null;editingXferGroup=null;}
 
-async function saveFund(){
+function saveMovement(){if(fdMode==='Transfer')saveTransfer();else saveStd();}
+
+async function saveStd(){
   const date=document.getElementById('fdDate').value;
   const currency=document.getElementById('fdCurrency').value;
   const amount=parseFloat(document.getElementById('fdAmount').value);
@@ -322,10 +508,9 @@ async function saveFund(){
   const errEl=document.getElementById('fdErr');
   if(!date){errEl.textContent='Select a date.';return;}
   if(!amount||amount<=0){errEl.textContent='Enter a valid amount.';return;}
-  const btn=document.getElementById('fdSaveBtn');
-  btn.disabled=true;btn.textContent='Saving…';
+  const btn=document.getElementById('fdSaveBtn');btn.disabled=true;btn.textContent='Saving…';
   const payload={txn_date:date,currency,amount,cds_account:cds,bank_account:bank||null,
-    txn_type:fdType,notes:notes||null,updated_at:new Date().toISOString()};
+    txn_type:fdMode,notes:notes||null,transfer_group:null,fx_rate:null,updated_at:new Date().toISOString()};
   let error;
   if(editingFdId){({error}=await sb.from('funds').update(payload).eq('id',editingFdId));}
   else{({error}=await sb.from('funds').insert(payload));}
@@ -333,11 +518,48 @@ async function saveFund(){
   if(error){errEl.textContent=error.message;return;}
   closeFdModal();showToast('Movement saved ✓');loadFunds();
 }
+
+async function saveTransfer(){
+  const date=document.getElementById('xfDate').value;
+  const fromCds=document.getElementById('xfFromCds').value, fromCcy=document.getElementById('xfFromCcy').value;
+  const toCds=document.getElementById('xfToCds').value, toCcy=document.getElementById('xfToCcy').value;
+  const fromAmt=parseFloat(document.getElementById('xfFromAmt').value);
+  const toAmt=parseFloat(document.getElementById('xfToAmt').value);
+  const notes=document.getElementById('xfNotes').value.trim();
+  const errEl=document.getElementById('fdErr');
+  if(!date){errEl.textContent='Select a date.';return;}
+  if(!fromAmt||fromAmt<=0){errEl.textContent='Enter a valid "From" amount.';return;}
+  if(!toAmt||toAmt<=0){errEl.textContent='Enter a valid "To" amount (the actual received amount).';return;}
+  if(fromCcy===toCcy&&fromCds===toCds){errEl.textContent='From and To are the same account — nothing to transfer.';return;}
+  const myr=(fromCcy==='MYR')?fromAmt:((toCcy==='MYR')?toAmt:0);
+  const usd=(fromCcy==='USD')?fromAmt:((toCcy==='USD')?toAmt:0);
+  const rate=(myr>0&&usd>0)?(myr/usd):1;   // MYR per USD; 1 for same-currency moves
+  const btn=document.getElementById('fdSaveBtn');btn.disabled=true;btn.textContent='Saving…';
+  const group=editingXferGroup||uuid();
+  const ts=new Date().toISOString();
+  const rows=[
+    {txn_date:date,txn_type:'Transfer Out',currency:fromCcy,amount:fromAmt,cds_account:fromCds,bank_account:null,notes:notes||null,transfer_group:group,fx_rate:rate,updated_at:ts},
+    {txn_date:date,txn_type:'Transfer In', currency:toCcy,  amount:toAmt,  cds_account:toCds,  bank_account:null,notes:notes||null,transfer_group:group,fx_rate:rate,updated_at:ts}
+  ];
+  let error;
+  if(editingXferGroup){await sb.from('funds').delete().eq('transfer_group',group);}
+  ({error}=await sb.from('funds').insert(rows));
+  btn.disabled=false;btn.textContent=editingXferGroup?'Save Changes':'Save Movement';
+  if(error){errEl.textContent=error.message;return;}
+  closeFdModal();showToast('Transfer saved ✓');loadFunds();
+}
+
 async function deleteFund(id){
-  const f=funds.find(x=>x.id===id);
-  if(!confirm(`Delete ${f.txn_type} of ${f.currency||'MYR'} ${fmt(f.amount)} on ${f.txn_date}?`))return;
-  const{error}=await sb.from('funds').delete().eq('id',id);
-  if(error){showToast('Delete failed');return;}
+  const f=funds.find(x=>x.id===id); if(!f)return;
+  if(f.transfer_group){
+    if(!confirm('Delete this transfer? Both sides (out and in) will be removed.'))return;
+    const{error}=await sb.from('funds').delete().eq('transfer_group',f.transfer_group);
+    if(error){showToast('Delete failed');return;}
+  } else {
+    if(!confirm(`Delete ${f.txn_type} of ${f.currency||'MYR'} ${fmt(f.amount)} on ${f.txn_date}?`))return;
+    const{error}=await sb.from('funds').delete().eq('id',id);
+    if(error){showToast('Delete failed');return;}
+  }
   showToast('Deleted ✓');loadFunds();
 }
 
