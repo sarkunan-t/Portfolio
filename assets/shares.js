@@ -3,7 +3,8 @@
    Handles data loading, holdings math, KPI tiles, live prices.
    Pages can define these optional hooks:
      window.onSharesData()    — called after transactions+dividends load
-     window.onPricesUpdated() — called after live prices arrive */
+     window.onPricesUpdated() — called after live prices arrive
+   PRICES: now fetched via the Supabase Edge Function "quote" (no CORS proxies). */
 
 const BURSA_STOCKS=[
   {code:'1155',name:'MAYBANK'},{code:'7113',name:'TOPGLV'},{code:'0163',name:'CAREPLS'},
@@ -115,8 +116,7 @@ function updateKPIs(){
   holdings.forEach(h=>{
     realised+=h.realised;
     if(h.qty>0.001) totalInvested+=h.totalCost;
-    const symbol=h.market==='Bursa'?h.ticker+'.KL':h.ticker;
-    const cached=priceCache[symbol];
+    const cached=priceCache[toYahoo(h)];
     if(cached&&cached!=='err'&&h.qty>0.001){totalEstVal+=h.qty*cached.price;priced++;}
   });
   const unrealised=totalEstVal-totalInvested;
@@ -140,36 +140,52 @@ function updateKPIs(){
   setHTML('kpiNet',`<span class="${netPL>=0?'up':'down'}">${netPL>=0?'+':''}MYR ${fmt(netPL)}</span>`);
 }
 
-/* ---- live prices ---- */
-const PROXIES=[
-  url=>`https://corsproxy.io/?${encodeURIComponent(url)}`,
-  url=>`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  url=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-];
-async function fetchPrice(symbol){
-  if(priceCache[symbol]!==undefined)return;
-  priceCache[symbol]=null;
-  const base=`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-  for(const proxy of PROXIES){
-    try{
-      const ctrl=new AbortController();
-      const t=setTimeout(()=>ctrl.abort(),8000);
-      const res=await fetch(proxy(base),{signal:ctrl.signal});
-      clearTimeout(t);
-      if(!res.ok)continue;
-      const data=await res.json();
-      const meta=data?.chart?.result?.[0]?.meta;
-      if(!meta?.regularMarketPrice)continue;
-      priceCache[symbol]={price:meta.regularMarketPrice,currency:meta.currency};
-      return;
-    }catch{continue;}
-  }
-  priceCache[symbol]='err';
+/* ---- live prices (via Supabase Edge Function "quote") ----
+   priceCache[symbol]:
+     undefined = never requested
+     null      = loading (page shows spinner)
+     'err'     = failed (page shows —)
+     {price,currency,change,prevClose} = OK                     */
+const PRICE_TIMEOUT_MS=15000;
+
+function toYahoo(h){return h.market==='Bursa'?h.ticker+'.KL':h.ticker;}
+
+async function invokeQuote(body){
+  const call=sb.functions.invoke('quote',{body});
+  const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Price request timed out')),PRICE_TIMEOUT_MS));
+  const {data,error}=await Promise.race([call,timeout]);
+  if(error)throw error;
+  return data;
 }
+
+function toCacheEntry(q){
+  return (q&&!q.error&&q.price!=null)
+    ?{price:q.price,currency:q.currency,change:q.change,prevClose:q.prevClose}
+    :'err';
+}
+
+async function fetchPrices(symbols){
+  const todo=[...new Set(symbols.filter(Boolean))].filter(s=>priceCache[s]===undefined);
+  if(!todo.length)return;
+  todo.forEach(s=>priceCache[s]=null);
+  try{
+    const data=await invokeQuote({symbols:todo});
+    todo.forEach(s=>{priceCache[s]=toCacheEntry(data?.[s]||data?.[s.toUpperCase()]);});
+    const failed=todo.filter(s=>priceCache[s]==='err');
+    if(failed.length)console.warn('No price for:',failed.join(', '));
+  }catch(e){
+    console.error('Price fetch failed:',e);
+    todo.forEach(s=>priceCache[s]='err');
+    showToast('Price fetch failed — check console (F12)');
+  }
+}
+
+/* kept for any page that still calls fetchPrice(symbol) directly */
+async function fetchPrice(symbol){await fetchPrices([symbol]);}
+
 async function fetchAllPrices(){
   const holdings=calcHoldings().filter(h=>h.qty>0.001);
-  const symbols=holdings.map(h=>h.market==='Bursa'?h.ticker+'.KL':h.ticker);
-  await Promise.all([...new Set(symbols)].map(s=>fetchPrice(s)));
+  await fetchPrices(holdings.map(toYahoo));
   if(window.onPricesUpdated)window.onPricesUpdated();
   updateKPIs();
   setText('priceNote',`Prices updated ${new Date().toLocaleTimeString()}`);
