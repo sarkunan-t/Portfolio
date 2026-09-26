@@ -122,28 +122,36 @@
       </div>
     </div>
 
-    <!-- Deposit / Withdraw -->
+    <!-- Deposit / Withdraw  (Bank ↔ CDS, auto FX when CDS wallet is USD) -->
     <div id="fdStd">
       <div class="form-section">
-        <div class="form-section-title">Details</div>
+        <div class="form-section-title" id="fdStdTitle">Bank &#8594; CDS</div>
         <div class="form-grid g2">
-          <div class="field"><label>Date</label><input type="date" id="fdDate"></div>
-          <div class="field"><label>Currency</label>
+          <div class="field"><label>Date</label><input type="date" id="fdDate" onchange="onStdDateChange()"></div>
+          <div class="field"><label>Bank Account (MYR)</label>
+            <input type="text" id="fdBank" list="fdBankList" placeholder="e.g. Maybank" autocomplete="off">
+            <datalist id="fdBankList"></datalist>
+          </div>
+          <div class="field"><label>CDS Account</label>
+            <select id="fdCDS"><option value="MYB">Maybank (MYB)</option><option value="RHB">RHB</option><option value="RKT">Rakuten (RKT)</option></select>
+          </div>
+          <div class="field"><label>CDS Wallet</label>
             <select id="fdCurrency" onchange="onFdCurrencyChange()">
               <option value="MYR">MYR — Ringgit</option>
               <option value="USD">USD — US Dollar</option>
             </select>
           </div>
-          <div class="field"><label>Amount (<span id="fdAmtCcy">MYR</span>)</label><input type="number" id="fdAmount" placeholder="0.00" min="0" step="any"></div>
-          <div class="field"><label>CDS Account</label>
-            <select id="fdCDS"><option value="MYB">Maybank (MYB)</option><option value="RHB">RHB</option><option value="RKT">Rakuten (RKT)</option></select>
-          </div>
-          <div class="field"><label>Bank Account</label>
-            <input type="text" id="fdBank" list="fdBankList" placeholder="e.g. Maybank" autocomplete="off">
-            <datalist id="fdBankList"></datalist>
-          </div>
-          <div class="field full"><label>Notes (optional)</label><input type="text" id="fdNotes" placeholder="e.g. Salary savings"></div>
         </div>
+        <div class="form-grid g2" style="margin-top:12px;">
+          <div class="field fx-only" id="fdBankAmtWrap"><label id="fdBankAmtLbl">Bank sends (MYR)</label><input type="number" id="fdBankAmt" placeholder="0.00" min="0" step="any" oninput="onStdAmtEdited('fdBankAmt')"></div>
+          <div class="field" id="fdCdsAmtWrap"><label id="fdCdsAmtLbl">Amount (MYR)</label><input type="number" id="fdAmount" placeholder="0.00" min="0" step="any" oninput="onStdAmtEdited('fdAmount')"></div>
+          <div class="field fx-only" style="order:3;"><label>USD/MYR rate (MYR per 1 USD)</label><input type="number" id="fdRate" placeholder="0.0000" min="0" step="any" oninput="onStdRateEdited()"></div>
+          <div class="field fx-only" style="order:4;"><label>&nbsp;</label>
+            <button type="button" class="btn-primary" style="width:100%;padding:8px;" onclick="autoFillStdRate()">&#8635; Rate for this date</button>
+          </div>
+          <div class="field full" style="order:5;"><label>Notes (optional)</label><input type="text" id="fdNotes" placeholder="e.g. Salary savings"></div>
+        </div>
+        <div id="fdRateNote" class="fx-only" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-dim);margin-top:6px;min-height:16px;"></div>
       </div>
     </div>
 
@@ -317,8 +325,9 @@ function renderFunds(){
     const date=new Date(f.txn_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
     const plus=(f.txn_type==='Deposit'||f.txn_type==='Transfer In');
     let badge,detail;
-    if(f.txn_type==='Deposit'){badge='<span class="badge badge-buy">DEPOSIT</span>';detail=f.bank_account||'—';}
-    else if(f.txn_type==='Withdraw'){badge='<span class="badge badge-sell">WITHDRAW</span>';detail=f.bank_account||'—';}
+    const fxDetail=(ccy==='USD'&&f.fx_rate)?` · MYR ${fmt(f.amount*f.fx_rate)} @ ${fmt(f.fx_rate,4)}`:'';
+    if(f.txn_type==='Deposit'){badge='<span class="badge badge-buy">DEPOSIT</span>';detail=(f.bank_account||'—')+fxDetail;}
+    else if(f.txn_type==='Withdraw'){badge='<span class="badge badge-sell">WITHDRAW</span>';detail=(f.bank_account||'—')+fxDetail;}
     else if(f.txn_type==='Transfer In'){badge='<span class="badge badge-buy">XFER IN</span>';detail=f.fx_rate?`&#8646; @ USDMYR ${fmt(f.fx_rate,4)}`:'&#8646; transfer';}
     else{badge='<span class="badge badge-sell">XFER OUT</span>';detail=f.fx_rate?`&#8646; @ USDMYR ${fmt(f.fx_rate,4)}`:'&#8646; transfer';}
     const isXfer=!!f.transfer_group;
@@ -346,12 +355,14 @@ function renderCapitalChart(){
   if(!list.length){chartEl.innerHTML='<div class="empty-state" style="padding:30px 0;">No deposits or withdrawals</div>';return;}
   const byCcy={};
   list.forEach(f=>{
-    const ccy=f.currency||'MYR';
+    // USD bank moves with a saved rate are counted at their MYR bank-side value
+    let ccy=f.currency||'MYR', val=Number(f.amount);
+    if(ccy==='USD'&&f.fx_rate){ccy='MYR';val=val*Number(f.fx_rate);}
     if(!byCcy[ccy])byCcy[ccy]={};
     const y=new Date(f.txn_date).getFullYear();
     if(!byCcy[ccy][y])byCcy[ccy][y]={dep:0,wd:0};
-    if(f.txn_type==='Deposit')byCcy[ccy][y].dep+=Number(f.amount);
-    else byCcy[ccy][y].wd+=Number(f.amount);
+    if(f.txn_type==='Deposit')byCcy[ccy][y].dep+=val;
+    else byCcy[ccy][y].wd+=val;
   });
   chartEl.innerHTML=Object.keys(byCcy).sort().map(ccy=>chartFor(ccy,byCcy[ccy])).join('');
 }
@@ -380,23 +391,101 @@ function chartFor(ccy,byYear){
     </svg></div>`;
 }
 
-/* ═══ historical FX (for transfer auto-fill) ═══ */
+/* ═══ FX rate for a date ═══
+   Today  → live USDMYR via the "quote" Edge Function (same as the Net Capital tile).
+   Past   → ECB reference rate via Frankfurter (free, CORS-enabled, no key).
+            Weekends/holidays return the last published rate before that date.
+   Returns {rate, date, src} or null.                                          */
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 async function fetchHistFxRate(dateStr){
-  const d=new Date(dateStr+'T00:00:00');
-  const p1=Math.floor(d.getTime()/1000)-4*86400, p2=Math.floor(d.getTime()/1000)+2*86400;
-  const base=`https://query1.finance.yahoo.com/v8/finance/chart/USDMYR=X?period1=${p1}&period2=${p2}&interval=1d`;
-  for(const proxy of PROXIES){
-    try{
-      const res=await fetch(proxy(base));
-      if(!res.ok)continue;
-      const data=await res.json();
-      const r=data?.chart?.result?.[0]; const ts=r?.timestamp||[]; const cl=r?.indicators?.quote?.[0]?.close||[];
-      const target=d.getTime()/1000; let best=null,bestDiff=Infinity;
-      ts.forEach((t,i)=>{if(cl[i]==null)return;const diff=Math.abs(t-target);if(diff<bestDiff){bestDiff=diff;best=cl[i];}});
-      if(best!=null)return best;
-    }catch(e){continue;}
+  const today=todayStr();
+  const isToday=!dateStr||dateStr>=today;
+  if(isToday){
+    if(!liveFx){try{await fetchPrice('USDMYR=X');const c=priceCache['USDMYR=X'];if(c&&c!=='err')liveFx=c.price;}catch(e){}}
+    if(liveFx)return {rate:liveFx,date:today,src:'live'};
   }
+  try{
+    const res=await fetch(`https://api.frankfurter.dev/v1/${isToday?'latest':dateStr}?base=USD&symbols=MYR`);
+    if(res.ok){
+      const j=await res.json();
+      if(j&&j.rates&&j.rates.MYR)return {rate:j.rates.MYR,date:j.date,src:'ECB'};
+    }
+  }catch(e){console.warn('FX fetch failed',e);}
   return null;
+}
+function fxNote(r){return `USDMYR ${fmt(r.rate,4)} (${r.src==='live'?'live':'ECB ref. '+r.date})`;}
+
+/* ═══ Bank ↔ CDS auto-conversion ═══
+   Deposit : Bank MYR is the amount you send  → CDS USD auto = MYR ÷ rate
+   Withdraw: CDS USD is the amount you send   → Bank MYR auto = USD × rate
+   Overtype the receiving side with the actual amount and the rate becomes the effective rate. */
+let stdAuto=null, stdDestManual=false;
+const numv=id=>parseFloat(document.getElementById(id).value)||0;
+function stdIsUsd(){return document.getElementById('fdCurrency').value==='USD';}
+function stdSrcId(){return fdMode==='Withdraw'?'fdAmount':'fdBankAmt';}
+function stdDstId(){return fdMode==='Withdraw'?'fdBankAmt':'fdAmount';}
+
+function layoutStd(){
+  const usd=stdIsUsd(), wd=fdMode==='Withdraw';
+  document.querySelectorAll('#fdStd .fx-only').forEach(el=>el.style.display=usd?'':'none');
+  setText('fdStdTitle',wd?'CDS → Bank':'Bank → CDS');
+  document.getElementById('fdBankAmtWrap').style.order=wd?2:1;
+  document.getElementById('fdCdsAmtWrap').style.order=wd?1:2;
+  setText('fdBankAmtLbl',wd?'Bank receives (MYR)':'Bank sends (MYR)');
+  setText('fdCdsAmtLbl',usd?(wd?'CDS sends (USD)':'CDS receives (USD)'):'Amount (MYR)');
+}
+function onFdCurrencyChange(){
+  const usd=stdIsUsd();
+  const bankEl=document.getElementById('fdBankAmt'), cdsEl=document.getElementById('fdAmount');
+  if(usd){                                   // Deposit MYR → USD: the typed MYR figure becomes the bank amount
+    if(fdMode!=='Withdraw'&&!bankEl.value&&cdsEl.value){bankEl.value=cdsEl.value;cdsEl.value='';}
+  }else{                                     // USD → MYR: keep the bank MYR figure
+    if(bankEl.value)cdsEl.value=bankEl.value;
+    bankEl.value='';
+  }
+  stdDestManual=false;
+  layoutStd();
+  if(usd&&!numv('fdRate'))autoFillStdRate(); else recalcStd();
+}
+function onStdDateChange(){if(stdIsUsd()&&!editingFdId)autoFillStdRate();}
+async function autoFillStdRate(){
+  const date=document.getElementById('fdDate').value;
+  const note=document.getElementById('fdRateNote');
+  note.textContent='Fetching rate…';
+  const r=await fetchHistFxRate(date);
+  if(!r){note.textContent='Could not fetch a rate — type the rate, or both amounts.';return;}
+  stdAuto=r; stdDestManual=false;
+  document.getElementById('fdRate').value=r.rate.toFixed(4);
+  recalcStd();
+}
+function recalcStd(){
+  if(!stdIsUsd())return;
+  const rate=numv('fdRate'), src=numv(stdSrcId()), dstV=numv(stdDstId()), wd=fdMode==='Withdraw';
+  if(!stdDestManual&&rate>0&&!src&&dstV){          // only the receiving side is known → back-fill the sending side
+    document.getElementById(stdSrcId()).value=(wd?dstV/rate:dstV*rate).toFixed(2);
+  }else if(!stdDestManual&&rate>0){
+    const dst=wd?src*rate:src/rate;
+    document.getElementById(stdDstId()).value=src?dst.toFixed(2):'';
+  }else if(stdDestManual){syncStdRate();}
+  updateStdNote();
+}
+function onStdAmtEdited(id){
+  if(!stdIsUsd())return;
+  if(id===stdDstId()){stdDestManual=true;syncStdRate();updateStdNote();}
+  else recalcStd();
+}
+function onStdRateEdited(){stdDestManual=false;recalcStd();}
+function syncStdRate(){
+  const m=numv('fdBankAmt'),u=numv('fdAmount');
+  if(m>0&&u>0)document.getElementById('fdRate').value=(m/u).toFixed(4);
+}
+function updateStdNote(){
+  const note=document.getElementById('fdRateNote');
+  const parts=[];
+  if(stdAuto)parts.push('Market: '+fxNote(stdAuto));
+  const m=numv('fdBankAmt'),u=numv('fdAmount');
+  if(m>0&&u>0)parts.push('Effective: '+fmt(m/u,4)+(stdDestManual?' (your amounts)':''));
+  note.textContent=parts.join('  ·  ');
 }
 
 /* ═══ modal ═══ */
@@ -407,22 +496,28 @@ function setFdMode(m){
   document.getElementById('fdModeXf').className='toggle-btn'+(m==='Transfer'?' active-buy':'');
   document.getElementById('fdStd').style.display=(m==='Transfer')?'none':'';
   document.getElementById('fdXfer').style.display=(m==='Transfer')?'':'none';
+  if(m==='Transfer'){
+    const fc=document.getElementById('xfFromCcy').value, tc=document.getElementById('xfToCcy').value;
+    if(fc!==tc&&xferAutoRate==null&&!editingXferGroup)autoFillXferRate();
+  }else{
+    stdDestManual=false; layoutStd(); recalcStd();
+  }
 }
-function onFdCurrencyChange(){setText('fdAmtCcy',document.getElementById('fdCurrency').value);}
 function onXferCcyChange(){
   const fc=document.getElementById('xfFromCcy').value, tc=document.getElementById('xfToCcy').value;
   setText('xfFromCcyLbl',fc);setText('xfToCcyLbl',tc);
-  xferToManual=false;recalcXfer();
+  xferToManual=false;
+  if(fc!==tc&&xferAutoRate==null&&fdMode==='Transfer')autoFillXferRate(); else recalcXfer();
 }
 async function autoFillXferRate(){
   const date=document.getElementById('xfDate').value;
   const note=document.getElementById('xfRateNote');
   if(!date){note.textContent='Pick a date first.';return;}
   note.textContent='Fetching market rate…';
-  const rate=await fetchHistFxRate(date);
-  if(rate==null){note.textContent='Could not fetch a rate — enter the received amount manually.';return;}
-  xferAutoRate=rate; xferToManual=false; recalcXfer();
-  note.textContent='Market rate on '+date+': USDMYR '+fmt(rate,4)+' — adjust "To Amount" to your actual received amount.';
+  const r=await fetchHistFxRate(date);
+  if(!r){note.textContent='Could not fetch a rate — enter the received amount manually.';return;}
+  xferAutoRate=r.rate; xferToManual=false; recalcXfer();
+  note.textContent='Market: '+fxNote(r)+' — overtype "To Amount" with your actual received amount.';
 }
 function recalcXfer(){
   if(xferAutoRate==null||xferToManual)return;
@@ -447,12 +542,14 @@ function updateXferImplied(){
 
 function openFdModal(){
   editingFdId=null;editingXferGroup=null;xferAutoRate=null;xferToManual=false;
+  stdAuto=null;stdDestManual=false;
   setText('fdModalTitle','Add Movement');setText('fdSaveBtn','Save Movement');setText('fdErr','');
+  const today=todayStr();
+  ['fdAmount','fdBankAmt','fdRate'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fdRateNote').textContent='';
+  document.getElementById('fdCurrency').value='MYR';
   setFdMode('Deposit');
-  const today=new Date().toISOString().split('T')[0];
   document.getElementById('fdDate').value=today;
-  document.getElementById('fdCurrency').value='MYR';onFdCurrencyChange();
-  document.getElementById('fdAmount').value='';
   document.getElementById('fdCDS').value='MYB';
   document.getElementById('fdBank').value='Maybank';
   document.getElementById('fdNotes').value='';
@@ -465,12 +562,21 @@ function openFdModal(){
 }
 function editFund(id){
   const f=funds.find(x=>x.id===id); if(!f)return;
-  editingFdId=id;editingXferGroup=null;
+  editingFdId=id;editingXferGroup=null;stdAuto=null;stdDestManual=false;
   setText('fdModalTitle','Edit Movement');setText('fdSaveBtn','Save Changes');setText('fdErr','');
-  setFdMode(f.txn_type==='Withdraw'?'Withdraw':'Deposit');
+  const usd=(f.currency||'MYR')==='USD';
+  document.getElementById('fdCurrency').value=usd?'USD':'MYR';
   document.getElementById('fdDate').value=f.txn_date;
-  document.getElementById('fdCurrency').value=f.currency||'MYR';onFdCurrencyChange();
+  ['fdAmount','fdBankAmt','fdRate'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('fdRateNote').textContent='';
+  setFdMode(f.txn_type==='Withdraw'?'Withdraw':'Deposit');
   document.getElementById('fdAmount').value=f.amount;
+  if(usd&&f.fx_rate){
+    document.getElementById('fdBankAmt').value=(f.amount*f.fx_rate).toFixed(2);
+    document.getElementById('fdRate').value=Number(f.fx_rate).toFixed(4);
+    stdDestManual=true;updateStdNote();                  // keep both saved amounts as-is
+  }
+  else if(usd){autoFillStdRate();}                        // older USD row with no rate
   document.getElementById('fdCDS').value=f.cds_account||'MYB';
   document.getElementById('fdBank').value=f.bank_account||'';
   document.getElementById('fdNotes').value=f.notes||'';
@@ -501,16 +607,21 @@ function saveMovement(){if(fdMode==='Transfer')saveTransfer();else saveStd();}
 async function saveStd(){
   const date=document.getElementById('fdDate').value;
   const currency=document.getElementById('fdCurrency').value;
-  const amount=parseFloat(document.getElementById('fdAmount').value);
+  const amount=parseFloat(document.getElementById('fdAmount').value);   // always in the CDS wallet currency
+  const bankMyr=parseFloat(document.getElementById('fdBankAmt').value);
   const cds=document.getElementById('fdCDS').value;
   const bank=document.getElementById('fdBank').value.trim();
   const notes=document.getElementById('fdNotes').value.trim();
   const errEl=document.getElementById('fdErr');
+  const usd=currency==='USD';
   if(!date){errEl.textContent='Select a date.';return;}
-  if(!amount||amount<=0){errEl.textContent='Enter a valid amount.';return;}
+  if(!amount||amount<=0){errEl.textContent=usd?'Enter the USD amount (or a rate so it can be calculated).':'Enter a valid amount.';return;}
+  if(usd&&(!bankMyr||bankMyr<=0)){errEl.textContent='Enter the bank MYR amount (or a rate so it can be calculated).';return;}
+  // fx_rate = effective MYR per 1 USD, so bank MYR = amount × fx_rate exactly
+  const fx=usd?bankMyr/amount:null;
   const btn=document.getElementById('fdSaveBtn');btn.disabled=true;btn.textContent='Saving…';
   const payload={txn_date:date,currency,amount,cds_account:cds,bank_account:bank||null,
-    txn_type:fdMode,notes:notes||null,transfer_group:null,fx_rate:null,updated_at:new Date().toISOString()};
+    txn_type:fdMode,notes:notes||null,transfer_group:null,fx_rate:fx,updated_at:new Date().toISOString()};
   let error;
   if(editingFdId){({error}=await sb.from('funds').update(payload).eq('id',editingFdId));}
   else{({error}=await sb.from('funds').insert(payload));}
