@@ -28,11 +28,12 @@
     <div class="page">
       <div id="kpiHost"></div>
       <div class="filters">
-        <select class="filter-select" id="filterMarket" onchange="renderTransactions()"><option value="">All Markets</option><option value="Bursa">Bursa</option><option value="US">US</option></select>
-        <select class="filter-select" id="filterCDS" onchange="renderTransactions()"><option value="">All Accounts</option></select>
-        <select class="filter-select" id="filterType" onchange="renderTransactions()"><option value="">All Types</option><option value="Buy">Buy</option><option value="Sell">Sell</option></select>
-        <select class="filter-select" id="filterYear" onchange="renderTransactions()"><option value="">All Years</option></select>
-        <select class="filter-select" id="filterStock" onchange="renderTransactions()"><option value="">All Stocks</option></select>
+        <div class="ms" id="filterMarket"></div>
+        <div class="ms" id="filterCDS"></div>
+        <div class="ms" id="filterType"></div>
+        <div class="ms" id="filterYear"></div>
+        <div class="ms" id="filterStock"></div>
+        <button class="btn-sm" id="txFilterClear" onclick="clearTxFilters()" style="display:none;">Clear filters</button>
       </div>
       <div class="table-wrap">
         <table class="std">
@@ -53,6 +54,7 @@
             <th>Notes</th><th></th>
           </tr></thead>
           <tbody id="txBody"></tbody>
+          <tfoot id="txFoot"></tfoot>
         </table>
       </div>
     </div>
@@ -136,7 +138,8 @@
 </div>
 
 <script src="assets/common.js"></script>
-<script src="assets/shares.js?v=6"></script>
+<script src="assets/multiselect.js?v=1"></script>
+<script src="assets/shares.js?v=7"></script>
 <script>
 requireAuth();
 buildSidebar('transactions');
@@ -145,28 +148,59 @@ injectKPIs();
 let editingTxId=null, txType='Buy', isContra=false, currentMarket='Bursa';
 let txSortCol='tx_date', txSortDir='desc';
 
-/* ---- filters ---- */
-function populateCDSFilter(){
-  const accts=[...new Set(transactions.map(t=>t.cds_account).filter(Boolean))].sort();
-  const sel=document.getElementById('filterCDS');
-  const cur=sel.value;
-  sel.innerHTML='<option value="">All Accounts</option>'+accts.map(a=>`<option value="${a}">${a}</option>`).join('');
-  if(accts.includes(cur))sel.value=cur;
+/* ---- filters (multi-select; nothing ticked = All) ---- */
+const TX_FILTERS=['filterMarket','filterCDS','filterType','filterYear','filterStock'];
+function onTxFilterChange(){
+  document.getElementById('txFilterClear').style.display=TX_FILTERS.some(id=>MS.active(id))?'':'none';
+  renderTransactions();
 }
-function populateYearFilter(){
-  const years=[...new Set(transactions.map(t=>new Date(t.tx_date).getFullYear()))].sort((a,b)=>b-a);
-  const sel=document.getElementById('filterYear');
-  const cur=sel.value;
-  sel.innerHTML='<option value="">All Years</option>'+years.map(y=>`<option value="${y}">${y}</option>`).join('');
-  if(years.map(String).includes(cur))sel.value=cur;
+function clearTxFilters(){MS.clear(TX_FILTERS,onTxFilterChange);}
+function populateTxFilters(){
+  const on=onTxFilterChange;
+  MS.init('filterMarket',{noun:'Markets',allLabel:'All Markets',options:['Bursa','US'],onChange:on});
+  MS.init('filterCDS',{noun:'Accounts',allLabel:'All Accounts',
+    options:[...new Set(transactions.map(t=>t.cds_account).filter(Boolean))].sort(),onChange:on});
+  MS.init('filterType',{noun:'Types',allLabel:'All Types',options:['Buy','Sell'],onChange:on});
+  MS.init('filterYear',{noun:'Years',allLabel:'All Years',
+    options:[...new Set(transactions.map(t=>new Date(t.tx_date).getFullYear()).filter(y=>!isNaN(y)))].sort((a,b)=>b-a),onChange:on});
+  const stocks=[...new Map(transactions.map(t=>[t.ticker,{value:t.ticker,label:`${t.ticker} — ${t.company_name||t.ticker}`}])).values()]
+    .sort((a,b)=>a.value.localeCompare(b.value));
+  MS.init('filterStock',{noun:'Stocks',allLabel:'All Stocks',options:stocks,onChange:on});
+  document.getElementById('txFilterClear').style.display=TX_FILTERS.some(id=>MS.active(id))?'':'none';
 }
-function populateStockFilter(){
-  const stocks=[...new Map(transactions.map(t=>[t.ticker,{ticker:t.ticker,name:t.company_name||t.ticker}])).values()]
-    .sort((a,b)=>a.ticker.localeCompare(b.ticker));
-  const sel=document.getElementById('filterStock');
-  const cur=sel.value;
-  sel.innerHTML='<option value="">All Stocks</option>'+stocks.map(s=>`<option value="${s.ticker}">${s.ticker} — ${s.name}</option>`).join('');
-  if(stocks.some(s=>s.ticker===cur))sel.value=cur;
+
+/* ---- totals for the rows shown (respects every filter), one line per currency ---- */
+function renderTxTotals(list){
+  const foot=document.getElementById('txFoot');
+  if(!list.length){foot.innerHTML='';return;}
+  const T={};
+  list.forEach(t=>{
+    const c=t.currency||(t.market==='Bursa'?'MYR':'USD');
+    if(!T[c])T[c]={n:0,gross:0,broker:0,stax:0,stamp:0,clearing:0,net:0,buyN:0,buy:0,sellN:0,sell:0};
+    const a=T[c], n=v=>Number(v)||0;
+    a.n++; a.gross+=n(t.gross_amount); a.broker+=n(t.broker_fee); a.stax+=n(t.stax);
+    a.stamp+=n(t.stamp_duty); a.clearing+=n(t.clearing_fee); a.net+=n(t.net_amount);
+    if(t.tx_type==='Buy'){a.buyN++;a.buy+=n(t.net_amount);}else{a.sellN++;a.sell+=n(t.net_amount);}
+  });
+  foot.innerHTML=Object.keys(T).sort().map(c=>{
+    const a=T[c], flow=a.sell-a.buy;
+    return `<tr class="total-row">
+      <td colspan="7" style="white-space:nowrap;">
+        <div style="font-weight:800;">TOTAL · ${c} <span style="font-weight:600;color:var(--ink-dim);font-size:11px;">(${a.n} row${a.n!==1?'s':''})</span></div>
+        <div style="font-size:10.5px;font-weight:600;color:var(--ink-dim);margin-top:2px;">
+          Buy ${a.buyN} · ${c} ${fmt(a.buy)} &nbsp;|&nbsp; Sell ${a.sellN} · ${c} ${fmt(a.sell)} &nbsp;|&nbsp;
+          Cash flow (Sell − Buy): <span class="${flow>=0?'up':'down'}">${flow>=0?'+':'−'}${c} ${fmt(Math.abs(flow))}</span>
+        </div>
+      </td>
+      <td class="num">${fmt(a.gross)}</td>
+      <td class="num">${fmt(a.broker)}</td>
+      <td class="num">${fmt(a.stax)}</td>
+      <td class="num">${fmt(a.stamp)}</td>
+      <td class="num">${fmt(a.clearing)}</td>
+      <td class="num" style="color:var(--teal);font-weight:800;white-space:nowrap;">${c} ${fmt(a.net)}</td>
+      <td colspan="2"></td>
+    </tr>`;
+  }).join('');
 }
 
 /* ---- table ---- */
@@ -198,6 +232,7 @@ function renderTransactions(){
   updateSortIcons();
   const tbody=document.getElementById('txBody');
   setText('txCount',`${f.length} record${f.length!==1?'s':''}`);
+  renderTxTotals(f);
   if(!f.length){tbody.innerHTML=`<tr><td colspan="15" class="empty-state">No transactions found.</td></tr>`;updateKPIs();return;}
   tbody.innerHTML=f.map(t=>{
     const date=new Date(t.tx_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
@@ -363,7 +398,7 @@ async function deleteTx(id){
 
 /* ---- hooks & init ---- */
 window.onSharesData=function(){
-  populateCDSFilter();populateYearFilter();populateStockFilter();
+  populateTxFilters();
   renderTransactions();
 };
 window.onPricesUpdated=function(){/* KPIs refreshed by fetchAllPrices */};

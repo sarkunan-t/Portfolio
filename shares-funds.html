@@ -25,17 +25,6 @@
   .cv-empty{font-size:12px;color:var(--ink-dim);padding:40px 0;text-align:center;}
   .hb .xh{opacity:0;} .hb:hover .xh{opacity:1;}
   .bar-hit:hover + .bar-mark, .bar-mark:hover{filter:brightness(1.08);}
-  .ms{position:relative;}
-  .ms-btn{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:130px;justify-content:space-between;text-align:left;}
-  .ms-btn.active{border-color:var(--teal);color:#00514d;background-color:#eef8f7;}
-  .ms-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:30;display:none;min-width:190px;max-height:300px;overflow:auto;
-    background:#fff;border:1px solid var(--panel-edge);border-radius:10px;box-shadow:0 8px 24px rgba(0,51,47,.14);padding:6px;}
-  .ms.open .ms-panel{display:block;}
-  .ms-opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
-  .ms-opt:hover{background:#f1f7f6;}
-  .ms-opt input{width:auto;margin:0;accent-color:#00a19c;}
-  .ms-actions{display:flex;justify-content:space-between;gap:8px;padding:4px 8px 6px;border-bottom:1px solid var(--panel-edge);margin-bottom:4px;}
-  .ms-actions a{font-size:11px;font-weight:700;color:#00a19c;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -204,7 +193,8 @@
 </div>
 
 <script src="assets/common.js"></script>
-<script src="assets/shares.js?v=6"></script>
+<script src="assets/multiselect.js?v=1"></script>
+<script src="assets/shares.js?v=7"></script>
 <script>
 requireAuth();
 buildSidebar('funds');
@@ -388,59 +378,31 @@ function drawWalletChart(id,bal,ticks,basis){
 }
 
 /* ═══ filters + movements table ═══ */
-/* ── multi-select filter dropdowns (empty selection = All) ── */
-const msState={}, msCfg={};
-function msInit(id,noun,allLabel,options){
-  msCfg[id]={noun,allLabel,options:options.map(String)};
-  const prev=msState[id]||new Set();
-  msState[id]=new Set([...prev].filter(v=>msCfg[id].options.includes(v)));   // keep still-valid picks
-  const el=document.getElementById(id);
-  el.innerHTML=`<button type="button" class="filter-select ms-btn" onclick="msToggle('${id}',event)"><span class="ms-lbl"></span></button>
-    <div class="ms-panel" onclick="event.stopPropagation()">
-      <div class="ms-actions"><a onclick="msSetAll('${id}',true)">Select all</a><a onclick="msSetAll('${id}',false)">Clear</a></div>
-      ${msCfg[id].options.map(v=>`<label class="ms-opt"><input type="checkbox" value="${v}" ${msState[id].has(v)?'checked':''} onchange="msPick('${id}',this)">${v}</label>`).join('')}
-    </div>`;
-  msLabel(id);
+/* multi-select filters: assets/multiselect.js (nothing ticked = All) */
+const FD_FILTERS=['fdFilterCcy','fdFilterYear','fdFilterCDS','fdFilterType'];
+function onFdFilterChange(){
+  document.getElementById('fdFilterClear').style.display=FD_FILTERS.some(id=>MS.active(id))?'':'none';
+  renderFunds();
 }
-function msLabel(id){
-  const sel=[...msState[id]], c=msCfg[id], el=document.getElementById(id);
-  const txt=!sel.length||sel.length===c.options.length?c.allLabel:sel.length<=2?c.options.filter(v=>msState[id].has(v)).join(', '):`${c.noun}: ${sel.length} selected`;
-  el.querySelector('.ms-lbl').textContent=txt;
-  el.querySelector('.ms-btn').classList.toggle('active',sel.length>0&&sel.length<c.options.length);
-  const any=Object.keys(msState).some(k=>msState[k].size&&msState[k].size<msCfg[k].options.length);
-  document.getElementById('fdFilterClear').style.display=any?'':'none';
-}
-function msToggle(id,e){
-  e.stopPropagation();
-  const el=document.getElementById(id), open=!el.classList.contains('open');
-  document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open'));
-  if(open)el.classList.add('open');
-}
-function msPick(id,cb){cb.checked?msState[id].add(cb.value):msState[id].delete(cb.value);msLabel(id);renderFunds();}
-function msSetAll(id,on){
-  msState[id]=new Set(on?msCfg[id].options:[]);
-  document.querySelectorAll(`#${id} input[type=checkbox]`).forEach(cb=>cb.checked=on);
-  msLabel(id);renderFunds();
-}
-function msClearAll(){Object.keys(msState).forEach(id=>msSetAll(id,false));}
-const msHas=(id,v)=>!msState[id]||!msState[id].size||msState[id].has(String(v));
-document.addEventListener('click',()=>document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open')));
-document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open'));});
+function msClearAll(){MS.clear(FD_FILTERS,onFdFilterChange);}
 
 function populateFdFilters(){
-  msInit('fdFilterCcy','Currency','All Currencies',['MYR','USD']);
-  msInit('fdFilterYear','Years','All Years',[...new Set(funds.map(f=>new Date(f.txn_date).getFullYear()).filter(y=>!isNaN(y)))].sort((a,b)=>b-a));
-  msInit('fdFilterCDS','Accounts','All Accounts',WALLETS.map(w=>w.key));
-  msInit('fdFilterType','Types','All Types',['Deposit','Withdraw','Transfer In','Transfer Out']);
+  const on=onFdFilterChange;
+  MS.init('fdFilterCcy',{noun:'Currency',allLabel:'All Currencies',options:['MYR','USD'],onChange:on});
+  MS.init('fdFilterYear',{noun:'Years',allLabel:'All Years',
+    options:[...new Set(funds.map(f=>new Date(f.txn_date).getFullYear()).filter(y=>!isNaN(y)))].sort((a,b)=>b-a),onChange:on});
+  MS.init('fdFilterCDS',{noun:'Accounts',allLabel:'All Accounts',options:WALLETS.map(w=>w.key),onChange:on});
+  MS.init('fdFilterType',{noun:'Types',allLabel:'All Types',options:['Deposit','Withdraw','Transfer In','Transfer Out'],onChange:on});
+  document.getElementById('fdFilterClear').style.display=FD_FILTERS.some(id=>MS.active(id))?'':'none';
   const banks=[...new Set(funds.map(f=>f.bank_account).filter(Boolean))].sort();
   document.getElementById('fdBankList').innerHTML=banks.map(b=>`<option value="${b}">`).join('');
 }
 function getFilteredFunds(){
   return funds.filter(f=>
-    msHas('fdFilterCcy',f.currency||'MYR') &&
-    msHas('fdFilterYear',new Date(f.txn_date).getFullYear()) &&
-    msHas('fdFilterCDS',walletKey(f.cds_account,f.currency)) &&
-    msHas('fdFilterType',f.txn_type));
+    MS.has('fdFilterCcy',f.currency||'MYR') &&
+    MS.has('fdFilterYear',new Date(f.txn_date).getFullYear()) &&
+    MS.has('fdFilterCDS',walletKey(f.cds_account,f.currency)) &&
+    MS.has('fdFilterType',f.txn_type));
 }
 function refreshFdView(){renderTop();renderFlowChart();renderFunds();}
 

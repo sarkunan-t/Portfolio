@@ -77,19 +77,20 @@ function calcHoldings(txList){
 }
 
 /* ---- transaction filters (present only on the transactions page;
-        elsewhere this transparently returns everything) ---- */
+        elsewhere this transparently returns everything).
+        Supports multi-select filters (assets/multiselect.js) and plain <select>s. ---- */
 function getFilteredTx(){
-  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
-  const mktF=g('filterMarket'),cdsF=g('filterCDS'),typF=g('filterType'),yrF=g('filterYear'),stkF=g('filterStock');
-  const f=transactions.filter(t=>{
-    if(mktF&&t.market!==mktF)return false;
-    if(cdsF&&t.cds_account!==cdsF)return false;
-    if(typF&&t.tx_type!==typF)return false;
-    if(yrF&&new Date(t.tx_date).getFullYear()!=yrF)return false;
-    if(stkF&&t.ticker!==stkF)return false;
-    return true;
-  });
-  return {list:f,active:!!(mktF||cdsF||typF||yrF||stkF),yrF,stkF};
+  const pick=id=>{
+    if(window.MS&&MS.exists(id))return MS.values(id).map(String);   // [] = All
+    const el=document.getElementById(id);
+    return el&&el.value?[String(el.value)]:[];
+  };
+  const mkt=pick('filterMarket'),cds=pick('filterCDS'),typ=pick('filterType'),yr=pick('filterYear'),stk=pick('filterStock');
+  const inF=(arr,v)=>!arr.length||arr.includes(String(v));
+  const f=transactions.filter(t=>
+    inF(mkt,t.market)&&inF(cds,t.cds_account)&&inF(typ,t.tx_type)&&
+    inF(yr,new Date(t.tx_date).getFullYear())&&inF(stk,t.ticker));
+  return {list:f,active:!!(mkt.length||cds.length||typ.length||yr.length||stk.length),yrF:yr,stkF:stk};
 }
 
 /* ---- KPI tiles ---- */
@@ -121,8 +122,8 @@ function updateKPIs(){
   });
   const unrealised=totalEstVal-totalInvested;
   const divs=dividends.filter(d=>{
-    if(yrF&&new Date(d.payout_date).getFullYear()!=yrF)return false;
-    if(stkF&&d.ticker!==stkF)return false;
+    if(yrF.length&&!yrF.includes(String(new Date(d.payout_date).getFullYear())))return false;
+    if(stkF.length&&!stkF.includes(d.ticker))return false;
     return true;
   });
   const totalDiv=divs.reduce((s,d)=>s+Number(d.amount),0);
