@@ -207,7 +207,7 @@
 
 <script src="assets/common.js"></script>
 <script src="assets/multiselect.js?v=2"></script>
-<script src="assets/shares.js?v=9"></script>
+<script src="assets/shares.js?v=10"></script>
 <script>
 requireAuth();
 buildSidebar('transactions');
@@ -578,52 +578,29 @@ function renderWalletCash(){
 }
 
 /* ═══ P&L by stock by year (stacked, diverging from zero) ═══
-   Average-cost basis, same as the KPI tiles:
-   • Sold  → realised = net proceeds − avg cost × units, placed in the SELL year (sell's CDS)
-   • Held  → remaining units are traced back FIFO to the buy lots they came from;
-             unrealised = units × (today's price − avg cost), placed in the BUY year (buy's CDS)
-   USD positions are converted to MYR at the live rate (kpiFx).                              */
+   Uses positionEngine() from shares.js — the same numbers as the KPI tiles:
+   • Sold → realised P&L of that Sell row, placed in the year sold
+   • Held → units still held from that Buy row × (today's price − position avg cost), placed in the year bought
+   A row shows only if it passes the table filters, so chart, tiles and table always agree.       */
 const PL_C={RP:'#1e8e3e',RL:'#d93025',INK:'#16302e',DIM:'#5f7674',GRID:'#e3ecea',AXIS:'#b9cac7'};
-function plYear(d){return new Date(d).getFullYear();}
 function computePnlSegments(){
-  const by={}; let unpriced=0;
-  transactions.forEach(t=>{const k=t.ticker+'|'+t.market;(by[k]=by[k]||[]).push(t);});
-  const segs=[];
-  Object.values(by).forEach(list=>{
-    list.sort((a,b)=>{const d=new Date(a.tx_date)-new Date(b.tx_date);return d||((a.tx_type==='Buy'?0:1)-(b.tx_type==='Buy'?0:1));});
-    const t0=list[0], ccy=t0.currency||(t0.market==='Bursa'?'MYR':'USD');
-    const base={ticker:t0.ticker,name:t0.company_name||t0.ticker,market:t0.market,ccy};
-    let qty=0,cost=0; const lots=[];
-    list.forEach(t=>{
-      const q=Number(t.quantity)||0, net=Number(t.net_amount)||0;
-      if(t.tx_type==='Buy'){qty+=q;cost+=net;lots.push({year:plYear(t.tx_date),cds:normCds(t.cds_account),qty:q});}
-      else{
-        const avg=qty>0?cost/qty:0;
-        segs.push(Object.assign({},base,{kind:'R',year:plYear(t.tx_date),cds:normCds(t.cds_account),units:q,native:net-avg*q,avg,px:q?net/q:0}));
-        cost-=avg*q; qty-=q;
-        let r=q; while(r>1e-9&&lots.length){const l=lots[0],take=Math.min(l.qty,r);l.qty-=take;r-=take;if(l.qty<=1e-9)lots.shift();}
-      }
-    });
-    if(qty>0.001){
-      const qc=priceCache[toYahoo(base)];
-      if(qc&&qc!=='err'){
-        const avg=cost/qty;
-        lots.forEach(l=>{if(l.qty>1e-9)segs.push(Object.assign({},base,{kind:'U',year:l.year,cds:l.cds,units:l.qty,native:l.qty*(qc.price-avg),avg,px:qc.price}));});
-      }else unpriced++;
-    }
-  });
+  const F=txFilterState(), {realised,open}=positionEngine();
   const fx=(typeof kpiFx!=='undefined')?kpiFx:null;
+  const segs=[]; const unpricedPos=new Set();
+  realised.forEach(r=>{
+    if(!F.pass(r.tx))return;
+    segs.push({kind:'R',ticker:r.ticker,name:r.name,market:r.market,ccy:r.ccy,cds:r.cds,
+      year:new Date(r.tx.tx_date).getFullYear(),units:r.units,avg:r.avg,px:r.units?r.proceeds/r.units:0,native:r.pnl});
+  });
+  open.forEach(l=>{
+    if(!F.pass(l.tx))return;
+    const q=priceCache[toYahoo(l)];
+    if(!q||q==='err'){unpricedPos.add(l.ticker+'|'+l.cds);return;}
+    segs.push({kind:'U',ticker:l.ticker,name:l.name,market:l.market,ccy:l.ccy,cds:l.cds,
+      year:new Date(l.tx.tx_date).getFullYear(),units:l.units,avg:l.avg,px:q.price,native:l.units*(q.price-l.avg)});
+  });
   segs.forEach(g=>{g.myr=g.ccy==='USD'?(fx?g.native*fx:null):g.native;});
-  return {segs,unpriced};
-}
-function plPasses(g){
-  if(!MS.has('filterMarket',g.market))return false;
-  if(!MS.has('filterCDS',g.cds))return false;
-  if(!MS.has('filterYear',String(g.year)))return false;
-  if(!MS.has('filterStock',g.ticker))return false;
-  const ty=MS.values('filterType');                       // Buy → held positions, Sell → sold positions
-  if(ty.length===1)return ty[0]==='Buy'?g.kind==='U':g.kind==='R';
-  return true;
+  return {segs,unpriced:unpricedPos.size};
 }
 function plBarPath(x,w,yBase,yEnd,round){
   const h=Math.abs(yEnd-yBase); if(h<0.5)return '';
@@ -649,11 +626,11 @@ function renderPnlChart(){
   let noFx=0;
   // filter, then merge lots of the same stock/year/status
   const M={};
-  segs.filter(plPasses).forEach(g=>{
+  segs.forEach(g=>{
     if(g.myr==null){noFx++;return;}
     const k=g.year+'|'+g.ticker+'|'+g.kind;
     if(!M[k])M[k]=Object.assign({},g,{cdsSet:new Set()});
-    else{M[k].units+=g.units;M[k].native+=g.native;M[k].myr+=g.myr;}
+    else{const m=M[k];m.avg=(m.avg*m.units+g.avg*g.units)/(m.units+g.units);m.px=(m.px*m.units+g.px*g.units)/(m.units+g.units);m.units+=g.units;m.native+=g.native;m.myr+=g.myr;}
     M[k].cdsSet.add(g.cds);
   });
   const items=Object.values(M).filter(g=>Math.abs(g.myr)>=0.005);

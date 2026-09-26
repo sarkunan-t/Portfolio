@@ -81,20 +81,61 @@ function calcHoldings(txList){
 }
 
 /* ---- transaction filters (present only on the transactions page;
-        elsewhere this transparently returns everything).
+        elsewhere everything passes).
         Supports multi-select filters (assets/multiselect.js) and plain <select>s. ---- */
-function getFilteredTx(){
+function txFilterState(){
   const pick=id=>{
     if(window.MS&&MS.exists(id))return MS.values(id).map(String);   // [] = All
     const el=document.getElementById(id);
     return el&&el.value?[String(el.value)]:[];
   };
-  const mkt=pick('filterMarket'),cds=pick('filterCDS'),typ=pick('filterType'),yr=pick('filterYear'),stk=pick('filterStock');
+  const F={mkt:pick('filterMarket'),cds:pick('filterCDS'),typ:pick('filterType'),yr:pick('filterYear'),stk:pick('filterStock')};
   const inF=(arr,v)=>!arr.length||arr.includes(String(v));
-  const f=transactions.filter(t=>
-    inF(mkt,t.market)&&inF(cds,normCds(t.cds_account))&&inF(typ,t.tx_type)&&
-    inF(yr,new Date(t.tx_date).getFullYear())&&inF(stk,t.ticker));
-  return {list:f,active:!!(mkt.length||cds.length||typ.length||yr.length||stk.length),yrF:yr,stkF:stk,mktF:mkt,cdsF:cds};
+  F.pass=t=>inF(F.mkt,t.market)&&inF(F.cds,normCds(t.cds_account))&&inF(F.typ,t.tx_type)&&
+            inF(F.yr,new Date(t.tx_date).getFullYear())&&inF(F.stk,t.ticker);
+  F.active=!!(F.mkt.length||F.cds.length||F.typ.length||F.yr.length||F.stk.length);
+  return F;
+}
+function getFilteredTx(){
+  const F=txFilterState();
+  return {list:transactions.filter(F.pass),active:F.active,yrF:F.yr,stkF:F.stk,mktF:F.mkt,cdsF:F.cds};
+}
+
+/* ---- position engine ----
+   Each position = one stock in one CDS account (e.g. 1155 in RHB is separate from 1155 in MYB),
+   always worked out on its FULL history, so filters never distort the cost basis.
+   Average-cost method:
+     • every Sell  → one realised item: net proceeds − avg cost × units sold
+     • open units  → traced back (FIFO) to the Buy lots they came from; each open lot is
+                     valued at the position's average cost.
+   Filters then only choose which items to show: a realised item belongs to its Sell row,
+   an open lot belongs to its Buy row.                                                    */
+function positionEngine(){
+  const groups={};
+  transactions.forEach(t=>{const k=t.ticker+'|'+t.market+'|'+normCds(t.cds_account);(groups[k]=groups[k]||[]).push(t);});
+  const realised=[], open=[];
+  Object.values(groups).forEach(list=>{
+    list.sort((a,b)=>{const d=new Date(a.tx_date)-new Date(b.tx_date);return d||((a.tx_type==='Buy'?0:1)-(b.tx_type==='Buy'?0:1));});
+    const t0=list[0];
+    const pos={ticker:t0.ticker,market:t0.market,name:t0.company_name||t0.ticker,
+               cds:normCds(t0.cds_account),ccy:t0.currency||(t0.market==='Bursa'?'MYR':'USD')};
+    let qty=0,cost=0; const lots=[];
+    list.forEach(t=>{
+      const q=Number(t.quantity)||0, net=Number(t.net_amount)||0;
+      if(t.tx_type==='Buy'){qty+=q;cost+=net;lots.push({tx:t,left:q});}
+      else{
+        const avg=qty>0?cost/qty:0;
+        realised.push(Object.assign({},pos,{tx:t,units:q,avg,proceeds:net,costSold:avg*q,pnl:net-avg*q,noCost:qty<=0}));
+        cost-=avg*q; qty-=q;
+        let r=q; while(r>1e-9&&lots.length){const l=lots[0],take=Math.min(l.left,r);l.left-=take;r-=take;if(l.left<=1e-9)lots.shift();}
+      }
+    });
+    if(qty>0.001){
+      const avg=cost/qty;
+      lots.forEach(l=>{if(l.left>1e-9)open.push(Object.assign({},pos,{tx:l.tx,units:l.left,avg,cost:l.left*avg}));});
+    }
+  });
+  return {realised,open};
 }
 
 /* ---- KPI tiles ----
@@ -137,29 +178,30 @@ function kpiCcy(h){return h.currency||(h.market==='Bursa'?'MYR':'USD');}
 
 function updateKPIs(){
   if(!document.getElementById('kpiInvested'))return;
-  const {list,active,yrF,stkF,mktF,cdsF}=getFilteredTx();
-  const holdings=calcHoldings(list);
+  const F=txFilterState();
+  const {realised,open}=positionEngine();
   const tickMkt={};transactions.forEach(t=>{tickMkt[t.ticker]=t.market;});   // dividend → market via its ticker
   const Z=()=>({MYR:0,USD:0});
   const inv=Z(), val=Z(), cost=Z(), real=Z(), div=Z();
-  let open=0, priced=0;
-  holdings.forEach(h=>{
-    const c=kpiCcy(h); if(c!=='MYR'&&c!=='USD')return;
-    real[c]+=h.realised;
-    if(h.qty>0.001){
-      open++; inv[c]+=h.totalCost;
-      const q=priceCache[toYahoo(h)];
-      if(q&&q!=='err'){val[c]+=h.qty*q.price;cost[c]+=h.totalCost;priced++;}   // unrealised only over priced holdings
-    }
+  const openPos=new Set(), pricedPos=new Set();
+  realised.forEach(r=>{if(F.pass(r.tx)&&(r.ccy==='MYR'||r.ccy==='USD'))real[r.ccy]+=r.pnl;});
+  open.forEach(l=>{
+    if(!F.pass(l.tx)||(l.ccy!=='MYR'&&l.ccy!=='USD'))return;
+    const pk=l.ticker+'|'+l.market+'|'+l.cds; openPos.add(pk);
+    inv[l.ccy]+=l.cost;
+    const q=priceCache[toYahoo(l)];
+    if(q&&q!=='err'){val[l.ccy]+=l.units*q.price;cost[l.ccy]+=l.cost;pricedPos.add(pk);}   // unrealised only over priced lots
   });
   dividends.forEach(d=>{
-    if(yrF.length&&!yrF.includes(String(new Date(d.payout_date).getFullYear())))return;
-    if(stkF.length&&!stkF.includes(d.ticker))return;
-    if(mktF.length&&!mktF.includes(String(tickMkt[d.ticker]||'Bursa')))return;
-    if(cdsF.length&&d.cds_account&&!cdsF.includes(String(normCds(d.cds_account))))return;
+    if(F.yr.length&&!F.yr.includes(String(new Date(d.payout_date).getFullYear())))return;
+    if(F.stk.length&&!F.stk.includes(d.ticker))return;
+    if(F.mkt.length&&!F.mkt.includes(String(tickMkt[d.ticker]||'Bursa')))return;
+    if(F.cds.length&&d.cds_account&&!F.cds.includes(String(normCds(d.cds_account))))return;
+    if(F.typ.length===1&&F.typ[0]==='Buy')return;                           // "Buy" view = open positions only
     const c=d.currency==='USD'?'USD':'MYR';                                  // dividends are recorded in MYR unless marked USD
     div[c]+=Number(d.amount)||0;
   });
+  const open_=openPos.size, priced=pricedPos.size;
   const unr={MYR:val.MYR-cost.MYR,USD:val.USD-cost.USD};
   const net={MYR:real.MYR+unr.MYR+div.MYR,USD:real.USD+unr.USD+div.USD};
 
@@ -171,7 +213,7 @@ function updateKPIs(){
   const show=(id,o,signed,hasData=true)=>{
     if(!hasData){setText(id,'—');setText(id+'Usd','');setText(id+'Split','');return;}
     const m=toMyr(o), u=toUsd(o);
-    if(m==null){                                   // rate not in yet → show each currency on its own
+    if(m==null){
       setHTML(id,`${sg(o.MYR,signed)}MYR ${fmt(abs(o.MYR,signed))}</span>`);
       setHTML(id+'Usd',`${sg(o.USD,signed)}USD ${fmt(abs(o.USD,signed))}</span> <span style="color:var(--ink-dim);">(rate pending)</span>`);
       setText(id+'Split','');return;
@@ -181,9 +223,9 @@ function updateKPIs(){
     setText(id+'Split',(o.MYR||o.USD)?`MYR ${fmt(o.MYR)} | USD ${fmt(o.USD)}`:'');
   };
 
-  show('kpiInvested',inv,false,open>0);
+  show('kpiInvested',inv,false,open_>0);
   show('kpiValue',val,false,priced>0);
-  setText('kpiValueSub',open?`${priced} of ${open} priced`:'');
+  setText('kpiValueSub',open_?`${priced} of ${open_} positions priced`:'');
   show('kpiUnreal',unr,true,priced>0);
   const cm=toMyr(cost), um=toMyr(unr);
   setHTML('kpiUnrealPct',priced&&cm?`${sg(um,true)}${fmt(Math.abs(um/cm*100))}%</span>`:'');
@@ -193,7 +235,10 @@ function updateKPIs(){
 
   setText('kpiFxNote',fx?`USD/MYR ${fmt(fx,4)} (${kpiFxSrc}) · MYR and USD totals are combined at this rate`:'Fetching USD/MYR rate…');
   const badge=document.getElementById('kpiFilterNote');
-  if(badge)badge.style.display=active?'block':'none';
+  if(badge){
+    badge.style.display=F.active?'block':'none';
+    badge.innerHTML='&#9679; Filtered view — sold rows count their realised P&amp;L, bought rows count what is still held from them (cost basis always uses full history)';
+  }
 }
 
 /* ---- live prices (via Supabase Edge Function "quote") ----
@@ -240,8 +285,9 @@ async function fetchPrices(symbols){
 async function fetchPrice(symbol){await fetchPrices([symbol]);}
 
 async function fetchAllPrices(){
-  const holdings=calcHoldings().filter(h=>h.qty>0.001);
-  await fetchPrices([...holdings.map(toYahoo),FX_SYMBOL]);
+  const syms=new Set(calcHoldings().filter(h=>h.qty>0.001).map(toYahoo));
+  positionEngine().open.forEach(l=>syms.add(toYahoo(l)));          // every account that still holds units
+  await fetchPrices([...syms,FX_SYMBOL]);
   await loadKpiFx();
   if(window.onPricesUpdated)window.onPricesUpdated();
   updateKPIs();
