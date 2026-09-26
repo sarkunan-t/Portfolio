@@ -194,7 +194,7 @@
 
 <script src="assets/common.js"></script>
 <script src="assets/multiselect.js?v=1"></script>
-<script src="assets/shares.js?v=8"></script>
+<script src="assets/shares.js?v=9"></script>
 <script>
 requireAuth();
 buildSidebar('funds');
@@ -257,7 +257,7 @@ function computeBalances(asOf,netShares){
     fundsTx.forEach(t=>{
       if(asOf && t.tx_date && t.tx_date>asOf)return;
       const ccy=t.currency||(t.market==='Bursa'?'MYR':'USD'); if(ccy!=='MYR'&&ccy!=='USD')return;
-      const amt=Number(t.net_amount)||0, b=cell(t.cds_account);
+      const amt=Number(t.net_amount)||0, b=cell(normCds(t.cds_account));
       if(t.tx_type==='Buy')b[ccy]-=amt; else b[ccy]+=amt;   // Buy spends cash, Sell returns it
     });
   }

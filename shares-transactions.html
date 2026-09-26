@@ -9,6 +9,33 @@
 <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/app.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .wc-head-row{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin:4px 0 10px;}
+  .wc-title{font-size:13px;font-weight:800;}
+  .wc-note{font-size:10.5px;color:var(--ink-dim);}
+  .wc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px;}
+  @media(max-width:1100px){.wc-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media(max-width:640px){.wc-grid{grid-template-columns:1fr;}}
+  .wc-card{background:var(--panel,#fff);border:1px solid var(--panel-edge);border-radius:var(--radius,14px);box-shadow:var(--shadow-sm);padding:14px 16px;border-top:3px solid #00a19c;}
+  .wc-card.usd{border-top-color:#6a4fd1;}
+  .wc-card.idle{opacity:.6;}
+  .wc-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .wc-key{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;}
+  .wc-name{font-size:11px;color:var(--ink-dim);font-weight:600;}
+  .wc-rule{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;background:#eef8f7;color:#00514d;}
+  .wc-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0;}
+  .wc-row span:first-child{color:var(--ink-dim);font-weight:600;}
+  .wc-row span:last-child{font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+  .wc-bal{border-top:1px solid var(--panel-edge);margin-top:6px;padding-top:7px;}
+  .wc-bal span:first-child{color:inherit;font-weight:800;}
+  .wc-bal span:last-child{font-weight:700;font-size:13px;}
+  .wc-eq{text-align:right;font-size:10.5px;color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;}
+  .wc-pend{margin-top:9px;padding:8px 10px;border-radius:9px;background:#fff7e8;border:1px solid #f3dfb5;font-size:11px;line-height:1.55;}
+  .wc-pend b{font-weight:800;}
+  .wc-pend .wc-due{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .wc-warn{margin-top:8px;padding:7px 10px;border-radius:9px;background:#fdecea;border:1px solid #f5c6c2;color:#a4231a;font-size:11px;font-weight:700;}
+  .wc-ok{margin-top:8px;font-size:10.5px;color:var(--ink-dim);}
+</style>
 </head>
 <body>
 <div class="layout">
@@ -27,6 +54,11 @@
     </div>
     <div class="page">
       <div id="kpiHost"></div>
+      <div class="wc-head-row">
+        <div class="wc-title">Cash by CDS Wallet</div>
+        <div class="wc-note" id="wcNote">Account balances — not affected by the table filters. Settlement: Bursa T+2, US T+1 (business days, weekends skipped).</div>
+      </div>
+      <div class="wc-grid" id="walletHost"></div>
       <div class="filters">
         <div class="ms" id="filterMarket"></div>
         <div class="ms" id="filterCDS"></div>
@@ -94,7 +126,7 @@
           <select id="fCDS">
             <option value="MYB">Maybank (MYB)</option>
             <option value="RHB">RHB</option>
-            <option value="Rakuten">Rakuten</option>
+            <option value="RKT">Rakuten (RKT)</option>
           </select>
         </div>
         <div class="field"><label>Date</label><input type="date" id="fDate"></div>
@@ -139,7 +171,7 @@
 
 <script src="assets/common.js"></script>
 <script src="assets/multiselect.js?v=1"></script>
-<script src="assets/shares.js?v=8"></script>
+<script src="assets/shares.js?v=9"></script>
 <script>
 requireAuth();
 buildSidebar('transactions');
@@ -159,7 +191,7 @@ function populateTxFilters(){
   const on=onTxFilterChange;
   MS.init('filterMarket',{noun:'Markets',allLabel:'All Markets',options:['Bursa','US'],onChange:on});
   MS.init('filterCDS',{noun:'Accounts',allLabel:'All Accounts',
-    options:[...new Set(transactions.map(t=>t.cds_account).filter(Boolean))].sort(),onChange:on});
+    options:[...new Set(transactions.map(t=>normCds(t.cds_account)).filter(Boolean))].sort(),onChange:on});
   MS.init('filterType',{noun:'Types',allLabel:'All Types',options:['Buy','Sell'],onChange:on});
   MS.init('filterYear',{noun:'Years',allLabel:'All Years',
     options:[...new Set(transactions.map(t=>new Date(t.tx_date).getFullYear()).filter(y=>!isNaN(y)))].sort((a,b)=>b-a),onChange:on});
@@ -242,7 +274,7 @@ function renderTransactions(){
       <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;white-space:nowrap;">${date}</td>
       <td><div class="ticker-cell">${t.ticker}</div><div class="sub-cell">${t.company_name||''}</div></td>
       <td>${tb}</td><td>${cb}</td>
-      <td style="font-size:11px;">${t.cds_account}</td>
+      <td style="font-size:11px;">${normCds(t.cds_account)}</td>
       <td class="num">${fmt(t.quantity,0)}</td>
       <td class="num">${t.currency} ${fmt(t.price)}</td>
       <td class="num">${fmt(t.gross_amount)}</td>
@@ -324,7 +356,7 @@ function openTxModal(id){
     currentMarket=t.market;
     document.getElementById('fMarket').value=t.market;
     document.getElementById('fCurrency').value=t.currency;
-    document.getElementById('fCDS').value=t.cds_account;
+    document.getElementById('fCDS').value=normCds(t.cds_account);
     document.getElementById('fDate').value=t.tx_date;
     document.getElementById('fTicker').value=t.ticker;
     document.getElementById('fName').value=t.company_name||'';
@@ -396,14 +428,99 @@ async function deleteTx(id){
   showToast('Deleted ✓');priceCache={};loadShares();
 }
 
+/* ═══ Cash by CDS wallet (capital in − purchases + sale proceeds, with T+n settlement) ═══ */
+const SETTLE_DAYS={Bursa:2,US:1};        // Bursa T+2; US moved to T+1 on 28 May 2024
+const WC_NAME={MYB:'Maybank',RHB:'RHB',RKT:'Rakuten'};
+let txFunds=[];
+async function loadTxFunds(){
+  const {data,error}=await sb.from('funds').select('txn_date,txn_type,currency,amount,cds_account');
+  txFunds=error?[]:(data||[]);
+  renderWalletCash();
+}
+function ymdStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function addBizDays(dateStr,n){
+  const d=new Date(dateStr+'T00:00:00'); let k=0;
+  while(k<n){d.setDate(d.getDate()+1);const w=d.getDay();if(w!==0&&w!==6)k++;}
+  return d;
+}
+const dueFmt=s=>new Date(s+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+
+function renderWalletCash(){
+  const host=document.getElementById('walletHost'); if(!host)return;
+  const today=ymdStr(new Date());
+  const W={}, order=[];
+  const wal=(cds,ccy)=>{
+    const c=normCds(cds)||'—', k=c+'-'+ccy;
+    if(!W[k]){W[k]={key:k,cds:c,ccy,cap:0,buy:0,buyN:0,sell:0,sellN:0,pend:[],active:false};order.push(k);}
+    return W[k];
+  };
+  ['MYB','RHB','RKT'].forEach(c=>['MYR','USD'].forEach(ccy=>wal(c,ccy)));
+
+  txFunds.forEach(f=>{
+    const ccy=f.currency||'MYR'; if(ccy!=='MYR'&&ccy!=='USD')return;
+    const a=wal(f.cds_account,ccy), amt=Number(f.amount)||0;
+    a.cap+=(f.txn_type==='Deposit'||f.txn_type==='Transfer In')?amt:-amt; a.active=true;
+  });
+  transactions.forEach(t=>{
+    const ccy=t.currency||(t.market==='Bursa'?'MYR':'USD'); if(ccy!=='MYR'&&ccy!=='USD')return;
+    const a=wal(t.cds_account,ccy), amt=Number(t.net_amount)||0; a.active=true;
+    if(t.tx_type==='Buy'){a.buy+=amt;a.buyN++;}else{a.sell+=amt;a.sellN++;}
+    const n=SETTLE_DAYS[t.market]??2, due=ymdStr(addBizDays(t.tx_date,n));
+    if(due>=today)a.pend.push({t,due,amt,n});
+  });
+
+  const fx=(typeof kpiFx!=='undefined')?kpiFx:null;
+  host.innerHTML=order.map(k=>{
+    const a=W[k], c=a.ccy, bal=a.cap-a.buy+a.sell;
+    const rule=c==='USD'?'US T+1':'Bursa T+2';
+    const eq=v=>c==='USD'?(fx?`≈ MYR ${fmt(v*fx)}`:'≈ MYR (rate pending)'):(fx?`≈ USD ${fmt(v/fx)}`:'');
+    const money=(v,sign)=>`${sign||''}${c} ${fmt(Math.abs(v))}`;
+    if(!a.active)return `<div class="wc-card ${c==='USD'?'usd':''} idle">
+      <div class="wc-top"><div><div class="wc-key">${a.key}</div><div class="wc-name">${WC_NAME[a.cds]||a.cds} · ${c}</div></div><span class="wc-rule">${rule}</span></div>
+      <div class="wc-ok">No deposits or trades yet.</div></div>`;
+
+    // pending settlement, grouped by due date and side
+    let pendHtml='', warn='';
+    if(a.pend.length){
+      const g={};
+      a.pend.forEach(p=>{const key=p.due+'|'+p.t.tx_type;if(!g[key])g[key]={due:p.due,side:p.t.tx_type,amt:0,tickers:new Set(),contra:false,n:p.n};
+        g[key].amt+=p.amt;g[key].tickers.add(p.t.ticker);if(p.t.is_contra)g[key].contra=true;});
+      const groups=Object.values(g).sort((x,y)=>x.due.localeCompare(y.due));
+      pendHtml='<div class="wc-pend">'+groups.map(x=>{
+        const isBuy=x.side==='Buy', dueTxt=x.due===today?'<b>today</b>':dueFmt(x.due);
+        return `${isBuy?'&#9203; <b>Payment due</b>':'&#8617; <b>Proceeds due</b>'} ${money(x.amt)} <span class="wc-due">· ${dueTxt}</span><br>
+          <span style="color:var(--ink-dim);">${[...x.tickers].join(', ')} · T+${x.n}${x.contra?' · contra':''}</span>`;
+      }).join('<div style="height:5px"></div>')+'</div>';
+      const payDue=groups.filter(x=>x.side==='Buy').reduce((s,x)=>s+x.amt,0);
+      const firstDue=groups.find(x=>x.side==='Buy');
+      if(payDue>0&&bal<0)warn=`<div class="wc-warn">&#9888; Short by ${money(-bal)} — top up by ${dueFmt(firstDue.due)}</div>`;
+    }
+    if(!warn&&bal<-0.005)warn=`<div class="wc-warn">&#9888; Negative balance ${money(bal,'−')} — a deposit may be missing</div>`;
+
+    return `<div class="wc-card ${c==='USD'?'usd':''}">
+      <div class="wc-top"><div><div class="wc-key">${a.key}</div><div class="wc-name">${WC_NAME[a.cds]||a.cds} · ${c}</div></div><span class="wc-rule">${rule}</span></div>
+      <div class="wc-row"><span>Capital in</span><span>${money(a.cap,a.cap<0?'−':'')}</span></div>
+      <div class="wc-row"><span>Stocks purchased${a.buyN?` (${a.buyN})`:''}</span><span class="down">${money(a.buy,'−')}</span></div>
+      <div class="wc-row"><span>Sale proceeds${a.sellN?` (${a.sellN})`:''}</span><span class="up">${money(a.sell,'+')}</span></div>
+      <div class="wc-row wc-bal"><span>Cash balance</span><span class="${bal>=0?'up':'down'}">${money(bal,bal<0?'−':'')}</span></div>
+      <div class="wc-eq">${eq(bal)}</div>
+      ${pendHtml}${warn}
+      ${!a.pend.length&&!warn?'<div class="wc-ok">&#10003; No unsettled trades</div>':''}
+    </div>`;
+  }).join('');
+  setText('wcNote',`Account balances — not affected by the table filters. Settlement: Bursa T+2, US T+1 (business days, weekends skipped; public holidays not included).${fx?` USD/MYR ${fmt(fx,4)}.`:''}`);
+}
+
 /* ---- hooks & init ---- */
 window.onSharesData=function(){
   populateTxFilters();
   renderTransactions();
+  renderWalletCash();
 };
-window.onPricesUpdated=function(){/* KPIs refreshed by fetchAllPrices */};
+window.onPricesUpdated=function(){renderWalletCash();};   /* KPIs refreshed by fetchAllPrices; FX now known */
 document.getElementById('txModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTxModal();});
 loadShares();
+loadTxFunds();
 </script>
 </body>
 </html>

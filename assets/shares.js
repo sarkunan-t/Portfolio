@@ -36,6 +36,10 @@ function computeDivYears(){
 
 let transactions=[], dividends=[], priceCache={};
 
+/* one code per CDS account — older rows may say "Rakuten" / "Maybank" */
+const CDS_ALIAS={Rakuten:'RKT',RAKUTEN:'RKT',rakuten:'RKT',Maybank:'MYB',MAYBANK:'MYB',maybank:'MYB'};
+function normCds(c){return CDS_ALIAS[c]||c;}
+
 /* ---- data load ---- */
 async function loadShares(){
   const [txRes,divRes]=await Promise.all([
@@ -88,7 +92,7 @@ function getFilteredTx(){
   const mkt=pick('filterMarket'),cds=pick('filterCDS'),typ=pick('filterType'),yr=pick('filterYear'),stk=pick('filterStock');
   const inF=(arr,v)=>!arr.length||arr.includes(String(v));
   const f=transactions.filter(t=>
-    inF(mkt,t.market)&&inF(cds,t.cds_account)&&inF(typ,t.tx_type)&&
+    inF(mkt,t.market)&&inF(cds,normCds(t.cds_account))&&inF(typ,t.tx_type)&&
     inF(yr,new Date(t.tx_date).getFullYear())&&inF(stk,t.ticker));
   return {list:f,active:!!(mkt.length||cds.length||typ.length||yr.length||stk.length),yrF:yr,stkF:stk,mktF:mkt,cdsF:cds};
 }
@@ -152,7 +156,7 @@ function updateKPIs(){
     if(yrF.length&&!yrF.includes(String(new Date(d.payout_date).getFullYear())))return;
     if(stkF.length&&!stkF.includes(d.ticker))return;
     if(mktF.length&&!mktF.includes(String(tickMkt[d.ticker]||'Bursa')))return;
-    if(cdsF.length&&d.cds_account&&!cdsF.includes(String(d.cds_account)))return;
+    if(cdsF.length&&d.cds_account&&!cdsF.includes(String(normCds(d.cds_account))))return;
     const c=d.currency==='USD'?'USD':'MYR';                                  // dividends are recorded in MYR unless marked USD
     div[c]+=Number(d.amount)||0;
   });
