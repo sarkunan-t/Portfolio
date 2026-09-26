@@ -139,6 +139,7 @@
             <th class="num">Amount</th><th>Notes</th><th></th>
           </tr></thead>
           <tbody id="fdBody"></tbody>
+          <tfoot id="fdFoot"></tfoot>
         </table>
       </div>
 
@@ -236,7 +237,7 @@ async function loadFunds(){
 async function loadLiveFx(){
   const r=await fetchHistFxRate(todayStr());   // live quote via Edge Function, else latest ECB rate
   if(r){liveFx=r.rate;liveFxInfo=r;}
-  renderTop();renderFlowChart();
+  renderTop();renderFlowChart();renderFunds();
 }
 
 /* ═══ balances ═══ */
@@ -401,11 +402,36 @@ function getFilteredFunds(){
 }
 function refreshFdView(){renderTop();renderFlowChart();renderFunds();}
 
+/* totals for the rows currently shown (respects every filter), one line per currency */
+function renderFundsTotals(list){
+  const foot=document.getElementById('fdFoot');
+  if(!list.length){foot.innerHTML='';return;}
+  const t={};
+  list.forEach(f=>{
+    const ccy=f.currency||'MYR', amt=Number(f.amount)||0;
+    if(!t[ccy])t[ccy]={inn:0,out:0,n:0};
+    if(f.txn_type==='Deposit'||f.txn_type==='Transfer In')t[ccy].inn+=amt; else t[ccy].out+=amt;
+    t[ccy].n++;
+  });
+  const ccys=Object.keys(t).sort();
+  foot.innerHTML=ccys.map((c,i)=>{
+    const net=t[c].inn-t[c].out;
+    const usdEq=(c==='USD'&&liveFx)?` <span style="font-weight:600;color:var(--ink-dim);">≈ MYR ${fmt(net*liveFx)}</span>`:'';
+    return `<tr class="total-row">
+      <td colspan="3" style="font-weight:800;white-space:nowrap;">${i===0?'TOTAL (shown rows)':''}</td>
+      <td style="font-size:11px;color:var(--ink-dim);white-space:nowrap;">${t[c].n} row${t[c].n!==1?'s':''} · In ${c} ${fmt(t[c].inn)} · Out ${c} ${fmt(t[c].out)}</td>
+      <td class="num" style="white-space:nowrap;font-weight:800;"><span class="${net>=0?'up':'down'}">${net>=0?'+':'−'}${c} ${fmt(Math.abs(net))}</span>${usdEq}</td>
+      <td colspan="2"></td>
+    </tr>`;
+  }).join('');
+}
+
 function renderFunds(){
   const list=getFilteredFunds();
   const tbody=document.getElementById('fdBody');
   setText('fdCount',`${list.length} movement${list.length!==1?'s':''}`);
-  if(!list.length){tbody.innerHTML=`<tr><td colspan="7" class="empty-state">No movements found.</td></tr>`;return;}
+  if(!list.length){tbody.innerHTML=`<tr><td colspan="7" class="empty-state">No movements found.</td></tr>`;renderFundsTotals([]);return;}
+  renderFundsTotals(list);
   tbody.innerHTML=list.map(f=>{
     const ccy=f.currency||'MYR';
     const date=new Date(f.txn_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
