@@ -5,6 +5,7 @@
             MS.has(id,v)  → true if v passes the filter
             MS.active(id) → true if the filter is narrowing the list
    Reset  : MS.clear([ids], callback)
+   Options: MS.optionValues(id) → current option values
    Lists longer than 8 options get a search box.                                */
 (function(){
   const css=`
@@ -86,6 +87,7 @@
     init, values, clear,
     has:(id,v)=>{const a=values(id);return !a.length||a.includes(String(v));},
     active:id=>values(id).length>0,
-    exists:id=>!!C[id]
+    exists:id=>!!C[id],
+    optionValues:id=>C[id]?C[id].options.map(o=>o.value):[]
   };
 })();
