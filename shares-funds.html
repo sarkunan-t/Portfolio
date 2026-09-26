@@ -9,6 +9,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/app.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .cv-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;font-weight:700;color:var(--ink,#16302e);}
+  .legend-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;}
+  .cv-pair{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px;}
+  @media(max-width:760px){.cv-pair{grid-template-columns:1fr;}}
+  .cv-title{font-size:12px;font-weight:800;}
+  .cv-cap{font-size:10px;color:var(--ink-dim);margin-bottom:4px;}
+  .cv-wrap{position:relative;}
+  .cv-wrap svg{display:block;width:100%;height:auto;overflow:visible;}
+  .cv-tip{position:absolute;pointer-events:none;display:none;z-index:5;background:#00332f;color:#fff;
+    font-family:'Mulish',sans-serif;font-size:11px;line-height:1.5;padding:7px 10px;border-radius:8px;
+    white-space:nowrap;box-shadow:0 4px 14px rgba(0,51,47,.25);}
+  .cv-tip b{font-weight:800;}
+  .cv-empty{font-size:12px;color:var(--ink-dim);padding:40px 0;text-align:center;}
+  .hb .xh{opacity:0;} .hb:hover .xh{opacity:1;}
+  .bar-hit:hover + .bar-mark, .bar-mark:hover{filter:brightness(1.08);}
+</style>
 </head>
 <body>
 <div class="layout">
@@ -27,56 +44,78 @@
     </div>
     <div class="page">
 
-      <!-- ── NET CAPITAL (3-way) ── -->
-      <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+      <!-- ── HEADLINE CARDS ── -->
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-bottom:10px;">
+        <label style="font-size:11px;font-weight:700;color:var(--ink-dim);">As of</label>
+        <input type="date" id="asOfDate" onchange="refreshFdView()" style="width:auto;background:#fbfdfd;border:1px solid var(--panel-edge);border-radius:9px;font-family:'Mulish',sans-serif;font-size:12px;padding:6px 9px;">
+        <button class="btn-sm" onclick="clearAsOf()">Now</button>
+      </div>
+      <div class="summary-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
         <div class="tile" style="border-top-color:#00514d;">
-          <div class="tile-label">Total Net Capital (in MYR)</div>
+          <div class="tile-label">Total Funds Available · MYR + USD</div>
           <div class="tile-value" id="ncTotal">—</div>
-          <div class="tile-sub" id="ncRateNote">fetching live USD/MYR…</div>
+          <div class="tile-sub" id="ncTotalSub">fetching USD/MYR…</div>
+          <div class="tile-sub" id="ncTotalAfter"></div>
         </div>
-        <div class="tile">
-          <div class="tile-label">MYR Cash</div>
+        <div class="tile" style="border-top-color:#00a19c;">
+          <div class="tile-label">MYR Funds</div>
           <div class="tile-value" id="ncMyr">—</div>
-          <div class="tile-sub">ringgit across all CDS</div>
+          <div class="tile-sub">MYB-MYR + RHB-MYR + RKT-MYR</div>
+          <div class="tile-sub" id="ncMyrAfter"></div>
         </div>
-        <div class="tile">
-          <div class="tile-label">USD Cash</div>
+        <div class="tile" style="border-top-color:#6a4fd1;">
+          <div class="tile-label">USD Funds</div>
           <div class="tile-value" id="ncUsd">—</div>
           <div class="tile-sub" id="ncUsdInMyr"></div>
+          <div class="tile-sub" id="ncUsdAfter"></div>
         </div>
       </div>
 
-      <!-- ── AVAILABLE FUNDS BY CDS ── -->
+      <!-- ── AVAILABLE FUNDS BY WALLET ── -->
       <div class="table-wrap" style="padding:16px 18px;margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
-          <div style="font-size:13px;font-weight:800;">Available Funds by CDS</div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <label style="font-size:11px;font-weight:700;color:var(--ink-dim);">As of</label>
-            <input type="date" id="asOfDate" onchange="refreshFdView()" style="width:auto;background:#fbfdfd;border:1px solid var(--panel-edge);border-radius:9px;font-family:'Mulish',sans-serif;font-size:12px;padding:6px 9px;">
-            <button class="btn-sm" onclick="clearAsOf()">Now</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:4px;">
+          <div style="font-size:13px;font-weight:800;">Available Funds by CDS Wallet</div>
+          <div class="cv-legend"><span><i class="legend-sw" style="background:#00a19c"></i>MYR wallet</span><span><i class="legend-sw" style="background:#6a4fd1"></i>USD wallet <em id="wlRateLbl" style="font-style:normal;color:var(--ink-dim);"></em></span></div>
+        </div>
+        <div class="cv-pair">
+          <div>
+            <div class="cv-title">Funded balance</div>
+            <div class="cv-cap">deposits − withdrawals ± transfers</div>
+            <div class="cv-wrap" id="wlFunded"></div>
+          </div>
+          <div>
+            <div class="cv-title">Cash after share purchases</div>
+            <div class="cv-cap">funded balance − purchases + sale proceeds</div>
+            <div class="cv-wrap" id="wlCash"></div>
           </div>
         </div>
-        <table class="std">
-          <thead><tr><th>CDS Account</th><th class="num">MYR</th><th class="num">USD</th></tr></thead>
-          <tbody id="balBody"></tbody>
-          <tfoot id="balFoot"></tfoot>
-        </table>
-        <div style="font-size:10px;color:var(--ink-dim);margin-top:8px;">
-          Available = deposits − withdrawals ± transfers − share purchases + sale proceeds, per account &amp; currency.
-        </div>
+        <details style="margin-top:10px;">
+          <summary style="font-size:11px;font-weight:700;color:var(--ink-dim);cursor:pointer;">Show as table</summary>
+          <table class="std" style="margin-top:8px;">
+            <thead><tr><th>Wallet</th><th class="num">Funded</th><th class="num">After share purchases</th><th class="num">Funded ≈ MYR</th><th class="num">After purchases ≈ MYR</th></tr></thead>
+            <tbody id="balBody"></tbody>
+            <tfoot id="balFoot"></tfoot>
+          </table>
+        </details>
       </div>
 
-      <!-- ── YOY EXTERNAL CAPITAL FLOW ── -->
+      <!-- ── CAPITAL FLOW YOY (line) ── -->
       <div class="table-wrap" style="padding:16px 18px;margin-bottom:16px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
-          <div style="font-size:13px;font-weight:800;">External Capital — Year on Year</div>
-          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-dim);">
-            <span style="color:#00a19c;">&#9632;</span> Deposits &nbsp;
-            <span style="color:#d93025;">&#9632;</span> Withdrawals &nbsp;
-            <span style="font-style:italic;">(transfers excluded — internal moves)</span>
-          </div>
+          <div style="font-size:13px;font-weight:800;">Capital Flow — Year on Year</div>
+          <div class="cv-legend" id="cfLegend"></div>
         </div>
-        <div id="fdChart" style="overflow-x:auto;"></div>
+        <div class="filters" style="margin-bottom:6px;">
+          <select class="filter-select" id="cfCcy" onchange="renderFlowChart()"><option value="">MYR &amp; USD</option><option value="MYR">MYR only</option><option value="USD">USD only</option></select>
+          <select class="filter-select" id="cfCds" onchange="renderFlowChart()"><option value="">All CDS</option><option value="MYB">Maybank (MYB)</option><option value="RHB">RHB</option><option value="RKT">Rakuten (RKT)</option></select>
+          <select class="filter-select" id="cfView" onchange="renderFlowChart()"><option value="net">Net flow per year</option><option value="cum">Cumulative</option></select>
+        </div>
+        <div class="cv-wrap" id="cfChart"></div>
+        <div style="font-size:10px;color:var(--ink-dim);margin-top:6px;">Flow = deposits − withdrawals + transfers in − transfers out, per currency. USD shown in MYR at the current rate.</div>
+        <details style="margin-top:8px;">
+          <summary style="font-size:11px;font-weight:700;color:var(--ink-dim);cursor:pointer;">Show as table</summary>
+          <table class="std" style="margin-top:8px;"><thead id="cfHead"></thead><tbody id="cfBody"></tbody></table>
+        </details>
       </div>
 
       <!-- ── MOVEMENTS ── -->
@@ -163,12 +202,9 @@
 requireAuth();
 buildSidebar('funds');
 
-/* If true, "available" nets out share purchases (+ sale proceeds).
-   Set to false to show capital CONTRIBUTED (deposits/withdrawals/transfers only). */
-const NET_OF_SHARE_SPEND = true;
 const CDS_LIST = ['MYB','RHB','RKT'];
 
-let funds=[], fundsTx=[], liveFx=null;
+let funds=[], fundsTx=[], liveFx=null, liveFxInfo=null;
 let fdMode='Deposit', editingFdId=null, editingXferGroup=null;
 
 /* 6 CDS wallets: each CDS has a MYR and a USD account */
@@ -198,21 +234,21 @@ async function loadFunds(){
 }
 
 async function loadLiveFx(){
-  try{
-    await fetchPrice('USDMYR=X');           // reuse shares.js fetcher + proxies
-    const c=priceCache['USDMYR=X'];
-    if(c&&c!=='err')liveFx=c.price;         // MYR per 1 USD
-  }catch(e){}
-  renderBalancesAndNet(currentAsOf());
+  const r=await fetchHistFxRate(todayStr());   // live quote via Edge Function, else latest ECB rate
+  if(r){liveFx=r.rate;liveFxInfo=r;}
+  renderTop();renderFlowChart();
 }
 
 /* ═══ balances ═══ */
 function currentAsOf(){return document.getElementById('asOfDate').value||'';}
 function clearAsOf(){document.getElementById('asOfDate').value='';refreshFdView();}
 
-function computeBalances(asOf){
+/* netShares=false → funded balance (deposits − withdrawals ± transfers)
+   netShares=true  → cash after share purchases (− buys + sale proceeds)          */
+function computeBalances(asOf,netShares){
   const bal={};
   const cell=cds=>{const k=cds||'—';if(!bal[k])bal[k]={MYR:0,USD:0};return bal[k];};
+  CDS_LIST.forEach(c=>cell(c));
   funds.forEach(f=>{
     if(asOf && f.txn_date && f.txn_date>asOf)return;
     const ccy=f.currency||'MYR'; if(ccy!=='MYR'&&ccy!=='USD')return;
@@ -220,7 +256,7 @@ function computeBalances(asOf){
     if(f.txn_type==='Deposit'||f.txn_type==='Transfer In')b[ccy]+=amt;
     else b[ccy]-=amt;                       // Withdraw / Transfer Out
   });
-  if(NET_OF_SHARE_SPEND){
+  if(netShares){
     fundsTx.forEach(t=>{
       if(asOf && t.tx_date && t.tx_date>asOf)return;
       const ccy=t.currency||(t.market==='Bursa'?'MYR':'USD'); if(ccy!=='MYR'&&ccy!=='USD')return;
@@ -228,40 +264,120 @@ function computeBalances(asOf){
       if(t.tx_type==='Buy')b[ccy]-=amt; else b[ccy]+=amt;   // Buy spends cash, Sell returns it
     });
   }
-  CDS_LIST.forEach(c=>cell(c));             // always show the standard accounts
   return bal;
 }
+function sumBal(bal){let m=0,u=0;Object.values(bal).forEach(b=>{m+=b.MYR;u+=b.USD;});return {m,u};}
 
-function renderBalancesAndNet(asOf){
-  const bal=computeBalances(asOf);
-  const cdsList=Object.keys(bal).sort();
-  const money=(v,ccy)=>`<span class="${v>=0?'up':'down'}">${ccy} ${fmt(v)}</span>`;
-  document.getElementById('balBody').innerHTML=cdsList.map(c=>`
-    <tr>
-      <td style="font-weight:700;">${c}</td>
-      <td class="num">${money(bal[c].MYR,'MYR')}</td>
-      <td class="num">${money(bal[c].USD,'USD')}</td>
-    </tr>`).join('');
-  let tMYR=0,tUSD=0; cdsList.forEach(c=>{tMYR+=bal[c].MYR;tUSD+=bal[c].USD;});
-  document.getElementById('balFoot').innerHTML=`
-    <tr class="total-row">
-      <td style="font-weight:800;">TOTAL</td>
-      <td class="num">${money(tMYR,'MYR')}</td>
-      <td class="num">${money(tUSD,'USD')}</td>
-    </tr>`;
+/* ═══ headline cards + wallet charts ═══ */
+const C_MYR='#00a19c', C_USD='#6a4fd1';
+const INK='#16302e', INK_DIM='#5f7674', GRID='#e3ecea', AXIS='#b9cac7';
+const sgn=v=>`<span class="${v>=0?'up':'down'}">`;
+const myrEq=(m,u)=>liveFx?m+u*liveFx:null;
+function rateLabel(){return liveFxInfo?`@ ${fmt(liveFx,4)} ${liveFxInfo.src==='live'?'live':'(ECB '+liveFxInfo.date+')'}`:'rate pending…';}
 
-  // NET card
-  setText('ncMyr','MYR '+fmt(tMYR));
-  setText('ncUsd','USD '+fmt(tUSD));
-  if(liveFx){
-    document.getElementById('ncUsdInMyr').innerHTML='&#8776; MYR '+fmt(tUSD*liveFx);
-    setText('ncTotal','MYR '+fmt(tMYR+tUSD*liveFx));
-    setText('ncRateNote','USD marked live @ USDMYR '+fmt(liveFx,4)+(asOf?' · as of '+asOf:''));
-  } else {
-    document.getElementById('ncUsdInMyr').innerHTML='live rate pending…';
-    setText('ncTotal','MYR '+fmt(tMYR)+'  +  USD '+fmt(tUSD));
-    setText('ncRateNote','fetching live USD/MYR…');
+function renderTop(){
+  const asOf=currentAsOf();
+  const fund=computeBalances(asOf,false), cash=computeBalances(asOf,true);
+  const F=sumBal(fund), C=sumBal(cash);
+
+  const tF=myrEq(F.m,F.u), tC=myrEq(C.m,C.u);
+  setHTML('ncTotal',tF!=null?`${sgn(tF)}MYR ${fmt(tF)}</span>`:`MYR ${fmt(F.m)} + USD ${fmt(F.u)}`);
+  setText('ncTotalSub','USD valued '+rateLabel()+(asOf?' · as of '+asOf:''));
+  setHTML('ncTotalAfter',tC!=null?`After share purchases: ${sgn(tC)}MYR ${fmt(tC)}</span>`:'');
+
+  setHTML('ncMyr',`${sgn(F.m)}MYR ${fmt(F.m)}</span>`);
+  setHTML('ncMyrAfter',`After share purchases: ${sgn(C.m)}MYR ${fmt(C.m)}</span>`);
+
+  setHTML('ncUsd',`${sgn(F.u)}USD ${fmt(F.u)}</span>`);
+  setText('ncUsdInMyr',liveFx?`≈ MYR ${fmt(F.u*liveFx)} ${rateLabel()}`:'rate pending…');
+  setHTML('ncUsdAfter',`After share purchases: ${sgn(C.u)}USD ${fmt(C.u)}</span>`+(liveFx?` ≈ MYR ${fmt(C.u*liveFx)}`:''));
+
+  setText('wlRateLbl',liveFx?`(in MYR ${rateLabel()})`:'');
+  renderWalletCharts(fund,cash);
+  renderWalletTable(fund,cash);
+}
+
+function renderWalletTable(fund,cash){
+  const money=(v,ccy)=>`${sgn(v)}${ccy} ${fmt(v)}</span>`;
+  const eq=(v,ccy)=>ccy==='MYR'?v:(liveFx?v*liveFx:null);
+  let tf=0,tc=0;
+  document.getElementById('balBody').innerHTML=WALLETS.map(w=>{
+    const f=fund[w.cds][w.ccy], c=cash[w.cds][w.ccy], ef=eq(f,w.ccy), ec=eq(c,w.ccy);
+    if(ef!=null)tf+=ef; if(ec!=null)tc+=ec;
+    return `<tr><td style="font-weight:700;">${w.key}</td>
+      <td class="num">${money(f,w.ccy)}</td><td class="num">${money(c,w.ccy)}</td>
+      <td class="num">${ef!=null?money(ef,'MYR'):'—'}</td><td class="num">${ec!=null?money(ec,'MYR'):'—'}</td></tr>`;
+  }).join('');
+  document.getElementById('balFoot').innerHTML=`<tr class="total-row"><td style="font-weight:800;">TOTAL (MYR)</td><td></td><td></td>
+    <td class="num">${money(tf,'MYR')}</td><td class="num">${money(tc,'MYR')}</td></tr>`;
+}
+
+/* nice axis ticks */
+function niceTicks(lo,hi,n=4){
+  if(lo===hi){hi=lo+1;}
+  const raw=(hi-lo)/n, mag=Math.pow(10,Math.floor(Math.log10(raw))), r=raw/mag;
+  const step=(r<=1?1:r<=2?2:r<=2.5?2.5:r<=5?5:10)*mag;
+  const t0=Math.floor(lo/step)*step, t1=Math.ceil(hi/step)*step, out=[];
+  for(let v=t0;v<=t1+step/2;v+=step)out.push(Math.round(v*1e6)/1e6);
+  return out;
+}
+const kFmt=v=>{const a=Math.abs(v),s=v<0?'−':'';return a>=1e6?s+(a/1e6).toFixed(a>=1e7?0:1)+'M':a>=1e3?s+(a/1e3).toFixed(a>=1e5?0:1)+'k':s+Math.round(a);};
+/* bar with a 4px rounded data-end, square at the baseline */
+function barPath(x,w,yBase,yEnd){
+  const h=Math.abs(yEnd-yBase); if(h<0.5)return '';
+  const r=Math.min(4,h,w/2), up=yEnd<yBase;
+  return up
+    ?`M${x},${yBase}V${yEnd+r}Q${x},${yEnd} ${x+r},${yEnd}H${x+w-r}Q${x+w},${yEnd} ${x+w},${yEnd+r}V${yBase}Z`
+    :`M${x},${yBase}V${yEnd-r}Q${x},${yEnd} ${x+r},${yEnd}H${x+w-r}Q${x+w},${yEnd} ${x+w},${yEnd-r}V${yBase}Z`;
+}
+function attachTips(wrap){
+  let tip=wrap.querySelector('.cv-tip');
+  if(!tip){tip=document.createElement('div');tip.className='cv-tip';wrap.appendChild(tip);}
+  wrap.onmousemove=e=>{
+    const t=e.target.closest('[data-tip]');
+    if(!t){tip.style.display='none';return;}
+    tip.innerHTML=t.dataset.tip; tip.style.display='block';
+    const r=wrap.getBoundingClientRect(); let x=e.clientX-r.left+12, y=e.clientY-r.top-12-tip.offsetHeight;
+    if(x+tip.offsetWidth>r.width)x=e.clientX-r.left-tip.offsetWidth-12;
+    if(y<0)y=e.clientY-r.top+16;
+    tip.style.left=x+'px';tip.style.top=y+'px';
+  };
+  wrap.onmouseleave=()=>{tip.style.display='none';};
+}
+
+function renderWalletCharts(fund,cash){
+  if(!liveFx){
+    ['wlFunded','wlCash'].forEach(id=>document.getElementById(id).innerHTML='<div class="cv-empty">Fetching USD/MYR rate…</div>');
+    return;
   }
+  const vals=[];[fund,cash].forEach(b=>CDS_LIST.forEach(c=>{vals.push(b[c].MYR,b[c].USD*liveFx);}));
+  const ticks=niceTicks(Math.min(0,...vals),Math.max(0,...vals));      // shared scale → the two charts compare directly
+  drawWalletChart('wlFunded',fund,ticks,'Funded');
+  drawWalletChart('wlCash',cash,ticks,'After share purchases');
+}
+function drawWalletChart(id,bal,ticks,basis){
+  const W=440,H=230,padL=44,padR=8,padT=18,padB=28;
+  const pw=W-padL-padR, ph=H-padT-padB, lo=ticks[0], hi=ticks[ticks.length-1];
+  const y=v=>padT+ph-(v-lo)/(hi-lo)*ph, y0=y(0);
+  const gW=pw/CDS_LIST.length, bw=Math.min(40,gW*0.3), gap=2;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${basis} by CDS wallet">`;
+  ticks.forEach(t=>{s+=`<line x1="${padL}" x2="${W-padR}" y1="${y(t)}" y2="${y(t)}" stroke="${t===0?AXIS:GRID}" stroke-width="1"/>
+    <text x="${padL-6}" y="${y(t)+3}" text-anchor="end" font-size="10" fill="${INK_DIM}" font-family="IBM Plex Mono,monospace">${kFmt(t)}</text>`;});
+  CDS_LIST.forEach((c,i)=>{
+    const cx=padL+gW*i+gW/2, x1=cx-bw-gap/2, x2=cx+gap/2;
+    const m=bal[c].MYR, u=bal[c].USD, um=u*liveFx;
+    [[x1,m,C_MYR,`<b>${c}-MYR</b> · ${basis}<br>MYR ${fmt(m)}`],
+     [x2,um,C_USD,`<b>${c}-USD</b> · ${basis}<br>USD ${fmt(u)}<br>≈ MYR ${fmt(um)} @ ${fmt(liveFx,4)}`]].forEach(([x,v,col,tip])=>{
+      const ye=y(v), d=barPath(x,bw,y0,ye);
+      if(d)s+=`<path class="bar-mark" d="${d}" fill="${col}"/>`;
+      // hit target taller than the mark
+      s+=`<rect data-tip="${tip.replace(/"/g,'&quot;')}" x="${x-2}" y="${padT}" width="${bw+4}" height="${ph}" fill="transparent"/>`;
+      if(Math.abs(v)>=0.005)s+=`<text x="${x+bw/2}" y="${v>=0?ye-5:ye+12}" text-anchor="middle" font-size="9.5" font-weight="700" fill="${INK}" font-family="IBM Plex Mono,monospace" pointer-events="none">${kFmt(v)}</text>`;
+    });
+    s+=`<text x="${cx}" y="${H-8}" text-anchor="middle" font-size="11" font-weight="700" fill="${INK}" font-family="Mulish,sans-serif">${c}</text>`;
+  });
+  s+='</svg>';
+  const wrap=document.getElementById(id); wrap.innerHTML=s; attachTips(wrap);
 }
 
 /* ═══ filters + movements table ═══ */
@@ -283,7 +399,7 @@ function getFilteredFunds(){
     return true;
   });
 }
-function refreshFdView(){renderBalancesAndNet(currentAsOf());renderCapitalChart();renderFunds();}
+function refreshFdView(){renderTop();renderFlowChart();renderFunds();}
 
 function renderFunds(){
   const list=getFilteredFunds();
@@ -322,47 +438,70 @@ function renderFunds(){
   }).join('');
 }
 
-/* ═══ YoY external-capital chart (deposits/withdrawals only) ═══ */
-function renderCapitalChart(){
-  const list=getFilteredFunds().filter(f=>f.txn_type==='Deposit'||f.txn_type==='Withdraw');
-  const chartEl=document.getElementById('fdChart');
-  if(!list.length){chartEl.innerHTML='<div class="empty-state" style="padding:30px 0;">No deposits or withdrawals</div>';return;}
-  const byCcy={};
-  list.forEach(f=>{
-    // USD bank moves with a saved rate are counted at their MYR bank-side value
-    let ccy=f.currency||'MYR', val=Number(f.amount);
-    if(ccy==='USD'&&f.fx_rate){ccy='MYR';val=val*Number(f.fx_rate);}
-    if(!byCcy[ccy])byCcy[ccy]={};
-    const y=new Date(f.txn_date).getFullYear();
-    if(!byCcy[ccy][y])byCcy[ccy][y]={dep:0,wd:0};
-    if(f.txn_type==='Deposit')byCcy[ccy][y].dep+=val;
-    else byCcy[ccy][y].wd+=val;
+/* ═══ Capital flow — year on year (line) ═══ */
+function renderFlowChart(){
+  const ccyF=document.getElementById('cfCcy').value, cdsF=document.getElementById('cfCds').value, view=document.getElementById('cfView').value;
+  const wrap=document.getElementById('cfChart');
+  const series=['MYR','USD'].filter(c=>!ccyF||ccyF===c);
+  const flows={MYR:{},USD:{}};
+  funds.forEach(f=>{
+    if(cdsF&&f.cds_account!==cdsF)return;
+    const ccy=f.currency||'MYR'; if(!flows[ccy])return;
+    const y=new Date(f.txn_date).getFullYear(); if(isNaN(y))return;
+    const sign=(f.txn_type==='Deposit'||f.txn_type==='Transfer In')?1:-1;
+    flows[ccy][y]=(flows[ccy][y]||0)+sign*(Number(f.amount)||0);
   });
-  chartEl.innerHTML=Object.keys(byCcy).sort().map(ccy=>chartFor(ccy,byCcy[ccy])).join('');
-}
-function chartFor(ccy,byYear){
-  const years=Object.keys(byYear).map(Number).sort((a,b)=>a-b);
-  if(!years.length)return '';
-  const maxVal=Math.max(...years.map(y=>Math.max(byYear[y].dep,byYear[y].wd)),1);
-  const kFmt=v=>v>=1000?(v/1000).toLocaleString('en-US',{maximumFractionDigits:v>=100000?0:1})+'k':String(Math.round(v));
-  const groupW=86,barW=26,gap=6,padL=14,padR=14,padT=26,chartH=150;
-  const W=padL+years.length*groupW+padR,H=padT+chartH+26;
-  let bars='';
+  const allYears=funds.map(f=>new Date(f.txn_date).getFullYear()).filter(y=>!isNaN(y));
+  if(!allYears.length){wrap.innerHTML='<div class="cv-empty">No movements yet</div>';return;}
+  const years=[];for(let y=Math.min(...allYears);y<=Math.max(Math.max(...allYears),new Date().getFullYear());y++)years.push(y);
+
+  // native + MYR-equivalent per series per year (net or cumulative)
+  const data={};
+  series.forEach(c=>{
+    let run=0;
+    data[c]=years.map(y=>{
+      const net=flows[c][y]||0; run+=net;
+      const nat=view==='cum'?run:net;
+      return {y,nat,myr:c==='USD'?(liveFx?nat*liveFx:null):nat};
+    });
+  });
+  const drawable=series.filter(c=>c==='MYR'||liveFx);
+  document.getElementById('cfLegend').innerHTML=series.map(c=>`<span><i class="legend-sw" style="background:${c==='MYR'?C_MYR:C_USD}"></i>${c}${c==='USD'?(liveFx?' <em style="font-style:normal;color:var(--ink-dim);">(in MYR '+rateLabel()+')</em>':' (rate pending)'):''}</span>`).join('');
+  renderFlowTable(years,data,series);
+  if(!drawable.length){wrap.innerHTML='<div class="cv-empty">Fetching USD/MYR rate…</div>';return;}
+
+  const vals=[0];drawable.forEach(c=>data[c].forEach(d=>vals.push(d.myr)));
+  const ticks=niceTicks(Math.min(...vals),Math.max(...vals));
+  const W=900,H=280,padL=52,padR=54,padT=16,padB=30;
+  const pw=W-padL-padR, ph=H-padT-padB, lo=ticks[0], hi=ticks[ticks.length-1];
+  const x=i=>padL+(years.length===1?pw/2:i*pw/(years.length-1));
+  const yv=v=>padT+ph-(v-lo)/(hi-lo)*ph;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Capital flow by year">`;
+  ticks.forEach(t=>{s+=`<line x1="${padL}" x2="${W-padR}" y1="${yv(t)}" y2="${yv(t)}" stroke="${t===0?AXIS:GRID}" stroke-width="1"/>
+    <text x="${padL-6}" y="${yv(t)+3}" text-anchor="end" font-size="10" fill="${INK_DIM}" font-family="IBM Plex Mono,monospace">${kFmt(t)}</text>`;});
+  years.forEach((y,i)=>{s+=`<text x="${x(i)}" y="${H-9}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${INK_DIM}" font-family="IBM Plex Mono,monospace">${y}</text>`;});
+  // hover bands (full-height hit targets) with crosshair
+  const band=years.length>1?pw/(years.length-1):pw;
   years.forEach((y,i)=>{
-    const gx=padL+i*groupW+(groupW-(barW*2+gap))/2;
-    const d=byYear[y].dep,w=byYear[y].wd;
-    const dh=Math.round(d/maxVal*chartH),wh=Math.round(w/maxVal*chartH);
-    bars+=`<rect x="${gx}" y="${padT+chartH-dh}" width="${barW}" height="${Math.max(dh,d>0?2:0)}" rx="3" fill="#00a19c"/>`;
-    if(d>0)bars+=`<text x="${gx+barW/2}" y="${padT+chartH-dh-5}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono,monospace" fill="#00514d">${kFmt(d)}</text>`;
-    bars+=`<rect x="${gx+barW+gap}" y="${padT+chartH-wh}" width="${barW}" height="${Math.max(wh,w>0?2:0)}" rx="3" fill="#d93025"/>`;
-    if(w>0)bars+=`<text x="${gx+barW+gap+barW/2}" y="${padT+chartH-wh-5}" text-anchor="middle" font-size="9" font-family="IBM Plex Mono,monospace" fill="#a4231a">${kFmt(w)}</text>`;
-    bars+=`<text x="${padL+i*groupW+groupW/2}" y="${padT+chartH+17}" text-anchor="middle" font-size="10" font-weight="700" font-family="IBM Plex Mono,monospace" fill="#5f7674">${y}</text>`;
+    const rows=series.map(c=>{const d=data[c][i];return `<span style="color:${c==='MYR'?'#7fe0dc':'#c3b6ff'}">■</span> ${c}: ${c==='USD'?'USD '+fmt(d.nat)+(d.myr!=null?' ≈ MYR '+fmt(d.myr):''):'MYR '+fmt(d.nat)}`;}).join('<br>');
+    const tip=`<b>${y}</b> · ${view==='cum'?'cumulative':'net flow'}${cdsF?' · '+cdsF:''}<br>${rows}`;
+    s+=`<g class="hb"><rect data-tip="${tip.replace(/"/g,'&quot;')}" x="${x(i)-band/2}" y="${padT}" width="${band}" height="${ph}" fill="transparent"/>
+      <line class="xh" x1="${x(i)}" x2="${x(i)}" y1="${padT}" y2="${padT+ph}" stroke="${AXIS}" stroke-width="1" stroke-dasharray="3 3" pointer-events="none"/></g>`;
   });
-  return `<div style="margin-bottom:14px;">
-    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:600;margin-bottom:2px;">${ccy}</div>
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">
-      <line x1="${padL-4}" y1="${padT+chartH}" x2="${W-padR+4}" y2="${padT+chartH}" stroke="#d8e4e2" stroke-width="1"/>${bars}
-    </svg></div>`;
+  drawable.forEach(c=>{
+    const col=c==='MYR'?C_MYR:C_USD, pts=data[c].map((d,i)=>[x(i),yv(d.myr)]);
+    s+=`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" pointer-events="none"/>`;
+    pts.forEach(p=>{s+=`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="${col}" stroke="#fff" stroke-width="2" pointer-events="none"/>`;});
+    const last=pts[pts.length-1];
+    s+=`<text x="${last[0]+10}" y="${last[1]+4}" font-size="11" font-weight="800" fill="${INK}" font-family="Mulish,sans-serif" pointer-events="none">${c}</text>`;
+  });
+  s+='</svg>';
+  wrap.innerHTML=s; attachTips(wrap);
+}
+function renderFlowTable(years,data,series){
+  document.getElementById('cfHead').innerHTML=`<tr><th>Year</th>${series.map(c=>`<th class="num">${c}</th>${c==='USD'?'<th class="num">USD ≈ MYR</th>':''}`).join('')}</tr>`;
+  document.getElementById('cfBody').innerHTML=years.map((y,i)=>`<tr><td style="font-weight:700;">${y}</td>${series.map(c=>{const d=data[c][i];
+    return `<td class="num">${sgn(d.nat)}${fmt(d.nat)}</span></td>${c==='USD'?`<td class="num">${d.myr!=null?sgn(d.myr)+fmt(d.myr)+'</span>':'—'}</td>`:''}`;}).join('')}</tr>`).join('');
 }
 
 /* ═══ FX rate for a date ═══
