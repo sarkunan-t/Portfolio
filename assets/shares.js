@@ -138,6 +138,36 @@ function positionEngine(){
   return {realised,open};
 }
 
+/* ---- where each dividend was paid ----
+   A dividend row has no CDS, so it is credited to the account(s) that held the stock on the
+   payout date — split by units if more than one account held it (if none did, the account
+   that traded it last). Paid INTO the wallet for MYB and RKT; RHB dividends go to the
+   Maybank savings account instead. Amounts are MYR unless the row is marked USD.        */
+const DIV_TO_WALLET={MYB:true,RKT:true};
+const DIV_BANK_NAME={RHB:'Maybank savings'};
+function allocateDividends(divs,txs){
+  const byT={};(txs||[]).forEach(t=>{(byT[t.ticker]=byT[t.ticker]||[]).push(t);});
+  const out=[];
+  (divs||[]).forEach(d=>{
+    const list=byT[d.ticker]||[], pay=String(d.payout_date||'');
+    const units={}; let lastCds=null, lastDate='';
+    list.forEach(t=>{
+      const td=String(t.tx_date||''); if(pay&&td>pay)return;
+      const c=normCds(t.cds_account), q=Number(t.quantity)||0;
+      units[c]=(units[c]||0)+(t.tx_type==='Buy'?q:-q);
+      if(td>=lastDate){lastDate=td;lastCds=c;}
+    });
+    const held=Object.entries(units).filter(([,u])=>u>0.001), tot=held.reduce((s,[,u])=>s+u,0);
+    const amt=Number(d.amount)||0, ccy=d.currency==='USD'?'USD':'MYR';
+    const fallback=lastCds||(list[0]?normCds(list[0].cds_account):null);
+    const parts=tot>0?held.map(([c,u])=>[c,amt*u/tot]):(fallback?[[fallback,amt]]:[]);
+    parts.forEach(([c,a])=>out.push({div:d,cds:c,ccy,amount:a,toWallet:!!DIV_TO_WALLET[c],
+      bank:DIV_TO_WALLET[c]?null:(DIV_BANK_NAME[c]||'bank'),inferred:tot<=0}));
+    if(!parts.length)out.push({div:d,cds:null,ccy,amount:amt,toWallet:false,bank:null,unmatched:true});
+  });
+  return out;
+}
+
 /* ---- KPI tiles ----
    Every figure is totalled per currency (MYR / USD), then combined at the live USD/MYR rate.
    Each tile shows: the combined MYR value · the combined USD value · the MYR | USD split.  */

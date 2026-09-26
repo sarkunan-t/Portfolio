@@ -67,7 +67,7 @@
       <div id="kpiHost"></div>
       <div class="wc-head-row">
         <div class="wc-title">Cash by CDS Wallet</div>
-        <div class="wc-note" id="wcNote">Account balances — not affected by the table filters. Settlement: Bursa T+2, US T+1 (business days, weekends skipped).</div>
+        <div class="wc-note" id="wcNote">Account balances — not affected by the table filters. Dividends: MYB &amp; RKT paid into the wallet, RHB to Maybank savings. Settlement: Bursa T+2, US T+1 (business days, weekends skipped).</div>
       </div>
       <div class="wc-grid" id="walletHost"></div>
 
@@ -207,7 +207,7 @@
 
 <script src="assets/common.js"></script>
 <script src="assets/multiselect.js?v=2"></script>
-<script src="assets/shares.js?v=10"></script>
+<script src="assets/shares.js?v=11"></script>
 <script>
 requireAuth();
 buildSidebar('transactions');
@@ -517,7 +517,7 @@ function renderWalletCash(){
   const W={}, order=[];
   const wal=(cds,ccy)=>{
     const c=normCds(cds)||'—', k=c+'-'+ccy;
-    if(!W[k]){W[k]={key:k,cds:c,ccy,cap:0,buy:0,buyN:0,sell:0,sellN:0,pend:[],active:false};order.push(k);}
+    if(!W[k]){W[k]={key:k,cds:c,ccy,cap:0,buy:0,buyN:0,sell:0,sellN:0,div:0,divN:0,divOut:0,divOutN:0,divBank:'',pend:[],active:false};order.push(k);}
     return W[k];
   };
   ['MYR','USD'].forEach(ccy=>['MYB','RHB','RKT'].forEach(c=>wal(c,ccy)));   // row 1: MYR wallets · row 2: matching USD wallets
@@ -534,10 +534,17 @@ function renderWalletCash(){
     const n=SETTLE_DAYS[t.market]??2, due=ymdStr(addBizDays(t.tx_date,n));
     if(due>=today)a.pend.push({t,due,amt,n});
   });
+  // dividends: MYB & RKT → into the wallet; RHB → Maybank savings (shown, not added)
+  allocateDividends(dividends,transactions).forEach(x=>{
+    if(!x.cds)return;
+    const a=wal(x.cds,x.ccy); a.active=true;
+    if(x.toWallet){a.div+=x.amount;a.divN++;}
+    else{a.divOut+=x.amount;a.divOutN++;a.divBank=x.bank;}
+  });
 
   const fx=(typeof kpiFx!=='undefined')?kpiFx:null;
   host.innerHTML=order.map(k=>{
-    const a=W[k], c=a.ccy, bal=a.cap-a.buy+a.sell;
+    const a=W[k], c=a.ccy, bal=a.cap-a.buy+a.sell+a.div;
     const rule=c==='USD'?'US T+1':'Bursa T+2';
     const eq=v=>c==='USD'?(fx?`≈ MYR ${fmt(v*fx)}`:'≈ MYR (rate pending)'):(fx?`≈ USD ${fmt(v/fx)}`:'');
     const money=(v,sign)=>`${sign||''}${c} ${fmt(Math.abs(v))}`;
@@ -568,13 +575,15 @@ function renderWalletCash(){
       <div class="wc-row"><span>Capital in</span><span>${money(a.cap,a.cap<0?'−':'')}</span></div>
       <div class="wc-row"><span>Stocks purchased${a.buyN?` (${a.buyN})`:''}</span><span class="down">${money(a.buy,'−')}</span></div>
       <div class="wc-row"><span>Sale proceeds${a.sellN?` (${a.sellN})`:''}</span><span class="up">${money(a.sell,'+')}</span></div>
+      ${DIV_TO_WALLET[a.cds]?`<div class="wc-row"><span>Dividends received${a.divN?` (${a.divN})`:''}</span><span class="up">${money(a.div,'+')}</span></div>`:''}
       <div class="wc-row wc-bal"><span>Cash balance</span><span class="${bal>=0?'up':'down'}">${money(bal,bal<0?'−':'')}</span></div>
       <div class="wc-eq">${eq(bal)}</div>
+      ${a.divOut>0.005?`<div class="wc-ok" style="margin-top:6px;">Dividends ${money(a.divOut)} (${a.divOutN}) paid to ${a.divBank} — not in this wallet</div>`:''}
       ${pendHtml}${warn}
       ${!a.pend.length&&!warn?'<div class="wc-ok">&#10003; No unsettled trades</div>':''}
     </div>`;
   }).join('');
-  setText('wcNote',`Account balances — not affected by the table filters. Settlement: Bursa T+2, US T+1 (business days, weekends skipped; public holidays not included).${fx?` USD/MYR ${fmt(fx,4)}.`:''}`);
+  setText('wcNote',`Account balances — not affected by the table filters. Dividends: MYB & RKT paid into the wallet, RHB to Maybank savings. Settlement: Bursa T+2, US T+1 (business days, weekends skipped; public holidays not included).${fx?` USD/MYR ${fmt(fx,4)}.`:''}`);
 }
 
 /* ═══ P&L by stock by year (stacked, diverging from zero) ═══

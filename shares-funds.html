@@ -85,7 +85,7 @@
           </div>
           <div>
             <div class="cv-title">Cash after share purchases</div>
-            <div class="cv-cap">funded balance − purchases + sale proceeds</div>
+            <div class="cv-cap">funded balance − purchases + sale proceeds + dividends (MYB, RKT)</div>
             <div class="cv-wrap" id="wlCash"></div>
           </div>
         </div>
@@ -194,14 +194,14 @@
 
 <script src="assets/common.js"></script>
 <script src="assets/multiselect.js?v=1"></script>
-<script src="assets/shares.js?v=10"></script>
+<script src="assets/shares.js?v=11"></script>
 <script>
 requireAuth();
 buildSidebar('funds');
 
 const CDS_LIST = ['MYB','RHB','RKT'];
 
-let funds=[], fundsTx=[], liveFx=null, liveFxInfo=null;
+let funds=[], fundsTx=[], fundsDiv=[], liveFx=null, liveFxInfo=null;
 let fdMode='Deposit', editingFdId=null, editingXferGroup=null;
 
 /* 6 CDS wallets: each CDS has a MYR and a USD account */
@@ -214,9 +214,10 @@ function uuid(){return crypto.randomUUID?crypto.randomUUID():'xf-'+Date.now()+'-
 
 /* ═══ data ═══ */
 async function loadFunds(){
-  const [fdRes,txRes]=await Promise.all([
+  const [fdRes,txRes,dvRes]=await Promise.all([
     sb.from('funds').select('*').order('txn_date',{ascending:false}),
-    sb.from('transactions').select('tx_date,tx_type,cds_account,net_amount,currency,market')
+    sb.from('transactions').select('tx_date,tx_type,cds_account,net_amount,currency,market,ticker,quantity'),
+    sb.from('dividends').select('*')
   ]);
   if(fdRes.error){
     document.getElementById('fdBody').innerHTML=
@@ -225,6 +226,7 @@ async function loadFunds(){
   }
   funds=fdRes.data||[];
   fundsTx=txRes.data||[];
+  fundsDiv=allocateDividends(dvRes.data||[],fundsTx);
   populateFdFilters();
   refreshFdView();
   loadLiveFx();
@@ -241,7 +243,7 @@ function currentAsOf(){return document.getElementById('asOfDate').value||'';}
 function clearAsOf(){document.getElementById('asOfDate').value='';refreshFdView();}
 
 /* netShares=false → funded balance (deposits − withdrawals ± transfers)
-   netShares=true  → cash after share purchases (− buys + sale proceeds)          */
+   netShares=true  → cash after share purchases (− buys + sale proceeds + MYB/RKT dividends) */
 function computeBalances(asOf,netShares){
   const bal={};
   const cell=cds=>{const k=cds||'—';if(!bal[k])bal[k]={MYR:0,USD:0};return bal[k];};
@@ -259,6 +261,11 @@ function computeBalances(asOf,netShares){
       const ccy=t.currency||(t.market==='Bursa'?'MYR':'USD'); if(ccy!=='MYR'&&ccy!=='USD')return;
       const amt=Number(t.net_amount)||0, b=cell(normCds(t.cds_account));
       if(t.tx_type==='Buy')b[ccy]-=amt; else b[ccy]+=amt;   // Buy spends cash, Sell returns it
+    });
+    fundsDiv.forEach(x=>{                                  // MYB & RKT dividends land in the wallet; RHB's go to Maybank savings
+      if(!x.toWallet)return;
+      if(asOf && x.div.payout_date && x.div.payout_date>asOf)return;
+      cell(x.cds)[x.ccy]+=x.amount;
     });
   }
   return bal;
