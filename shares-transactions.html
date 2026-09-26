@@ -14,7 +14,6 @@
   .wc-title{font-size:13px;font-weight:800;}
   .wc-note{font-size:10.5px;color:var(--ink-dim);}
   .wc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px;}
-  @media(max-width:1100px){.wc-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
   @media(max-width:640px){.wc-grid{grid-template-columns:1fr;}}
   .wc-card{background:var(--panel,#fff);border:1px solid var(--panel-edge);border-radius:var(--radius,14px);box-shadow:var(--shadow-sm);padding:14px 16px;border-top:3px solid #00a19c;}
   .wc-card.usd{border-top-color:#6a4fd1;}
@@ -454,7 +453,7 @@ function renderWalletCash(){
     if(!W[k]){W[k]={key:k,cds:c,ccy,cap:0,buy:0,buyN:0,sell:0,sellN:0,pend:[],active:false};order.push(k);}
     return W[k];
   };
-  ['MYB','RHB','RKT'].forEach(c=>['MYR','USD'].forEach(ccy=>wal(c,ccy)));
+  ['MYR','USD'].forEach(ccy=>['MYB','RHB','RKT'].forEach(c=>wal(c,ccy)));   // row 1: MYR wallets · row 2: matching USD wallets
 
   txFunds.forEach(f=>{
     const ccy=f.currency||'MYR'; if(ccy!=='MYR'&&ccy!=='USD')return;
