@@ -25,6 +25,17 @@
   .cv-empty{font-size:12px;color:var(--ink-dim);padding:40px 0;text-align:center;}
   .hb .xh{opacity:0;} .hb:hover .xh{opacity:1;}
   .bar-hit:hover + .bar-mark, .bar-mark:hover{filter:brightness(1.08);}
+  .ms{position:relative;}
+  .ms-btn{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:130px;justify-content:space-between;text-align:left;}
+  .ms-btn.active{border-color:var(--teal);color:#00514d;background-color:#eef8f7;}
+  .ms-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:30;display:none;min-width:190px;max-height:300px;overflow:auto;
+    background:#fff;border:1px solid var(--panel-edge);border-radius:10px;box-shadow:0 8px 24px rgba(0,51,47,.14);padding:6px;}
+  .ms.open .ms-panel{display:block;}
+  .ms-opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .ms-opt:hover{background:#f1f7f6;}
+  .ms-opt input{width:auto;margin:0;accent-color:#00a19c;}
+  .ms-actions{display:flex;justify-content:space-between;gap:8px;padding:4px 8px 6px;border-bottom:1px solid var(--panel-edge);margin-bottom:4px;}
+  .ms-actions a{font-size:11px;font-weight:700;color:#00a19c;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -119,17 +130,12 @@
       </div>
 
       <!-- ── MOVEMENTS ── -->
-      <div class="filters">
-        <select class="filter-select" id="fdFilterCcy" onchange="renderFunds()"><option value="">All Currencies</option><option value="MYR">MYR</option><option value="USD">USD</option></select>
-        <select class="filter-select" id="fdFilterYear" onchange="renderFunds()"><option value="">All Years</option></select>
-        <select class="filter-select" id="fdFilterCDS" onchange="renderFunds()"><option value="">All Accounts</option></select>
-        <select class="filter-select" id="fdFilterType" onchange="renderFunds()">
-          <option value="">All Types</option>
-          <option value="Deposit">Deposit</option>
-          <option value="Withdraw">Withdraw</option>
-          <option value="Transfer In">Transfer In</option>
-          <option value="Transfer Out">Transfer Out</option>
-        </select>
+      <div class="filters" id="fdFilters">
+        <div class="ms" id="fdFilterCcy"></div>
+        <div class="ms" id="fdFilterYear"></div>
+        <div class="ms" id="fdFilterCDS"></div>
+        <div class="ms" id="fdFilterType"></div>
+        <button class="btn-sm" id="fdFilterClear" onclick="msClearAll()" style="display:none;">Clear filters</button>
       </div>
 
       <div class="table-wrap">
@@ -382,23 +388,59 @@ function drawWalletChart(id,bal,ticks,basis){
 }
 
 /* ═══ filters + movements table ═══ */
+/* ── multi-select filter dropdowns (empty selection = All) ── */
+const msState={}, msCfg={};
+function msInit(id,noun,allLabel,options){
+  msCfg[id]={noun,allLabel,options:options.map(String)};
+  const prev=msState[id]||new Set();
+  msState[id]=new Set([...prev].filter(v=>msCfg[id].options.includes(v)));   // keep still-valid picks
+  const el=document.getElementById(id);
+  el.innerHTML=`<button type="button" class="filter-select ms-btn" onclick="msToggle('${id}',event)"><span class="ms-lbl"></span></button>
+    <div class="ms-panel" onclick="event.stopPropagation()">
+      <div class="ms-actions"><a onclick="msSetAll('${id}',true)">Select all</a><a onclick="msSetAll('${id}',false)">Clear</a></div>
+      ${msCfg[id].options.map(v=>`<label class="ms-opt"><input type="checkbox" value="${v}" ${msState[id].has(v)?'checked':''} onchange="msPick('${id}',this)">${v}</label>`).join('')}
+    </div>`;
+  msLabel(id);
+}
+function msLabel(id){
+  const sel=[...msState[id]], c=msCfg[id], el=document.getElementById(id);
+  const txt=!sel.length||sel.length===c.options.length?c.allLabel:sel.length<=2?c.options.filter(v=>msState[id].has(v)).join(', '):`${c.noun}: ${sel.length} selected`;
+  el.querySelector('.ms-lbl').textContent=txt;
+  el.querySelector('.ms-btn').classList.toggle('active',sel.length>0&&sel.length<c.options.length);
+  const any=Object.keys(msState).some(k=>msState[k].size&&msState[k].size<msCfg[k].options.length);
+  document.getElementById('fdFilterClear').style.display=any?'':'none';
+}
+function msToggle(id,e){
+  e.stopPropagation();
+  const el=document.getElementById(id), open=!el.classList.contains('open');
+  document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open'));
+  if(open)el.classList.add('open');
+}
+function msPick(id,cb){cb.checked?msState[id].add(cb.value):msState[id].delete(cb.value);msLabel(id);renderFunds();}
+function msSetAll(id,on){
+  msState[id]=new Set(on?msCfg[id].options:[]);
+  document.querySelectorAll(`#${id} input[type=checkbox]`).forEach(cb=>cb.checked=on);
+  msLabel(id);renderFunds();
+}
+function msClearAll(){Object.keys(msState).forEach(id=>msSetAll(id,false));}
+const msHas=(id,v)=>!msState[id]||!msState[id].size||msState[id].has(String(v));
+document.addEventListener('click',()=>document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open')));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open'));});
+
 function populateFdFilters(){
-  const keep=(sel,vals,label)=>{const cur=sel.value;sel.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option value="${v}">${v}</option>`).join('');if(vals.map(String).includes(cur))sel.value=cur;};
-  keep(document.getElementById('fdFilterYear'),[...new Set(funds.map(f=>new Date(f.txn_date).getFullYear()))].sort((a,b)=>b-a),'All Years');
-  keep(document.getElementById('fdFilterCDS'),WALLETS.map(w=>w.key),'All Accounts');
+  msInit('fdFilterCcy','Currency','All Currencies',['MYR','USD']);
+  msInit('fdFilterYear','Years','All Years',[...new Set(funds.map(f=>new Date(f.txn_date).getFullYear()).filter(y=>!isNaN(y)))].sort((a,b)=>b-a));
+  msInit('fdFilterCDS','Accounts','All Accounts',WALLETS.map(w=>w.key));
+  msInit('fdFilterType','Types','All Types',['Deposit','Withdraw','Transfer In','Transfer Out']);
   const banks=[...new Set(funds.map(f=>f.bank_account).filter(Boolean))].sort();
   document.getElementById('fdBankList').innerHTML=banks.map(b=>`<option value="${b}">`).join('');
 }
 function getFilteredFunds(){
-  const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
-  const ccyF=g('fdFilterCcy'),yrF=g('fdFilterYear'),cdsF=g('fdFilterCDS'),typF=g('fdFilterType');
-  return funds.filter(f=>{
-    if(ccyF&&(f.currency||'MYR')!==ccyF)return false;
-    if(yrF&&new Date(f.txn_date).getFullYear()!=yrF)return false;
-    if(cdsF&&walletKey(f.cds_account,f.currency)!==cdsF)return false;
-    if(typF&&f.txn_type!==typF)return false;
-    return true;
-  });
+  return funds.filter(f=>
+    msHas('fdFilterCcy',f.currency||'MYR') &&
+    msHas('fdFilterYear',new Date(f.txn_date).getFullYear()) &&
+    msHas('fdFilterCDS',walletKey(f.cds_account,f.currency)) &&
+    msHas('fdFilterType',f.txn_type));
 }
 function refreshFdView(){renderTop();renderFlowChart();renderFunds();}
 
