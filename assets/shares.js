@@ -90,55 +90,106 @@ function getFilteredTx(){
   const f=transactions.filter(t=>
     inF(mkt,t.market)&&inF(cds,t.cds_account)&&inF(typ,t.tx_type)&&
     inF(yr,new Date(t.tx_date).getFullYear())&&inF(stk,t.ticker));
-  return {list:f,active:!!(mkt.length||cds.length||typ.length||yr.length||stk.length),yrF:yr,stkF:stk};
+  return {list:f,active:!!(mkt.length||cds.length||typ.length||yr.length||stk.length),yrF:yr,stkF:stk,mktF:mkt,cdsF:cds};
 }
 
-/* ---- KPI tiles ---- */
+/* ---- KPI tiles ----
+   Every figure is totalled per currency (MYR / USD), then combined at the live USD/MYR rate.
+   Each tile shows: the combined MYR value · the combined USD value · the MYR | USD split.  */
+const FX_SYMBOL='USDMYR=X';
+let kpiFx=null, kpiFxSrc='';            // MYR per 1 USD
+
 function injectKPIs(){
   const host=document.getElementById('kpiHost');
   if(!host)return;
+  const tile=(id,label,extra='')=>`<div class="tile"><div class="tile-label">${label}</div>
+    <div class="tile-value" id="${id}">—</div>
+    <div class="tile-sub" id="${id}Usd"></div>
+    <div class="tile-sub" id="${id}Split" style="font-size:10px;"></div>${extra}</div>`;
   host.innerHTML=`
     <div class="summary-grid">
-      <div class="tile"><div class="tile-label">Total Invested</div><div class="tile-value" id="kpiInvested">—</div></div>
-      <div class="tile"><div class="tile-label">Market Value</div><div class="tile-value" id="kpiValue">—</div><div class="tile-sub" id="kpiValueSub"></div></div>
-      <div class="tile"><div class="tile-label">Unrealised P&amp;L</div><div class="tile-value" id="kpiUnreal">—</div><div class="tile-sub" id="kpiUnrealPct"></div></div>
-      <div class="tile"><div class="tile-label">Realised P&amp;L</div><div class="tile-value" id="kpiReal">—</div></div>
-      <div class="tile"><div class="tile-label">Total Dividends</div><div class="tile-value" id="kpiDiv">—</div></div>
-      <div class="tile"><div class="tile-label">Net P&amp;L (incl. Div)</div><div class="tile-value" id="kpiNet">—</div></div>
+      ${tile('kpiInvested','Total Invested')}
+      ${tile('kpiValue','Market Value','<div class="tile-sub" id="kpiValueSub" style="font-size:10px;"></div>')}
+      ${tile('kpiUnreal','Unrealised P&amp;L','<div class="tile-sub" id="kpiUnrealPct"></div>')}
+      ${tile('kpiReal','Realised P&amp;L')}
+      ${tile('kpiDiv','Total Dividends')}
+      ${tile('kpiNet','Net P&amp;L (incl. Div)')}
     </div>
-    <div id="kpiFilterNote" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#00a19c;margin:-8px 0 14px;">&#9679; Filtered view — figures reflect active transaction filters</div>`;
+    <div id="kpiFxNote" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-dim);margin:-8px 0 6px;"></div>
+    <div id="kpiFilterNote" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#00a19c;margin:0 0 14px;">&#9679; Filtered view — figures reflect active transaction filters</div>`;
 }
+
+/* live USD/MYR: Edge Function quote first, ECB (Frankfurter) latest as fallback */
+async function loadKpiFx(){
+  const c=priceCache[FX_SYMBOL];
+  if(c&&c!=='err'&&c.price){kpiFx=c.price;kpiFxSrc='live';return;}
+  try{
+    const r=await fetch('https://api.frankfurter.dev/v1/latest?base=USD&symbols=MYR');
+    if(r.ok){const j=await r.json();if(j&&j.rates&&j.rates.MYR){kpiFx=j.rates.MYR;kpiFxSrc='ECB '+j.date;}}
+  }catch(e){}
+}
+
+function kpiCcy(h){return h.currency||(h.market==='Bursa'?'MYR':'USD');}
 
 function updateKPIs(){
   if(!document.getElementById('kpiInvested'))return;
-  const {list,active,yrF,stkF}=getFilteredTx();
+  const {list,active,yrF,stkF,mktF,cdsF}=getFilteredTx();
   const holdings=calcHoldings(list);
-  let totalInvested=0,realised=0,totalEstVal=0,priced=0;
+  const tickMkt={};transactions.forEach(t=>{tickMkt[t.ticker]=t.market;});   // dividend → market via its ticker
+  const Z=()=>({MYR:0,USD:0});
+  const inv=Z(), val=Z(), cost=Z(), real=Z(), div=Z();
+  let open=0, priced=0;
   holdings.forEach(h=>{
-    realised+=h.realised;
-    if(h.qty>0.001) totalInvested+=h.totalCost;
-    const cached=priceCache[toYahoo(h)];
-    if(cached&&cached!=='err'&&h.qty>0.001){totalEstVal+=h.qty*cached.price;priced++;}
+    const c=kpiCcy(h); if(c!=='MYR'&&c!=='USD')return;
+    real[c]+=h.realised;
+    if(h.qty>0.001){
+      open++; inv[c]+=h.totalCost;
+      const q=priceCache[toYahoo(h)];
+      if(q&&q!=='err'){val[c]+=h.qty*q.price;cost[c]+=h.totalCost;priced++;}   // unrealised only over priced holdings
+    }
   });
-  const unrealised=totalEstVal-totalInvested;
-  const divs=dividends.filter(d=>{
-    if(yrF.length&&!yrF.includes(String(new Date(d.payout_date).getFullYear())))return false;
-    if(stkF.length&&!stkF.includes(d.ticker))return false;
-    return true;
+  dividends.forEach(d=>{
+    if(yrF.length&&!yrF.includes(String(new Date(d.payout_date).getFullYear())))return;
+    if(stkF.length&&!stkF.includes(d.ticker))return;
+    if(mktF.length&&!mktF.includes(String(tickMkt[d.ticker]||'Bursa')))return;
+    if(cdsF.length&&d.cds_account&&!cdsF.includes(String(d.cds_account)))return;
+    const c=d.currency==='USD'?'USD':'MYR';                                  // dividends are recorded in MYR unless marked USD
+    div[c]+=Number(d.amount)||0;
   });
-  const totalDiv=divs.reduce((s,d)=>s+Number(d.amount),0);
-  const netPL=realised+(totalEstVal>0?unrealised:0)+totalDiv;
+  const unr={MYR:val.MYR-cost.MYR,USD:val.USD-cost.USD};
+  const net={MYR:real.MYR+unr.MYR+div.MYR,USD:real.USD+unr.USD+div.USD};
+
+  const fx=kpiFx;
+  const toMyr=o=>fx?o.MYR+o.USD*fx:null;
+  const toUsd=o=>fx?o.USD+o.MYR/fx:null;
+  const sg=(v,signed)=>signed?`<span class="${v>=0?'up':'down'}">${v>=0?'+':'−'}`:'<span>';
+  const abs=(v,signed)=>signed?Math.abs(v):v;
+  const show=(id,o,signed,hasData=true)=>{
+    if(!hasData){setText(id,'—');setText(id+'Usd','');setText(id+'Split','');return;}
+    const m=toMyr(o), u=toUsd(o);
+    if(m==null){                                   // rate not in yet → show each currency on its own
+      setHTML(id,`${sg(o.MYR,signed)}MYR ${fmt(abs(o.MYR,signed))}</span>`);
+      setHTML(id+'Usd',`${sg(o.USD,signed)}USD ${fmt(abs(o.USD,signed))}</span> <span style="color:var(--ink-dim);">(rate pending)</span>`);
+      setText(id+'Split','');return;
+    }
+    setHTML(id,`${sg(m,signed)}MYR ${fmt(abs(m,signed))}</span>`);
+    setHTML(id+'Usd',`≈ ${sg(u,signed)}USD ${fmt(abs(u,signed))}</span>`);
+    setText(id+'Split',(o.MYR||o.USD)?`MYR ${fmt(o.MYR)} | USD ${fmt(o.USD)}`:'');
+  };
+
+  show('kpiInvested',inv,false,open>0);
+  show('kpiValue',val,false,priced>0);
+  setText('kpiValueSub',open?`${priced} of ${open} priced`:'');
+  show('kpiUnreal',unr,true,priced>0);
+  const cm=toMyr(cost), um=toMyr(unr);
+  setHTML('kpiUnrealPct',priced&&cm?`${sg(um,true)}${fmt(Math.abs(um/cm*100))}%</span>`:'');
+  show('kpiReal',real,true);
+  show('kpiDiv',div,false);
+  show('kpiNet',net,true);
+
+  setText('kpiFxNote',fx?`USD/MYR ${fmt(fx,4)} (${kpiFxSrc}) · MYR and USD totals are combined at this rate`:'Fetching USD/MYR rate…');
   const badge=document.getElementById('kpiFilterNote');
   if(badge)badge.style.display=active?'block':'none';
-
-  setText('kpiInvested',totalInvested>0?'MYR '+fmt(totalInvested):'—');
-  setText('kpiValue',priced?'MYR '+fmt(totalEstVal):'—');
-  setText('kpiValueSub',priced?`${priced} priced`:'');
-  setHTML('kpiUnreal',priced?`<span class="${unrealised>=0?'up':'down'}">${unrealised>=0?'+':''}MYR ${fmt(unrealised)}</span>`:'—');
-  setHTML('kpiUnrealPct',totalInvested>0&&priced?`<span class="${unrealised>=0?'up':'down'}">${unrealised>=0?'+':''}${fmt((unrealised/totalInvested)*100)}%</span>`:'');
-  setHTML('kpiReal',`<span class="${realised>=0?'up':'down'}">${realised>=0?'+':''}MYR ${fmt(realised)}</span>`);
-  setText('kpiDiv','MYR '+fmt(totalDiv));
-  setHTML('kpiNet',`<span class="${netPL>=0?'up':'down'}">${netPL>=0?'+':''}MYR ${fmt(netPL)}</span>`);
 }
 
 /* ---- live prices (via Supabase Edge Function "quote") ----
@@ -186,13 +237,14 @@ async function fetchPrice(symbol){await fetchPrices([symbol]);}
 
 async function fetchAllPrices(){
   const holdings=calcHoldings().filter(h=>h.qty>0.001);
-  await fetchPrices(holdings.map(toYahoo));
+  await fetchPrices([...holdings.map(toYahoo),FX_SYMBOL]);
+  await loadKpiFx();
   if(window.onPricesUpdated)window.onPricesUpdated();
   updateKPIs();
   setText('priceNote',`Prices updated ${new Date().toLocaleTimeString()}`);
 }
 async function refreshPrices(){
-  priceCache={};
+  priceCache={};kpiFx=null;
   if(window.onPricesUpdated)window.onPricesUpdated();
   await fetchAllPrices();
 }
