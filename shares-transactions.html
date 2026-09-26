@@ -586,11 +586,12 @@ const PL_C={RP:'#1e8e3e',RL:'#d93025',INK:'#16302e',DIM:'#5f7674',GRID:'#e3ecea'
 function computePnlSegments(){
   const F=txFilterState(), {realised,open}=positionEngine();
   const fx=(typeof kpiFx!=='undefined')?kpiFx:null;
-  const segs=[]; const unpricedPos=new Set();
+  const segs=[]; const unpricedPos=new Set(); const noCost=[];
   realised.forEach(r=>{
     if(!F.pass(r.tx))return;
+    if(r.noCost)noCost.push(r);
     segs.push({kind:'R',ticker:r.ticker,name:r.name,market:r.market,ccy:r.ccy,cds:r.cds,
-      year:new Date(r.tx.tx_date).getFullYear(),units:r.units,avg:r.avg,px:r.units?r.proceeds/r.units:0,native:r.pnl});
+      year:new Date(r.tx.tx_date).getFullYear(),units:r.units,avg:r.avg,px:r.units?r.proceeds/r.units:0,native:r.pnl,noCost:r.noCost});
   });
   open.forEach(l=>{
     if(!F.pass(l.tx))return;
@@ -600,7 +601,7 @@ function computePnlSegments(){
       year:new Date(l.tx.tx_date).getFullYear(),units:l.units,avg:l.avg,px:q.price,native:l.units*(q.price-l.avg)});
   });
   segs.forEach(g=>{g.myr=g.ccy==='USD'?(fx?g.native*fx:null):g.native;});
-  return {segs,unpriced:unpricedPos.size};
+  return {segs,unpriced:unpricedPos.size,noCost};
 }
 function plBarPath(x,w,yBase,yEnd,round){
   const h=Math.abs(yEnd-yBase); if(h<0.5)return '';
@@ -621,7 +622,7 @@ const plSign=v=>`<span class="${v>=0?'up':'down'}">${v>=0?'+':'−'}MYR ${fmt(Ma
 
 function renderPnlChart(){
   const wrap=document.getElementById('plChart'); if(!wrap)return;
-  const {segs,unpriced}=computePnlSegments();
+  const {segs,unpriced,noCost}=computePnlSegments();
   const fx=(typeof kpiFx!=='undefined')?kpiFx:null;
   let noFx=0;
   // filter, then merge lots of the same stock/year/status
@@ -630,7 +631,7 @@ function renderPnlChart(){
     if(g.myr==null){noFx++;return;}
     const k=g.year+'|'+g.ticker+'|'+g.kind;
     if(!M[k])M[k]=Object.assign({},g,{cdsSet:new Set()});
-    else{const m=M[k];m.avg=(m.avg*m.units+g.avg*g.units)/(m.units+g.units);m.px=(m.px*m.units+g.px*g.units)/(m.units+g.units);m.units+=g.units;m.native+=g.native;m.myr+=g.myr;}
+    else{if(g.noCost)M[k].noCost=true;const m=M[k];m.avg=(m.avg*m.units+g.avg*g.units)/(m.units+g.units);m.px=(m.px*m.units+g.px*g.units)/(m.units+g.units);m.units+=g.units;m.native+=g.native;m.myr+=g.myr;}
     M[k].cdsSet.add(g.cds);
   });
   const items=Object.values(M).filter(g=>Math.abs(g.myr)>=0.005);
@@ -642,7 +643,14 @@ function renderPnlChart(){
   if(fx)notes.push(`USD positions in MYR @ ${fmt(fx,4)}.`);
   if(unpriced)notes.push(`${unpriced} held stock${unpriced>1?'s have':' has'} no live price yet — not shown.`);
   if(noFx)notes.push('USD rate pending — US positions not shown yet.');
-  document.getElementById('plNote').textContent=notes.join(' ');
+  const noteEl=document.getElementById('plNote');
+  noteEl.textContent=notes.join(' ');
+  if(noCost.length){
+    const d=s=>new Date(s).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    noteEl.innerHTML+=`<div style="margin-top:6px;padding:7px 10px;border-radius:8px;background:#fdecea;border:1px solid #f5c6c2;color:#a4231a;font-size:11px;font-weight:700;">
+      &#9888; ${noCost.length} sale${noCost.length>1?'s':''} sold more units than the account held, so ${noCost.length>1?'their':'its'} full proceeds count as profit — check the transaction${noCost.length>1?'s':''}:
+      ${noCost.map(r=>`${r.ticker} ${r.cds} ${d(r.tx.tx_date)} (${fmt(r.units,0)} units)`).join(' · ')}</div>`;
+  }
   renderPnlTable(items);
 
   if(!items.length){wrap.innerHTML='<div class="cv-empty">No P&amp;L for the current filters'+(unpriced?' (prices loading…)':'')+'</div>';return;}
@@ -680,7 +688,7 @@ function renderPnlChart(){
         const nat=g.ccy==='USD'?`USD ${g.native>=0?'+':'−'}${fmt(Math.abs(g.native))} ≈ `:'';
         const tip=`<b>${esc(g.name)} (${esc(g.ticker)})</b><br>${y} · ${g.kind==='R'?'Sold — realised':'Held — unrealised'} · ${esc(g.cds)}<br>`+
           `${fmt(g.units,0)} units · avg ${g.ccy} ${fmt(g.avg,g.avg<10?4:2)} → ${g.kind==='R'?'sold':'now'} ${g.ccy} ${fmt(g.px,g.px<10?4:2)}<br>`+
-          `P&amp;L ${nat}${g.myr>=0?'+':'−'}MYR ${fmt(Math.abs(g.myr))}`;
+          `P&amp;L ${nat}${g.myr>=0?'+':'−'}MYR ${fmt(Math.abs(g.myr))}`+(g.noCost?'<br>&#9888; sold more than held — no cost basis':'');
         svg+=`<path class="pl-seg" d="${d}" fill="${fill}" data-tip="${esc(tip)}"/>`;
         const hSeg=Math.abs(b-yStart);
         if(hSeg>=15&&bw>=34){
