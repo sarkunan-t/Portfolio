@@ -56,7 +56,15 @@
           <datalist id="divTickerList"></datalist>
         </div>
         <div class="field"><label>Stock Name</label><input type="text" id="dName" placeholder="Auto-filled…"></div>
-        <div class="field full"><label>Banked To</label>
+        <div class="field"><label>Paid via CDS</label>
+          <select id="dCds">
+            <option value="">Auto (from holdings)</option>
+            <option value="MYB">MYB — into Maybank CDS wallet</option>
+            <option value="RKT">RKT — into Rakuten CDS wallet</option>
+            <option value="RHB">RHB — to Maybank savings</option>
+          </select>
+        </div>
+        <div class="field"><label>Banked To</label>
           <input type="text" id="dBanked" placeholder="e.g. Maybank, Rakuten, Maybank &amp; Rakuten">
         </div>
       </div>
@@ -70,7 +78,7 @@
 </div>
 
 <script src="assets/common.js"></script>
-<script src="assets/shares.js?v=12"></script>
+<script src="assets/shares.js?v=13"></script>
 <script>
 requireAuth();
 buildSidebar('dividends');
@@ -195,9 +203,10 @@ function openDivModal(id){
     document.getElementById('dName').value=d.stock_name||'';
     document.getElementById('dAmount').value=d.amount;
     document.getElementById('dBanked').value=d.banked_to||'';
+    document.getElementById('dCds').value=d.cds_account||'';
   } else {
     document.getElementById('dDate').value=new Date().toISOString().split('T')[0];
-    ['dTicker','dName','dBanked'].forEach(id=>document.getElementById(id).value='');
+    ['dTicker','dName','dBanked','dCds'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('dAmount').value='';
   }
   document.getElementById('divModal').classList.add('open');
@@ -218,7 +227,8 @@ async function saveDividend(){
   const btn=document.getElementById('divSaveBtn');
   btn.disabled=true;btn.textContent='Saving…';
   const yr=new Date(date).getFullYear();
-  const payload={ticker,stock_name:name||null,payout_date:date,year:yr,amount,banked_to:banked||null};
+  const cds=document.getElementById('dCds').value;
+  const payload={ticker,stock_name:name||null,payout_date:date,year:yr,amount,banked_to:banked||null,cds_account:cds||null};
   let error;
   if(editingDivId){({error}=await sb.from('dividends').update(payload).eq('id',editingDivId));}
   else{({error}=await sb.from('dividends').insert(payload));}

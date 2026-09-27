@@ -141,8 +141,8 @@ function positionEngine(){
 }
 
 /* ---- where each dividend was paid ----
-   A dividend row has no CDS, so it is credited to the account(s) that held the stock on the
-   payout date — split by units if more than one account held it (if none did, the account
+   If the row has a cds_account it goes straight there. Otherwise it is credited to the account(s)
+   that held the stock on the payout date — split by units if more than one account held it (if none did, the account
    that traded it last). Paid INTO the wallet for MYB and RKT; RHB dividends go to the
    Maybank savings account instead. Amounts are MYR unless the row is marked USD.        */
 const DIV_TO_WALLET={MYB:true,RKT:true};
@@ -151,6 +151,12 @@ function allocateDividends(divs,txs){
   const byT={};(txs||[]).forEach(t=>{(byT[t.ticker]=byT[t.ticker]||[]).push(t);});
   const out=[];
   (divs||[]).forEach(d=>{
+    if(d.cds_account){                                   // row says which CDS it was paid to → use it as-is
+      const c=normCds(d.cds_account), ccy=d.currency==='USD'?'USD':'MYR';
+      out.push({div:d,cds:c,ccy,amount:Number(d.amount)||0,toWallet:!!DIV_TO_WALLET[c],
+        bank:DIV_TO_WALLET[c]?null:(DIV_BANK_NAME[c]||'bank'),inferred:false});
+      return;
+    }
     const list=byT[d.ticker]||[], pay=String(d.payout_date||'');
     const units={}; let lastCds=null, lastDate='';
     list.forEach(t=>{
