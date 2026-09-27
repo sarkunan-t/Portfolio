@@ -207,7 +207,7 @@
 
 <script src="assets/common.js"></script>
 <script src="assets/multiselect.js?v=2"></script>
-<script src="assets/shares.js?v=11"></script>
+<script src="assets/shares.js?v=12"></script>
 <script>
 requireAuth();
 buildSidebar('transactions');
@@ -695,8 +695,8 @@ function renderPnlChart(){
   if(noCost.length){
     const d=s=>new Date(s).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
     noteEl.innerHTML+=`<div style="margin-top:6px;padding:7px 10px;border-radius:8px;background:#fdecea;border:1px solid #f5c6c2;color:#a4231a;font-size:11px;font-weight:700;">
-      &#9888; ${noCost.length} sale${noCost.length>1?'s':''} sold more units than the account held, so ${noCost.length>1?'their':'its'} full proceeds count as profit — check the transaction${noCost.length>1?'s':''}:
-      ${noCost.map(r=>`${r.ticker} ${r.cds} ${d(r.tx.tx_date)} (${fmt(r.units,0)} units)`).join(' · ')}</div>`;
+      &#9888; ${noCost.length} sale${noCost.length>1?'s':''} sold more units than the account held — the extra units have no cost, so they count as pure profit. Check the transaction${noCost.length>1?'s':''}:
+      ${noCost.map(r=>`${r.ticker} ${r.cds} ${d(r.tx.tx_date)} (sold ${fmt(r.units,0)}, held ${fmt(r.heldUnits,0)})`).join(' · ')}</div>`;
   }
   renderPnlTable(items);
 
@@ -735,7 +735,7 @@ function renderPnlChart(){
         const nat=g.ccy==='USD'?`USD ${g.native>=0?'+':'−'}${fmt(Math.abs(g.native))} ≈ `:'';
         const tip=`<b>${esc(g.name)} (${esc(g.ticker)})</b><br>${y} · ${g.kind==='R'?'Sold — realised':'Held — unrealised'} · ${esc(g.cds)}<br>`+
           `${fmt(g.units,0)} units · avg ${g.ccy} ${fmt(g.avg,g.avg<10?4:2)} → ${g.kind==='R'?'sold':'now'} ${g.ccy} ${fmt(g.px,g.px<10?4:2)}<br>`+
-          `P&amp;L ${nat}${g.myr>=0?'+':'−'}MYR ${fmt(Math.abs(g.myr))}`+(g.noCost?'<br>&#9888; sold more than held — no cost basis':'');
+          `P&amp;L ${nat}${g.myr>=0?'+':'−'}MYR ${fmt(Math.abs(g.myr))}`+(g.noCost?'<br>&#9888; sold more units than held — extra units have no cost':'');
         svg+=`<path class="pl-seg" d="${d}" fill="${fill}" data-tip="${esc(tip)}"/>`;
         const hSeg=Math.abs(b-yStart);
         if(hSeg>=15&&bw>=34){

@@ -124,9 +124,11 @@ function positionEngine(){
       const q=Number(t.quantity)||0, net=Number(t.net_amount)||0;
       if(t.tx_type==='Buy'){qty+=q;cost+=net;lots.push({tx:t,left:q});}
       else{
-        const avg=qty>0?cost/qty:0;
-        realised.push(Object.assign({},pos,{tx:t,units:q,avg,proceeds:net,costSold:avg*q,pnl:net-avg*q,noCost:qty<=0}));
-        cost-=avg*q; qty-=q;
+        const held=Math.max(qty,0), covered=Math.min(q,held), avg=held>0?cost/held:0;
+        const costSold=avg*covered, excess=Math.max(q-held,0);            // units sold beyond what the account held have no cost
+        realised.push(Object.assign({},pos,{tx:t,units:q,avg,proceeds:net,costSold,pnl:net-costSold,
+          noCost:excess>1e-6,excessUnits:excess,heldUnits:held}));
+        cost-=costSold; qty=Math.max(held-q,0); if(qty<=1e-9){qty=0;cost=0;}
         let r=q; while(r>1e-9&&lots.length){const l=lots[0],take=Math.min(l.left,r);l.left-=take;r-=take;if(l.left<=1e-9)lots.shift();}
       }
     });
