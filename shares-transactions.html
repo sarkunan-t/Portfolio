@@ -207,7 +207,7 @@
 
 <script src="assets/common.js"></script>
 <script src="assets/multiselect.js?v=2"></script>
-<script src="assets/shares.js?v=13"></script>
+<script src="assets/shares.js?v=14"></script>
 <script>
 requireAuth();
 buildSidebar('transactions');
@@ -348,7 +348,7 @@ function renderTransactions(){
       <td class="num">${fmt(t.stax)}</td>
       <td class="num">${fmt(t.stamp_duty)}</td>
       <td class="num">${fmt(t.clearing_fee)}</td>
-      <td class="num" style="color:var(--teal);font-weight:600;">${fmt(t.net_amount)}</td>
+      <td class="num" style="color:var(--teal);font-weight:600;white-space:nowrap;">${fmt(t.net_amount)}${txSettle(t).cross?`<div style="font-size:10px;color:var(--ink-dim);font-weight:600;">settled ${txSettle(t).ccy} ${fmt(txSettle(t).amt)}${t.fx_rate?' @ '+fmt(t.fx_rate,4):''}</div>`:''}</td>
       <td style="font-size:10px;color:var(--ink-dim);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.notes||'—'}</td>
       <td><div class="action-btns">
         <button class="btn-sm" onclick="editTransaction('${t.id}')">Edit</button>
@@ -540,8 +540,8 @@ function renderWalletCash(){
     else{a.capOut+=amt;a.capOutN++;if(f.txn_type==='Transfer Out')a.xOut+=amt;}
   });
   transactions.forEach(t=>{
-    const ccy=t.currency||(t.market==='Bursa'?'MYR':'USD'); if(ccy!=='MYR'&&ccy!=='USD')return;
-    const a=wal(t.cds_account,ccy), amt=Number(t.net_amount)||0; a.active=true;
+    const st=txSettle(t), ccy=st.ccy; if(ccy!=='MYR'&&ccy!=='USD')return;   // cash moves in the settlement currency
+    const a=wal(t.cds_account,ccy), amt=st.amt; a.active=true;
     if(t.tx_type==='Buy'){a.buy+=amt;a.buyN++;}else{a.sell+=amt;a.sellN++;}
     const n=SETTLE_DAYS[t.market]??2, due=ymdStr(addBizDays(t.tx_date,n));
     if(due>=today)a.pend.push({t,due,amt,n});

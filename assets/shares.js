@@ -40,6 +40,16 @@ let transactions=[], dividends=[], priceCache={};
 const CDS_ALIAS={Rakuten:'RKT',RAKUTEN:'RKT',rakuten:'RKT',Maybank:'MYB',MAYBANK:'MYB',maybank:'MYB'};
 function normCds(c){return CDS_ALIAS[c]||c;}
 
+/* Which wallet a trade's cash moves in. A US trade can be TRADED in USD (quantity, price,
+   net_amount — used for cost basis and P&L) but SETTLED in MYR (settle_currency/settle_amount —
+   the cash that actually left or entered the RKT-MYR wallet). Rows without settlement fields
+   settle in their own currency.                                                               */
+function txSettle(t){
+  const ccy=t.settle_currency||t.currency||(t.market==='Bursa'?'MYR':'USD');
+  const amt=(t.settle_amount!=null&&t.settle_amount!=='')?Number(t.settle_amount):Number(t.net_amount);
+  return {ccy,amt:amt||0,cross:!!(t.settle_currency&&t.currency&&t.settle_currency!==t.currency)};
+}
+
 /* ---- data load ---- */
 async function loadShares(){
   const [txRes,divRes]=await Promise.all([

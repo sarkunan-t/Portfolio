@@ -194,7 +194,7 @@
 
 <script src="assets/common.js"></script>
 <script src="assets/multiselect.js?v=1"></script>
-<script src="assets/shares.js?v=13"></script>
+<script src="assets/shares.js?v=14"></script>
 <script>
 requireAuth();
 buildSidebar('funds');
@@ -216,7 +216,7 @@ function uuid(){return crypto.randomUUID?crypto.randomUUID():'xf-'+Date.now()+'-
 async function loadFunds(){
   const [fdRes,txRes,dvRes]=await Promise.all([
     sb.from('funds').select('*').order('txn_date',{ascending:false}),
-    sb.from('transactions').select('tx_date,tx_type,cds_account,net_amount,currency,market,ticker,quantity'),
+    sb.from('transactions').select('*'),
     sb.from('dividends').select('*')
   ]);
   if(fdRes.error){
@@ -258,8 +258,8 @@ function computeBalances(asOf,netShares){
   if(netShares){
     fundsTx.forEach(t=>{
       if(asOf && t.tx_date && t.tx_date>asOf)return;
-      const ccy=t.currency||(t.market==='Bursa'?'MYR':'USD'); if(ccy!=='MYR'&&ccy!=='USD')return;
-      const amt=Number(t.net_amount)||0, b=cell(normCds(t.cds_account));
+      const st=txSettle(t), ccy=st.ccy; if(ccy!=='MYR'&&ccy!=='USD')return;   // cash moves in the settlement currency
+      const amt=st.amt, b=cell(normCds(t.cds_account));
       if(t.tx_type==='Buy')b[ccy]-=amt; else b[ccy]+=amt;   // Buy spends cash, Sell returns it
     });
     fundsDiv.forEach(x=>{                                  // MYB & RKT dividends land in the wallet; RHB's go to Maybank savings
