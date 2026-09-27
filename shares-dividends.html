@@ -33,7 +33,7 @@
         <table class="std">
           <thead><tr>
             <th>Payout Date</th><th>Ticker</th><th>Stock Name</th>
-            <th class="num">Amount (MYR)</th><th>Banked To</th><th></th>
+            <th class="num">Amount</th><th>Banked To</th><th></th>
           </tr></thead>
           <tbody id="divBody"></tbody>
         </table>
@@ -50,7 +50,13 @@
       <div class="form-section-title">Dividend Details</div>
       <div class="form-grid g2">
         <div class="field"><label>Payout Date</label><input type="date" id="dDate"></div>
-        <div class="field"><label>Amount (MYR)</label><input type="number" id="dAmount" placeholder="0.00" min="0" step="any"></div>
+        <div class="field"><label>Amount received (<span id="dAmtCcy">MYR</span>)</label><input type="number" id="dAmount" placeholder="0.00" min="0" step="any"></div>
+        <div class="field"><label>Currency</label>
+          <select id="dCurrency" onchange="setText('dAmtCcy',this.value)">
+            <option value="MYR">MYR — Bursa dividends</option>
+            <option value="USD">USD — US dividends (after 30% US tax)</option>
+          </select>
+        </div>
         <div class="field"><label>Stock Code</label>
           <input type="text" id="dTicker" list="divTickerList" placeholder="e.g. 1155" autocomplete="off" oninput="onDivTickerInput()">
           <datalist id="divTickerList"></datalist>
@@ -118,6 +124,8 @@ function populateDivFilters(){
   const banks=[...new Set(dividends.map(d=>d.banked_to).filter(Boolean))].sort();
   keep(document.getElementById('dFilterBank'),banks.map(b=>({val:b,txt:b})),'All Banked To');
 }
+function divFx(){return (typeof kpiFx!=='undefined'&&kpiFx)?kpiFx:null;}
+function divMyr(d){const a=Number(d.amount)||0;return d.currency==='USD'?(divFx()?a*divFx():a):a;}
 function refreshDivView(){renderDividends();renderDivKPIs();}
 
 function renderDivKPIs(){
@@ -134,7 +142,7 @@ function renderDivKPIs(){
   let total=0;
   list.forEach(d=>{
     const y=new Date(d.payout_date).getFullYear();
-    const amt=Number(d.amount);
+    const amt=divMyr(d);                                  // USD dividends counted at the live rate
     total+=amt;
     byYear[y]=(byYear[y]||0)+amt;
     const key=d.stock_name||d.ticker;
@@ -157,7 +165,7 @@ function renderDivKPIs(){
   setText('dkAvgSub',pastYears.length+' year'+(pastYears.length!==1?'s':'')+' (excl. '+now+')');
   setText('dkTop',top[0]);
   setText('dkTopSub','MYR '+fmt(top[1])+' cumulative');
-  setText('dkLast','MYR '+fmt(latest.amount));
+  setText('dkLast',latest.currency==='USD'?'USD '+fmt(latest.amount):'MYR '+fmt(latest.amount));
   setText('dkLastSub',(latest.stock_name||latest.ticker)+' · '+new Date(latest.payout_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}));
 }
 
@@ -182,7 +190,7 @@ function renderDividends(){
       <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;">${date}</td>
       <td><div class="ticker-cell">${d.ticker}</div></td>
       <td style="font-size:12px;">${d.stock_name||''}</td>
-      <td class="num" style="color:var(--gold);font-family:'IBM Plex Mono',monospace;">${fmt(d.amount)}</td>
+      <td class="num" style="color:var(--gold);font-family:'IBM Plex Mono',monospace;white-space:nowrap;">${d.currency==='USD'?'USD ':''}${fmt(d.amount)}${d.currency==='USD'&&divFx()?`<div style="font-size:10px;color:var(--ink-dim);">≈ MYR ${fmt(d.amount*divFx())}</div>`:''}</td>
       <td style="font-size:11px;color:var(--ink-dim);">${d.banked_to||'—'}</td>
       <td><div class="action-btns">
         <button class="btn-sm" onclick="editDividend('${d.id}')">Edit</button>
@@ -204,9 +212,11 @@ function openDivModal(id){
     document.getElementById('dAmount').value=d.amount;
     document.getElementById('dBanked').value=d.banked_to||'';
     document.getElementById('dCds').value=d.cds_account||'';
+    document.getElementById('dCurrency').value=d.currency==='USD'?'USD':'MYR';setText('dAmtCcy',document.getElementById('dCurrency').value);
   } else {
     document.getElementById('dDate').value=new Date().toISOString().split('T')[0];
     ['dTicker','dName','dBanked','dCds'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('dCurrency').value='MYR';setText('dAmtCcy','MYR');
     document.getElementById('dAmount').value='';
   }
   document.getElementById('divModal').classList.add('open');
@@ -228,7 +238,7 @@ async function saveDividend(){
   btn.disabled=true;btn.textContent='Saving…';
   const yr=new Date(date).getFullYear();
   const cds=document.getElementById('dCds').value;
-  const payload={ticker,stock_name:name||null,payout_date:date,year:yr,amount,banked_to:banked||null,cds_account:cds||null};
+  const payload={ticker,stock_name:name||null,payout_date:date,year:yr,amount,banked_to:banked||null,cds_account:cds||null,currency:document.getElementById('dCurrency').value};
   let error;
   if(editingDivId){({error}=await sb.from('dividends').update(payload).eq('id',editingDivId));}
   else{({error}=await sb.from('dividends').insert(payload));}
@@ -244,6 +254,7 @@ async function deleteDividend(id){
 }
 
 window.onSharesData=function(){initDatalist();populateDivFilters();refreshDivView();};
+window.onPricesUpdated=function(){refreshDivView();};   // USD dividends re-valued once the rate arrives
 document.getElementById('divModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDivModal();});
 loadShares();
 </script>
