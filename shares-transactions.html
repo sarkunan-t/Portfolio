@@ -497,10 +497,13 @@ async function deleteTx(id){
 /* ═══ Cash by CDS wallet (capital in − purchases + sale proceeds, with T+n settlement) ═══ */
 const SETTLE_DAYS={Bursa:2,US:1};        // Bursa T+2; US moved to T+1 on 28 May 2024
 const WC_NAME={MYB:'Maybank',RHB:'RHB',RKT:'Rakuten'};
-let txFunds=[];
-async function loadTxFunds(){
+let txFunds=[], txFundsStatus='loading';      // loading | ok | error | empty
+async function loadTxFunds(attempt=1){
+  await sb.auth.getSession();                   // make sure the login session is ready before querying
   const {data,error}=await sb.from('funds').select('txn_date,txn_type,currency,amount,cds_account');
-  txFunds=error?[]:(data||[]);
+  if(error){console.error('Funds load failed:',error);txFunds=[];txFundsStatus='error';}
+  else{txFunds=data||[];txFundsStatus=txFunds.length?'ok':'empty';}
+  if(txFundsStatus!=='ok'&&attempt<3){setTimeout(()=>loadTxFunds(attempt+1),1500);}   // retry a couple of times
   renderWalletCash();
 }
 function ymdStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -514,10 +517,16 @@ const dueFmt=s=>new Date(s+'T00:00:00').toLocaleDateString('en-GB',{weekday:'sho
 function renderWalletCash(){
   const host=document.getElementById('walletHost'); if(!host)return;
   const today=ymdStr(new Date());
+  let warnBox=document.getElementById('wcFundsWarn');
+  if(!warnBox){warnBox=document.createElement('div');warnBox.id='wcFundsWarn';host.parentNode.insertBefore(warnBox,host);}
+  warnBox.innerHTML=txFundsStatus==='ok'?'':
+    `<div class="wc-warn" style="margin:0 0 10px;">${txFundsStatus==='loading'?'&#8987; Loading capital in from the Funds page…':
+      '&#9888; Capital in could not be loaded from the Funds page'+(txFundsStatus==='error'?' (see console, F12)':' (no fund movements returned)')+
+      ' — cash balances below exclude deposits and are NOT accurate. Refresh the page (Ctrl+Shift+R) or sign in again.'}</div>`;
   const W={}, order=[];
   const wal=(cds,ccy)=>{
     const c=normCds(cds)||'—', k=c+'-'+ccy;
-    if(!W[k]){W[k]={key:k,cds:c,ccy,cap:0,buy:0,buyN:0,sell:0,sellN:0,div:0,divN:0,divOut:0,divOutN:0,divBank:'',pend:[],active:false};order.push(k);}
+    if(!W[k]){W[k]={key:k,cds:c,ccy,cap:0,buy:0,buyN:0,sell:0,sellN:0,div:0,divN:0,divOut:0,divOutN:0,divBank:'',capIn:0,capInN:0,capOut:0,capOutN:0,xIn:0,xOut:0,pend:[],active:false};order.push(k);}
     return W[k];
   };
   ['MYR','USD'].forEach(ccy=>['MYB','RHB','RKT'].forEach(c=>wal(c,ccy)));   // row 1: MYR wallets · row 2: matching USD wallets
@@ -525,7 +534,10 @@ function renderWalletCash(){
   txFunds.forEach(f=>{
     const ccy=f.currency||'MYR'; if(ccy!=='MYR'&&ccy!=='USD')return;
     const a=wal(f.cds_account,ccy), amt=Number(f.amount)||0;
-    a.cap+=(f.txn_type==='Deposit'||f.txn_type==='Transfer In')?amt:-amt; a.active=true;
+    const inn=(f.txn_type==='Deposit'||f.txn_type==='Transfer In');
+    a.cap+=inn?amt:-amt; a.active=true;
+    if(inn){a.capIn+=amt;a.capInN++;if(f.txn_type==='Transfer In')a.xIn+=amt;}
+    else{a.capOut+=amt;a.capOutN++;if(f.txn_type==='Transfer Out')a.xOut+=amt;}
   });
   transactions.forEach(t=>{
     const ccy=t.currency||(t.market==='Bursa'?'MYR':'USD'); if(ccy!=='MYR'&&ccy!=='USD')return;
@@ -540,6 +552,17 @@ function renderWalletCash(){
     const a=wal(x.cds,x.ccy); a.active=true;
     if(x.toWallet){a.div+=x.amount;a.divN++;}
     else{a.divOut+=x.amount;a.divOutN++;a.divBank=x.bank;}
+  });
+  // shares still held in each wallet, valued at today's price (same per-account positions as the P&L chart)
+  const HV={};
+  positionEngine().open.forEach(l=>{
+    const k=l.cds+'-'+l.ccy;
+    if(!HV[k])HV[k]={val:0,cost:0,pricedCost:0,stocks:new Set(),unpriced:new Set()};
+    const h=HV[k]; h.stocks.add(l.ticker); h.cost+=l.cost;
+    const q=priceCache[toYahoo(l)];
+    if(q&&q!=='err'){h.val+=l.units*q.price;h.pricedCost+=l.cost;}
+    else h.unpriced.add(l.ticker);
+    wal(l.cds,l.ccy).active=true;
   });
 
   const fx=(typeof kpiFx!=='undefined')?kpiFx:null;
@@ -572,12 +595,27 @@ function renderWalletCash(){
 
     return `<div class="wc-card ${c==='USD'?'usd':''}">
       <div class="wc-top"><div><div class="wc-key">${a.key}</div><div class="wc-name">${WC_NAME[a.cds]||a.cds} · ${c}</div></div><span class="wc-rule">${rule}</span></div>
-      <div class="wc-row"><span>Capital in</span><span>${money(a.cap,a.cap<0?'−':'')}</span></div>
+      <div class="wc-row"><span>Capital in${a.capInN?` (${a.capInN})`:''}</span><span class="up">${money(a.capIn,'+')}</span></div>
+      ${a.xIn>0.005?`<div class="wc-row" style="font-size:10.5px;padding-top:0;"><span style="padding-left:10px;">incl. transfers in</span><span>${money(a.xIn)}</span></div>`:''}
+      <div class="wc-row"><span>Capital out${a.capOutN?` (${a.capOutN})`:''}</span><span class="down">${money(a.capOut,'−')}</span></div>
+      ${a.xOut>0.005?`<div class="wc-row" style="font-size:10.5px;padding-top:0;"><span style="padding-left:10px;">incl. transfers out</span><span>${money(a.xOut)}</span></div>`:''}
       <div class="wc-row"><span>Stocks purchased${a.buyN?` (${a.buyN})`:''}</span><span class="down">${money(a.buy,'−')}</span></div>
       <div class="wc-row"><span>Sale proceeds${a.sellN?` (${a.sellN})`:''}</span><span class="up">${money(a.sell,'+')}</span></div>
       ${DIV_TO_WALLET[a.cds]?`<div class="wc-row"><span>Dividends received${a.divN?` (${a.divN})`:''}</span><span class="up">${money(a.div,'+')}</span></div>`:''}
-      <div class="wc-row wc-bal"><span>Cash balance</span><span class="${bal>=0?'up':'down'}">${money(bal,bal<0?'−':'')}</span></div>
+      <div class="wc-row wc-bal"><span>1 · Cash balance</span><span class="${bal>=0?'up':'down'}">${money(bal,bal<0?'−':'')}</span></div>
       <div class="wc-eq">${eq(bal)}</div>
+      ${(()=>{
+        const h=HV[k];
+        if(!h||!h.stocks.size)return `<div class="wc-row wc-bal"><span>2 · Cash + shares at market</span><span class="${bal>=0?'up':'down'}">${money(bal,bal<0?'−':'')}</span></div>
+          <div class="wc-eq">no shares held</div>`;
+        const unr=h.val-h.pricedCost, tot=bal+h.val, n=h.stocks.size, np=n-h.unpriced.size;
+        return `<div class="wc-row" style="margin-top:6px;"><span>Shares held (${n} stock${n>1?'s':''}) at market</span><span>${h.val?money(h.val,'+'):'—'}</span></div>
+          <div class="wc-row" style="font-size:10.5px;padding-top:0;"><span style="padding-left:10px;">cost ${money(h.cost)} · unrealised</span>
+            <span class="${unr>=0?'up':'down'}">${money(unr,unr>=0?'+':'−')}</span></div>
+          ${h.unpriced.size?`<div class="wc-row" style="font-size:10.5px;padding-top:0;color:#a4231a;"><span style="padding-left:10px;color:#a4231a;">no live price: ${[...h.unpriced].join(', ')}</span><span></span></div>`:''}
+          <div class="wc-row wc-bal"><span>2 · Cash + shares at market</span><span class="${tot>=0?'up':'down'}">${money(tot,tot<0?'−':'')}</span></div>
+          <div class="wc-eq">${eq(tot)}${h.unpriced.size?` · ${np} of ${n} priced`:''}</div>`;
+      })()}
       ${a.divOut>0.005?`<div class="wc-ok" style="margin-top:6px;">Dividends ${money(a.divOut)} (${a.divOutN}) paid to ${a.divBank} — not in this wallet</div>`:''}
       ${pendHtml}${warn}
       ${!a.pend.length&&!warn?'<div class="wc-ok">&#10003; No unsettled trades</div>':''}
