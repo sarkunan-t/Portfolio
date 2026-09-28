@@ -1,0 +1,32 @@
+/* ===== Markets Suite — Android app-only overrides =====
+   Injected into the app build only (see build-www.sh). The web site never loads this.
+   Android 15+ draws the app edge-to-edge, under the status bar and nav bar.
+   Capacitor sets --safe-area-inset-* so we pad around the system bars. */
+
+:root{
+  --sat:var(--safe-area-inset-top,0px);
+  --sab:var(--safe-area-inset-bottom,0px);
+  --sal:var(--safe-area-inset-left,0px);
+  --sar:var(--safe-area-inset-right,0px);
+}
+
+/* status bar strip stays clean white, like the header below it */
+body{padding-left:var(--sal);padding-right:var(--sar);}
+body::before{content:'';position:fixed;top:0;left:0;right:0;height:var(--sat);background:#ffffff;z-index:100;}
+
+.sidebar{padding-top:var(--sat);padding-bottom:var(--sab);}
+.content-head{top:var(--sat);margin-top:var(--sat);}
+.page{padding-bottom:calc(48px + var(--sab));}
+.login-wrap{padding-top:var(--sat);padding-bottom:var(--sab);}
+
+/* touch: no grey tap flash, no long-press text callout on buttons/links */
+*{-webkit-tap-highlight-color:transparent;}
+button,a,.sb-link{-webkit-touch-callout:none;user-select:none;}
+
+/* bigger tap targets for finger use */
+.sb-link{padding-top:11px;padding-bottom:11px;}
+.menu-btn{font-size:18px;padding:8px 14px;}
+.sb-foot button{padding:10px 12px;}
+
+/* inputs ≥16px so Android never zooms on focus */
+.field input,.field select,input,select,textarea{font-size:16px;}

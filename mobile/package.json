@@ -1,0 +1,18 @@
+{
+  "name": "markets-suite-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android wrapper (Capacitor) for the Markets Suite web app. The web app in the repo root stays the single source of truth.",
+  "scripts": {
+    "build:www": "bash build-www.sh"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@supabase/supabase-js": "^2.117.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.2"
+  }
+}

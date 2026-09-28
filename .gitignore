@@ -2,3 +2,13 @@
 Rakuten/
 sql/
 *.pdf
+
+# Android app (Capacitor) — generated in the GitHub build, never committed
+mobile/node_modules/
+mobile/www/
+mobile/android/
+mobile/out/
+# signing key — NEVER commit
+_signing/
+*.jks
+*.keystore

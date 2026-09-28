@@ -1,0 +1,16 @@
+{
+  "appId": "com.sarkunan.marketssuite",
+  "appName": "Markets Suite",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#f6f8f8",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "LIGHT",
+      "insetsHandling": "css"
+    }
+  }
+}
