@@ -20,7 +20,12 @@ sed -i 's#https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2#vendor/supabase.j
 cp mobile-app.css www/assets/mobile-app.css
 sed -i 's#</head>#<link rel="stylesheet" href="assets/mobile-app.css">\n</head>#' www/*.html
 
-# 4. the app should open on the sign-in page
+# 4. push alerts: Capacitor core (plugin bridge for plain JS) + registration script, end of every page
+cp node_modules/@capacitor/core/dist/capacitor.js www/vendor/capacitor.js
+cp app-push.js www/assets/app-push.js
+sed -i 's#</body>#<script src="vendor/capacitor.js"></script>\n<script src="assets/app-push.js"></script>\n</body>#' www/*.html
+
+# 5. the app should open on the sign-in page
 test -f www/index.html
 
 echo "www built: $(ls www/*.html | wc -l) pages"

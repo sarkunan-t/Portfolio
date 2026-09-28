@@ -8,6 +8,9 @@
     "webContentsDebuggingEnabled": false
   },
   "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["sound", "alert"]
+    },
     "SystemBars": {
       "style": "LIGHT",
       "insetsHandling": "css"
