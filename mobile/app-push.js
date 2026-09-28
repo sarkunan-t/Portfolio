@@ -12,7 +12,7 @@
 
   // tapping an alert opens Current Positions
   Push.addListener('pushNotificationActionPerformed',()=>{
-    if(!/shares-holdings\.html/.test(location.pathname))location.href='shares-holdings.html';
+    location.hash='#holdings/open';
   });
   // alert arriving while the app is open: also show it in-app
   Push.addListener('pushNotificationReceived',n=>{

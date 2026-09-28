@@ -1,31 +1,29 @@
 #!/usr/bin/env bash
-# Builds mobile/www from the web app in the repo root.
-# The web files are never modified — everything happens on copies in www/.
+# Builds mobile/www — the Android app's files.
+# The app has its own touch-first screens (mobile/app/), and reuses the web app's
+# data + maths (assets/common.js, assets/shares.js) so both always calculate the same.
+# The web site in the repo root is never modified.
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT=..
 
 rm -rf www
-mkdir -p www/assets www/vendor
+mkdir -p www/assets www/vendor www/app
 
-# 1. copy the web app (pages + shared assets only — no SQL, PDFs or patches)
-cp "$ROOT"/*.html www/
-cp "$ROOT"/assets/*.js "$ROOT"/assets/*.css www/assets/
+# 1. shared data/maths from the web app (unchanged copies)
+cp "$ROOT"/assets/common.js "$ROOT"/assets/shares.js www/assets/
 
-# 2. bundle supabase-js locally instead of loading it from the CDN
+# 2. app screens
+cp app/*.js app/*.css www/app/
+cp app/index.html www/index.html
+
+# 3. libraries bundled locally (no CDN)
 cp node_modules/@supabase/supabase-js/dist/umd/supabase.js www/vendor/supabase.js
-sed -i 's#https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2#vendor/supabase.js#g' www/*.html
-
-# 3. add the app-only stylesheet (safe areas, touch sizes) to every page
-cp mobile-app.css www/assets/mobile-app.css
-sed -i 's#</head>#<link rel="stylesheet" href="assets/mobile-app.css">\n</head>#' www/*.html
-
-# 4. push alerts: Capacitor core (plugin bridge for plain JS) + registration script, end of every page
 cp node_modules/@capacitor/core/dist/capacitor.js www/vendor/capacitor.js
+
+# 4. push alerts registration
 cp app-push.js www/assets/app-push.js
-sed -i 's#</body>#<script src="vendor/capacitor.js"></script>\n<script src="assets/app-push.js"></script>\n</body>#' www/*.html
+sed -i 's#</body>#<script src="vendor/capacitor.js"></script>\n<script src="assets/app-push.js"></script>\n</body>#' www/index.html
 
-# 5. the app should open on the sign-in page
 test -f www/index.html
-
-echo "www built: $(ls www/*.html | wc -l) pages"
+echo "www built: app UI + $(ls www/app | wc -l) app files"
