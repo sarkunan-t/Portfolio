@@ -157,7 +157,7 @@ button.lrow:active,.tap:active{background:#f3f8f7;}
 .ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:15px;font-weight:800;flex-shrink:0;}
 .ico.buy{background:var(--up-bg);color:var(--up);} .ico.sell{background:var(--down-bg);color:var(--down);}
 .ico.div{background:var(--gold-bg);color:var(--gold);} .ico.xf{background:var(--usd-bg);color:var(--usd);}
-.ico.myr{background:var(--teal-bg);color:var(--deep);} .ico.usd{background:var(--usd-bg);color:var(--usd);}
+.ico.myr{background:var(--teal-bg);color:var(--deep);} .ico.ag{background:#eef1f4;color:#4f5b68;} .ico.usd{background:var(--usd-bg);color:var(--usd);}
 .chev{color:var(--faint);flex-shrink:0;}
 
 /* position cards */
@@ -231,6 +231,7 @@ button.lrow:active,.tap:active{background:#f3f8f7;}
 .btn-d{background:#fff;border:1px solid #f1c7c2;color:var(--down);}
 .btn-row{display:flex;gap:10px;margin-top:16px;} .btn-row>*{flex:1;}
 .fld{display:block;margin-bottom:14px;}
+.fld[hidden]{display:none;}
 .fld>span{display:block;font-size:13px;font-weight:700;color:var(--ink2);margin-bottom:6px;}
 .fld input,.fld select,.inp{width:100%;height:50px;border:1px solid #d6e1df;border-radius:12px;background:#fbfdfd;padding:0 14px;font-size:16px;font-weight:600;outline:none;appearance:none;-webkit-appearance:none;}
 .fld select{background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);

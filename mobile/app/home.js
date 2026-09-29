@@ -14,14 +14,16 @@ App.screens.home={
   render(el){
     if(!App.state.sharesLoaded){el.innerHTML=`<div class="skel" style="height:190px;border-radius:20px;margin-bottom:12px"></div>`+App.skeleton(4);return;}
     const pos=C.positions(), {c}=C.combined(pos), k=C.kpis(), r=H.fx();
-    const nw=c.value!=null?c.value:c.cost;
+    const shares=c.value!=null?c.value:c.cost;
+    const Mt=App.metals, mOn=Mt.status==='ok'&&Mt.rows.length>0, mt=mOn?Mt.totals():null;
+    const nw=shares+(mt?mt.value:0);
     const dayCls=c.day>=0?'up':'down';
 
     // hero
     let html=`<div class="card hero">
       <div class="lbl">Estimated net worth</div>
       <div class="big">MYR ${fmt(nw)}</div>
-      <div class="sub">${c.value!=null?'Shares at live market value':'Shares at cost — prices loading'}${r&&c.value!=null?` · ≈ USD ${fmt(nw/r)}`:''}</div>
+      <div class="sub">${c.value!=null?(mt?'Shares + metals at market value':'Shares at live market value'):'Shares at cost — prices loading'}${r&&c.value!=null?` · ≈ USD ${fmt(nw/r)}`:''}</div>
       ${c.dayBase?`<div class="chg ${dayCls}">${c.day>=0?'▲':'▼'} ${c.day>=0?'+':'−'}MYR ${fmt(Math.abs(c.day))} (${fmt(Math.abs(c.dayPct),2)}%) today</div>`:''}
       <div class="hero-split">
         <div><span class="lbl">Unrealised P&amp;L</span><b class="${(c.pnl||0)>=0?'':''}">${c.pnl==null?'—':`${c.pnl>=0?'+':'−'}MYR ${fmt(Math.abs(c.pnl))}`}</b><span class="lbl">${c.pnlPct==null?'':`${c.pnlPct>=0?'+':'−'}${fmt(Math.abs(c.pnlPct))}%`}</span></div>
@@ -43,8 +45,9 @@ App.screens.home={
     // assets
     html+=`<div class="sec"><h2>Assets &amp; liabilities</h2></div>
     <div class="grid g2 gw2" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
-      <button class="stat tap" style="text-align:left" onclick="App.go('holdings','open')"><div class="lbl">Share holdings</div><div class="val">MYR ${H.k(nw)}</div><div class="sub">${c.n} open positions</div></button>
-      <button class="stat tap muted-card" style="text-align:left" onclick="App.go('more','metals')"><div class="lbl">Metals</div><div class="val dim">Not set up</div><div class="sub">gold &amp; silver</div></button>
+      <button class="stat tap" style="text-align:left" onclick="App.go('holdings','open')"><div class="lbl">Share holdings</div><div class="val">MYR ${H.k(shares)}</div><div class="sub">${c.n} open positions</div></button>
+      ${mOn?`<button class="stat tap" style="text-align:left" onclick="App.go('more','metals')"><div class="lbl">Metals</div><div class="val">MYR ${H.k(mt.value)}</div><div class="sub">${mt.atCost?'at cost':`${mt.pnl>=0?'+':'−'}MYR ${H.k(Math.abs(mt.pnl))} (${mt.pnlPct>=0?'+':'−'}${fmt(Math.abs(mt.pnlPct||0),1)}%)`}</div></button>`
+        :`<button class="stat tap muted-card" style="text-align:left" onclick="App.go('more','metals')"><div class="lbl">Metals</div><div class="val dim">${Mt.status==='missing'?'Not set up':'None yet'}</div><div class="sub">gold &amp; silver</div></button>`}
       <button class="stat tap muted-card" style="text-align:left" onclick="App.go('more','asnb')"><div class="lbl">ASNB</div><div class="val dim">Not set up</div><div class="sub">unit trusts</div></button>
       <div class="stat muted-card"><div class="lbl" style="color:var(--down)">Liabilities</div><div class="val dim">Not set up</div><div class="sub">loans &amp; debt</div></div>
     </div>`;
@@ -69,7 +72,7 @@ App.screens.home={
     html+=al.length?`<div class="list">${al.map(App.more.alertRow).join('')}</div>`:
       `<div class="card muted-card"><div class="tiny">No alerts yet. You'll get one when a holding moves −3% or +5% vs previous close during market hours.</div></div>`;
 
-    html+=`<div class="tiny" style="margin:18px 2px 0;">Shares only — Metals, ASNB and liabilities not tracked yet.${r?` USD converted at ${fmt(r,4)} (${kpiFxSrc}).`:''}</div>`;
+    html+=`<div class="tiny" style="margin:18px 2px 0;">${mt?'Net worth = shares + metals (at spot). ASNB':'Shares only — ASNB'} and liabilities not tracked yet.${r?` USD converted at ${fmt(r,4)} (${kpiFxSrc}).`:''}</div>`;
     el.innerHTML=html;
   }
 };

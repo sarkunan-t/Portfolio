@@ -195,9 +195,10 @@ App.reloadShares=()=>{priceCache={};App.state.loadingPrices=true;App.refreshView
 App.refreshPrices=async()=>{
   if(App.state.loadingPrices)return;
   App.state.loadingPrices=true;App.refreshView();
+  if(App.metals&&App.metals.status==='ok')App.metals.loadSpot();
   await refreshPrices();
 };
-App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();};
+App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();};
 
 /* shares.js hooks */
 window.onSharesData=()=>{App.state.sharesLoaded=true;App.state.loadingPrices=true;App.refreshView();};

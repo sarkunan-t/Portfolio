@@ -69,7 +69,7 @@ function renderMenu(el){
     </div>
     <div class="sec"><h2>Other assets</h2></div>
     <div class="list menu">
-      ${item('#more/metals',H.icon.gold,'div','Metals','Gold & silver — not set up')}
+      ${item('#more/metals',H.icon.gold,'div','Metals',App.metals.menuSub())}
       ${item('#more/asnb',H.icon.unit,'xf','ASNB','Unit trusts — not set up')}
     </div>
     <div class="sec"><h2>Data</h2></div>
@@ -101,11 +101,12 @@ App.screens.more={
   title:seg=>TITLES[seg]||'More',
   segs:[{id:'menu'},{id:'quote'},{id:'alerts'},{id:'metals'},{id:'asnb'}],
   hideSegs:true,
+  fab:seg=>seg==='metals'&&App.metals.status==='ok'?{label:'Add',onClick:()=>App.metals.form()}:null,
   sub:seg=>seg==='menu'?App.priceNote():`<a class="link" href="#more/menu">‹ More</a>`,
   render(el,seg){
     if(seg==='quote')renderQuote(el);
     else if(seg==='alerts')renderAlerts(el);
-    else if(seg==='metals')el.innerHTML=placeholder('Metals','Track physical and paper gold/silver: purchases, weight, purity, spot value and gain/loss.',['metals','purchase_date, metal, form, weight_g, purity, cost_myr, vendor, notes']);
+    else if(seg==='metals')App.metals.render(el);
     else if(seg==='asnb')el.innerHTML=placeholder('ASNB','Track ASNB unit trust balances, dividends and bonus units.',['asnb','fund, units, nav, contributions, notes']);
     else renderMenu(el);
   }
