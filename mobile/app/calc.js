@@ -1,4 +1,4 @@
-/* ===== Markets Suite app — derived numbers =====
+/* ===== UnicornHunter app — derived numbers =====
    Same maths as the web pages (shares-holdings / transactions / funds / dividends / summary),
    built on shares.js (positionEngine, calcHoldings, allocateDividends, txSettle, priceCache, kpiFx). */
 (function(){

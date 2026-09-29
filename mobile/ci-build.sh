@@ -41,7 +41,7 @@ BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
 "$BT/zipalign" -f -p 4 android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
 mkdir -p out
 "$BT/apksigner" sign --ks "$KS" --ks-pass env:KS_PASS --ks-key-alias "$KEY_ALIAS" --key-pass env:KS_PASS \
-  --out "out/MarketsSuite-${V}.apk" "$RUNNER_TEMP/aligned.apk"
-"$BT/apksigner" verify "out/MarketsSuite-${V}.apk"
+  --out "out/UnicornHunter-${V}.apk" "$RUNNER_TEMP/aligned.apk"
+"$BT/apksigner" verify "out/UnicornHunter-${V}.apk"
 rm -f "$KS"
-echo "Built out/MarketsSuite-${V}.apk"
+echo "Built out/UnicornHunter-${V}.apk"

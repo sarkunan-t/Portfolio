@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
 
   try {
     if (opts.test) {
-      return json(await pushAll("✅ Markets Suite alerts are on",
+      return json(await pushAll("✅ UnicornHunter alerts are on",
         `You'll be alerted when a holding moves ${DROP_PCT}% or +${RISE_PCT}% vs previous close.`));
     }
 

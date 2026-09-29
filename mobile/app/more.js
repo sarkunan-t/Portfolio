@@ -82,10 +82,10 @@ function renderMenu(el){
       <button class="lrow" onclick="App.more.signOut()"><div class="ico" style="background:#eef2f1">${H.icon.out}</div><div class="main-col"><div class="t1">Sign out</div><div class="t2" id="whoami"></div></div></button>
       <button class="lrow" onclick="App.more.reset()"><div class="ico sell">${H.icon.trash}</div><div class="main-col"><div class="t1" style="color:var(--down)">Reset data</div><div class="t2">Delete ALL transactions and dividends</div></div></button>
     </div>
-    <div class="tiny" style="text-align:center;margin-top:20px">Markets Suite app · same data as the web version</div>`;
+    <div class="tiny" style="text-align:center;margin-top:20px">UnicornHunter app · same data as the web version</div>`;
   sb.auth.getSession().then(({data:{session}})=>{const w=document.getElementById('whoami');if(w&&session)w.textContent=session.user.email;});
 }
-App.more.signOut=async()=>{if(!confirm('Sign out of Markets Suite?'))return;await sb.auth.signOut();location.hash='';location.reload();};
+App.more.signOut=async()=>{if(!confirm('Sign out of UnicornHunter?'))return;await sb.auth.signOut();location.hash='';location.reload();};
 App.more.reset=async()=>{
   if(!confirm('This will permanently delete ALL transactions and dividends.\n\nContinue?'))return;
   const word=prompt('Final check — type RESET to confirm:');

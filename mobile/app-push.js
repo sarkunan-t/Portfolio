@@ -1,4 +1,4 @@
-/* ===== Markets Suite — Android push registration (app build only) =====
+/* ===== UnicornHunter — Android push registration (app build only) =====
    Loaded on every page inside the Android app (see build-www.sh), never on the web.
    After sign-in it asks for notification permission, gets this device's FCM token
    and saves it to Supabase (push_tokens), so the price-alerts Edge Function can

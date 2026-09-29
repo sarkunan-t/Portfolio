@@ -1,4 +1,4 @@
-/* ===== Markets Suite app — core: state, router, sheet, filters, helpers ===== */
+/* ===== UnicornHunter app — core: state, router, sheet, filters, helpers ===== */
 (function(){
 const App=window.App={
   screens:{},
@@ -70,7 +70,7 @@ function parseHash(){
   if(s&&App.screens[tab].segs&&App.screens[tab].segs.some(x=>x.id===s))App.state.seg[tab]=s;
 }
 function renderNav(){
-  H.$('#nav').innerHTML=`<div class="logo-mark rail-logo"><i></i></div>`+TABS.map(t=>
+  H.$('#nav').innerHTML=`<div class="logo-mark rail-logo"><svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="23" fill="#00332F"/><circle cx="50" cy="52" r="30" fill="none" stroke="#00A19C" stroke-width="5"/><path d="M50 16V25M50 79V88M14 52H23M77 52H86" stroke="#00A19C" stroke-width="5" stroke-linecap="round"/><g transform="rotate(35 50 52)"><path d="M42 70L50 22L58 70Z" fill="#fff" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M43.7 60L55.3 54M45.7 48L53.3 42M47.7 36L51.3 30" stroke="#00332F" stroke-width="2.5" stroke-linecap="round"/></g><path d="M79 13L81 19L87 21L81 23L79 29L77 23L71 21L77 19Z" fill="#E8B04A"/></svg></div>`+TABS.map(t=>
     `<a href="#${t.id}" class="${App.state.tab===t.id?'on':''}" aria-label="${t.label}"><span class="pill"></span>${H.icon[t.id]}<span>${t.label}</span></a>`).join('');
 }
 App.render=(resetScroll)=>{

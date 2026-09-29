@@ -1,4 +1,4 @@
-/* ===== Markets Suite app — start-up & sign-in ===== */
+/* ===== UnicornHunter app — start-up & sign-in ===== */
 (function(){
 const H=App.h;
 let started=false;
