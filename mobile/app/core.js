@@ -54,6 +54,29 @@ H.icon={
   fx:'<svg viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>'
 };
 
+/* ---------- hide amounts (eye button) ----------
+   Masks every money figure (MYR / USD / US$ / RM followed by a number) in the view and sheets.
+   Percentages, units and per-unit prices (…/g, …/oz) stay visible. Remembered on this device. */
+App.state.hide=(()=>{try{return localStorage.getItem('uh_hide')==='1';}catch(e){return false;}})();
+const MONEY=/((?:MYR|USD|US\$|RM)\s?[−+-]?\s?)(\d[\d,]*(?:\.\d+)?(?:k|M)?)/g;
+H.mask=s=>!App.state.hide?s:String(s).replace(MONEY,(m,pre,num,off,str)=>{
+  if(str[off-1]==='/'||/^\s*\//.test(str.slice(off+m.length)))return m;   // USD/MYR rate, per-gram prices
+  return pre+'••••';});
+App.applyPrivacy=root=>{
+  if(!App.state.hide||!root)return;
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];
+  while(w.nextNode())nodes.push(w.currentNode);
+  nodes.forEach(t=>{if(t.parentNode&&t.parentNode.closest&&t.parentNode.closest('[data-nomask]'))return;
+    const v=t.nodeValue;if(v&&/\d/.test(v)){const m=H.mask(v);if(m!==v)t.nodeValue=m;}});
+};
+App.toggleHide=()=>{
+  App.state.hide=!App.state.hide;
+  try{localStorage.setItem('uh_hide',App.state.hide?'1':'0');}catch(e){}
+  showToast(App.state.hide?'Amounts hidden':'Amounts shown');App.render(false);
+};
+H.icon.eye='<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+H.icon.eyeOff='<svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.3 2 12 2 12s3.5 7 10 7c1.9 0 3.6-.6 5-1.5"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+
 /* ---------- navigation ---------- */
 const TABS=[
   {id:'home',label:'Home'},{id:'holdings',label:'Holdings'},{id:'activity',label:'Activity'},
@@ -83,8 +106,9 @@ App.render=(resetScroll)=>{
   H.$('#segs').innerHTML=(sc.segs||[]).map(s=>`<button class="seg ${s.id===seg?'on':''}" data-seg="${s.id}">${s.label}</button>`).join('');
   H.$('#segs').hidden=!(sc.segs&&sc.segs.length)||!!sc.hideSegs;
   // header actions
-  const acts=(sc.actions?sc.actions(seg):[]).concat(['refresh']);
+  const acts=(sc.actions?sc.actions(seg):[]).concat(['eye','refresh']);
   H.$('#actions').innerHTML=acts.map(a=>{
+    if(a==='eye')return `<button class="icon-btn ${App.state.hide?'on':''}" data-act="eye" aria-label="${App.state.hide?'Show amounts':'Hide amounts'}" aria-pressed="${App.state.hide}">${App.state.hide?H.icon.eyeOff:H.icon.eye}</button>`;
     if(a==='refresh')return `<button class="icon-btn ${App.state.loadingPrices?'spin':''}" data-act="refresh" aria-label="Refresh prices">${H.icon.refresh}</button>`;
     if(a.id==='filter')return `<button class="icon-btn" data-act="filter" aria-label="Filter">${H.icon.filter}${a.active?'<span class="dot"></span>':''}</button>`;
     return '';
@@ -95,6 +119,7 @@ App.render=(resetScroll)=>{
   if(fab){H.$('#fabLbl').textContent=fab.label;H.$('#fab').onclick=fab.onClick;}
   const y=window.scrollY;
   sc.render(H.$('#view'),seg);
+  App.applyPrivacy(H.$('#view'));App.applyPrivacy(H.$('#sub'));
   if(resetScroll)window.scrollTo(0,0); else window.scrollTo(0,y);
 };
 App.refreshView=()=>{if(!H.$('#shell').hidden)App.render(false);};
@@ -110,6 +135,7 @@ document.addEventListener('click',e=>{
   const a=e.target.closest('[data-act]');
   if(a){
     if(a.dataset.act==='refresh')App.refreshPrices();
+    if(a.dataset.act==='eye')App.toggleHide();
     if(a.dataset.act==='filter'){const sc=App.screens[App.state.tab];sc.openFilter&&sc.openFilter(App.state.seg[App.state.tab]);}
   }
 });
@@ -125,6 +151,7 @@ App.openSheet=({title,sub='',body='',foot='',full=false,onClose=null})=>{
   H.$('#shFoot').innerHTML=foot;
   H.$('#shFoot').hidden=!foot;
   H.$('#sheet').classList.toggle('full',!!full);
+  App.applyPrivacy(H.$('#shBody'));App.applyPrivacy(H.$('#shSub'));
   H.$('#shBody').scrollTop=0;
   if(!sheetOpen)history.pushState({sheet:1},'');
   sheetOpen=true; sheetOnClose=onClose;
@@ -197,9 +224,10 @@ App.refreshPrices=async()=>{
   App.state.loadingPrices=true;App.refreshView();
   if(App.metals&&App.metals.status==='ok')App.metals.loadSpot();
   if(App.metalsMarket&&App.metals&&App.metals.view==='market')App.metalsMarket.load(true);
+  if(App.nw&&App.state.tab==='home'&&App.state.seg.home==='trend')App.nw.load(true);
   await refreshPrices();
 };
-App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();};
+App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();if(App.nw)App.nw.at=0;};
 
 /* shares.js hooks */
 window.onSharesData=()=>{App.state.sharesLoaded=true;App.state.loadingPrices=true;App.refreshView();};

@@ -1,11 +1,12 @@
-// ===== UnicornHunter — metal-chart Edge Function =====
-// Price history for the Metals → Market charts (Yahoo Finance, same source as prices).
-// Deploy: Supabase Dashboard → Edge Functions → Deploy a new function → Via editor →
-//         name it  metal-chart  → paste this file → Deploy. Keep "Verify JWT" ON.
-// Call:   sb.functions.invoke('metal-chart', { body: { symbols: ['GC=F','USDMYR=X'], range: '2y' } })
+// ===== UnicornHunter — metal-chart Edge Function (price history) =====
+// Daily/weekly price history from Yahoo Finance for:
+//   • Metals → Market charts   { symbols: ['GC=F','USDMYR=X'], range: '2y' }
+//   • Home → Net worth trend    { symbols: ['1155.KL','AAPL','GC=F','USDMYR=X', ...], from: <unix seconds> }
+// Deploy: Supabase Dashboard → Edge Functions → metal-chart → Code → paste this file → Deploy. Keep "Verify JWT" ON.
 // Reply:  { "GC=F": { points: [[unixSeconds, close], ...], currency, price, prevClose, high52, low52 }, ... }
 
-const ALLOWED = new Set(["GC=F", "SI=F", "PL=F", "PA=F", "USDMYR=X"]);
+const SYMBOL = /^[A-Z0-9.\-=^]{1,20}$/;
+const MAX_SYMBOLS = 60;
 const INTERVAL: Record<string, string> = { "1mo": "1d", "6mo": "1d", "1y": "1d", "2y": "1d", "5y": "1wk", "10y": "1mo", "max": "1mo" };
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -15,10 +16,10 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-async function history(symbol: string, range: string) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
-    `?range=${range}&interval=${INTERVAL[range]}&includePrePost=false&events=div%2Csplit`;
-  const r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (UnicornHunter)", "Accept": "application/json" } });
+async function history(symbol: string, q: string) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${q}&includePrePost=false`;
+  let r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (UnicornHunter)", "Accept": "application/json" } });
+  if (r.status === 429) { await new Promise((ok) => setTimeout(ok, 1200)); r = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (UnicornHunter)" } }); }
   if (!r.ok) throw new Error(`Yahoo ${r.status}`);
   const d = await r.json();
   const res = d?.chart?.result?.[0];
@@ -41,14 +42,25 @@ async function history(symbol: string, range: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    const { symbols = [], range = "2y" } = await req.json();
-    if (!INTERVAL[range]) return json({ error: "Unsupported range" }, 400);
-    const list = [...new Set((symbols as string[]).map((s) => String(s).toUpperCase()))].filter((s) => ALLOWED.has(s)).slice(0, 5);
-    if (!list.length) return json({ error: "No supported symbols" }, 400);
+    const { symbols = [], range = "2y", from } = await req.json();
+    let q: string;
+    if (from != null) {
+      const p1 = Math.max(0, Math.floor(Number(from)));
+      if (!isFinite(p1)) return json({ error: "Bad from" }, 400);
+      q = `period1=${p1}&period2=${Math.floor(Date.now() / 1000) + 86400}&interval=1d`;
+    } else {
+      if (!INTERVAL[range]) return json({ error: "Unsupported range" }, 400);
+      q = `range=${range}&interval=${INTERVAL[range]}`;
+    }
+    const list = [...new Set((symbols as string[]).map((s) => String(s).toUpperCase().trim()))].filter((s) => SYMBOL.test(s)).slice(0, MAX_SYMBOLS);
+    if (!list.length) return json({ error: "No valid symbols" }, 400);
     const out: Record<string, unknown> = {};
-    await Promise.all(list.map(async (s) => {
-      try { out[s] = await history(s, range); } catch (e) { out[s] = { error: String((e as Error).message || e) }; }
-    }));
+    // a few at a time so Yahoo doesn't rate-limit us
+    for (let i = 0; i < list.length; i += 6) {
+      await Promise.all(list.slice(i, i + 6).map(async (s) => {
+        try { out[s] = await history(s, q); } catch (e) { out[s] = { error: String((e as Error).message || e) }; }
+      }));
+    }
     return json(out);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 500);

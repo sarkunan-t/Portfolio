@@ -312,3 +312,29 @@ details.more-dt[open] summary::before{content:'▾ ';}
 .rbar i{position:absolute;top:-3px;width:4px;height:12px;border-radius:2px;background:var(--ink);transform:translateX(-50%);}
 .mk-table summary{font-weight:800;font-size:14px;cursor:pointer;min-height:24px;}
 .mk-table[open] summary{margin-bottom:8px;}
+
+/* ---------- home: trend & health ---------- */
+.icon-btn.on{background:var(--teal-bg);color:var(--deep);border-color:var(--teal);}
+.hero-link{display:inline-block;margin-top:8px;color:#9ff0e8;font-weight:800;font-size:13px;text-decoration:none;}
+.nw-ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:12px;}
+.nw-ctl .chips .chip{padding:0 12px;}
+.nw-wrap{position:relative;margin-top:12px;min-height:200px;}
+.nw-series .chip{height:34px;font-size:13px;}
+.sw{display:inline-block;width:14px;height:4px;border-radius:2px;}
+.sw.dash{background:repeating-linear-gradient(90deg,var(--faint) 0 5px,transparent 5px 8px)!important;}
+.sw.off{background:#d6e1df;width:14px;height:4px;}
+.nw-tip{min-width:170px;gap:2px;white-space:normal;}
+.nw-tip b{margin-bottom:3px;}
+.nw-tip .tr{display:flex;align-items:center;gap:6px;opacity:1;font-weight:600;}
+.nw-tip .tr i{width:9px;height:9px;border-radius:5px;flex-shrink:0;}
+.nw-tip .tr em{margin-left:auto;padding-left:10px;font-style:normal;font-weight:800;}
+.rag{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:800;padding:4px 9px;border-radius:11px;white-space:nowrap;}
+.rag b{font-size:11px;}
+.rag.r{background:#fbe8e8;color:#a52a2a;} .rag.a{background:#fff3d6;color:#7d5300;} .rag.g{background:#e3f4e3;color:#0b6b0b;}
+.rg-r{color:#d03b3b;font-weight:900;} .rg-a{color:#b07800;font-weight:900;} .rg-g{color:#0ca30c;font-weight:900;}
+.lrow .t2.wrap{white-space:normal;line-height:1.35;}
+.hstrip{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;margin-top:12px;}
+.hs-row{display:flex;align-items:center;gap:8px;margin-top:4px;min-width:0;}
+.hs-t{font-size:13px;font-weight:700;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hs-c{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.tag{display:inline-block;}

@@ -10,8 +10,11 @@ function kpiTile(label,o,signed,k,extra=''){
 }
 
 App.screens.home={
-  title:'Home',
-  render(el){
+  title:seg=>seg==='trend'?'Trend & health':'Home',
+  segs:[{id:'overview',label:'Overview'},{id:'trend',label:'Trend & health'}],
+  render(el,seg){
+    if(seg==='trend'){App.nw.render(el);return;}
+    if(App.state.sharesLoaded)setTimeout(()=>App.nw.load(),50);
     if(!App.state.sharesLoaded){el.innerHTML=`<div class="skel" style="height:190px;border-radius:20px;margin-bottom:12px"></div>`+App.skeleton(4);return;}
     const pos=C.positions(), {c}=C.combined(pos), k=C.kpis(), r=H.fx();
     const shares=c.value!=null?c.value:c.cost;
@@ -24,12 +27,15 @@ App.screens.home={
       <div class="lbl">Estimated net worth</div>
       <div class="big">MYR ${fmt(nw)}</div>
       <div class="sub">${c.value!=null?(mt?'Shares + metals at market value':'Shares at live market value'):'Shares at cost — prices loading'}${r&&c.value!=null?` · ≈ USD ${fmt(nw/r)}`:''}</div>
+      <a class="hero-link" href="#home/trend">See trend &amp; health ›</a>
       ${c.dayBase?`<div class="chg ${dayCls}">${c.day>=0?'▲':'▼'} ${c.day>=0?'+':'−'}MYR ${fmt(Math.abs(c.day))} (${fmt(Math.abs(c.dayPct),2)}%) today</div>`:''}
       <div class="hero-split">
         <div><span class="lbl">Unrealised P&amp;L</span><b class="${(c.pnl||0)>=0?'':''}">${c.pnl==null?'—':`${c.pnl>=0?'+':'−'}MYR ${fmt(Math.abs(c.pnl))}`}</b><span class="lbl">${c.pnlPct==null?'':`${c.pnlPct>=0?'+':'−'}${fmt(Math.abs(c.pnlPct))}%`}</span></div>
         <div><span class="lbl">Positions</span><b>${c.n}</b><span class="lbl">${c.wallets} wallet${c.wallets!==1?'s':''}</span></div>
       </div>
     </div>`;
+
+    html+=App.nw.strip();
 
     // KPI grid
     html+=`<div class="sec"><h2>Share portfolio</h2><span class="note">MYR + USD in MYR</span></div>
