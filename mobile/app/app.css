@@ -289,3 +289,26 @@ details.more-dt[open] summary::before{content:'▾ ';}
 
 .dhead .val{white-space:nowrap;font-size:17px;}
 @media (max-width:480px){.stat .val{font-size:15px;}.stat{padding:11px 12px;}.big{font-size:26px;}.hero .big{font-size:29px;}}
+
+/* ---------- metals: market & outlook ---------- */
+.mk-bar{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+.mk-bar .opts{flex:0 0 auto;min-width:200px;}
+.mk-range{flex-wrap:nowrap;}
+.mk-range .chip{padding:0 12px;}
+.mc-wrap{position:relative;margin-top:12px;}
+.mchart-svg{display:block;width:100%;height:auto;touch-action:pan-y;user-select:none;-webkit-user-select:none;}
+.mc-tip{position:absolute;top:-4px;background:var(--dark);color:#fff;border-radius:10px;padding:6px 10px;font-size:12px;pointer-events:none;display:flex;flex-direction:column;line-height:1.3;box-shadow:0 4px 14px rgba(0,0,0,.18);white-space:nowrap;}
+.mc-tip[hidden]{display:none;}
+.mc-tip span{opacity:.75;font-weight:600;}
+.t-head{font-weight:800;font-size:16px;line-height:1.35;}
+.olist{list-style:none;margin:6px 0 0;padding:0;}
+.olist li{display:flex;gap:9px;font-size:13.5px;line-height:1.45;padding:4px 0;font-weight:600;color:var(--ink2);}
+.olist li>span:first-child{flex-shrink:0;font-size:10px;margin-top:4px;width:10px;}
+.olist li>span.flat{color:var(--dim);}
+.ogrid{display:grid;gap:0 22px;}
+@media (min-width:700px){.ogrid{grid-template-columns:1fr 1fr;}}
+.src{display:block;font-size:13px;font-weight:700;color:var(--deep);padding:5px 0;text-decoration:none;}
+.rbar{display:block;position:relative;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--down-bg),#e9efee 50%,var(--up-bg));margin-top:8px;}
+.rbar i{position:absolute;top:-3px;width:4px;height:12px;border-radius:2px;background:var(--ink);transform:translateX(-50%);}
+.mk-table summary{font-weight:800;font-size:14px;cursor:pointer;min-height:24px;}
+.mk-table[open] summary{margin-bottom:8px;}

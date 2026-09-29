@@ -196,6 +196,7 @@ App.refreshPrices=async()=>{
   if(App.state.loadingPrices)return;
   App.state.loadingPrices=true;App.refreshView();
   if(App.metals&&App.metals.status==='ok')App.metals.loadSpot();
+  if(App.metalsMarket&&App.metals&&App.metals.view==='market')App.metalsMarket.load(true);
   await refreshPrices();
 };
 App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();};

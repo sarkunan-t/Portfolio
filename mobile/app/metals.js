@@ -258,4 +258,13 @@ M.form=(id,preset={})=>{
     App.closeSheet();showToast(`${metal} ${type==='Sell'?'sale':'purchase'} saved ✓`);M.load();
   };
 };
+/* ---------- My metals | Market & outlook ---------- */
+M.view='mine';
+const renderMine=M.render;
+M.render=el=>{
+  const tabs=`<div class="opts" style="margin-bottom:14px"><button type="button" data-mv="mine" class="${M.view==='mine'?'on':''}">My metals</button><button type="button" data-mv="market" class="${M.view==='market'?'on':''}">Market &amp; outlook</button></div>`;
+  if(M.view==='market'){el.innerHTML=tabs+App.metalsMarket.render(el);App.metalsMarket.after(el);}
+  else{renderMine(el);el.insertAdjacentHTML('afterbegin',tabs);}
+  el.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{M.view=b.dataset.mv;App.render(true);});
+};
 })();

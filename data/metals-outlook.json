@@ -1,0 +1,92 @@
+{
+  "updated": "2026-09-29",
+  "note": "A summary of published views from banks and industry bodies, not a recommendation. Forecasts are often wrong — use them as context alongside the chart.",
+  "metals": {
+    "Gold": {
+      "headline": "Pulling back after a strong run: record Chinese buying vs a Fed that has started raising rates again",
+      "context": "Around US$4,370/oz on 22 Sep 2026 — down about 4% over the month but up about 18% over the year. It fell below US$4,300 briefly when the Fed raised rates on 16 Sep.",
+      "supportive": [
+        "China imported more than 1,000 tonnes of gold in Jan–Aug 2026, already above its total for all of 2025",
+        "Central banks keep adding gold to diversify away from US-dollar assets",
+        "Chinese insurers may now hold up to 1% of assets in physical gold (roughly 200 tonnes of potential demand)",
+        "Ongoing geopolitical tension and long-term inflation worries"
+      ],
+      "headwinds": [
+        "The Fed raised rates on 16 Sep 2026 to 3.75–4.00%, its first hike since 2023; officials see about 4.1% by end-2026, held through 2027",
+        "Higher rates increase the cost of holding gold, which pays no interest",
+        "Western investor interest and gold ETF holdings have softened"
+      ],
+      "forecasts": [
+        { "who": "J.P. Morgan", "when": "Jun 2026", "view": "Q4 2026 average US$6,000/oz; 2027 average about US$6,263/oz (cut 4–13% from February)" }
+      ],
+      "watch": ["Fed decisions and US inflation (3.7%)", "US dollar strength", "Central-bank and Chinese buying", "Gold ETF flows"],
+      "sources": [
+        { "name": "J.P. Morgan — Gold price predictions", "url": "https://www.jpmorgan.com/insights/global-research/commodities/gold-prices" },
+        { "name": "Yahoo Finance — Gold price today, 22 Sep 2026", "url": "https://finance.yahoo.com/personal-finance/investing/article/gold-price-today-tuesday-september-22-2026-gold-prices-holding-as-chinese-gold-imports-set-record-104326063.html" },
+        { "name": "INN — Gold drops below US$4,300 as Fed hikes", "url": "https://investingnews.com/federal-reserve-gold-price/" }
+      ]
+    },
+    "Silver": {
+      "headline": "Following gold with bigger swings, while solar demand softens",
+      "context": "Traded mostly US$56–58/oz in June 2026. The gold/silver ratio is about 70, up from a low of 45 in January.",
+      "supportive": [
+        "Tends to follow gold, so central-bank support for gold also helps silver",
+        "Still widely used in industry: electronics, solar and electrical parts"
+      ],
+      "headwinds": [
+        "Silver used in solar panels is expected to fall about 30% (around 60 million oz) as manufacturers use less of it",
+        "China is running down its stockpiles after an export tax rebate was removed; India has raised import duties",
+        "Rate hikes weigh on precious metals, and silver usually falls further than gold when gold dips"
+      ],
+      "forecasts": [
+        { "who": "J.P. Morgan", "when": "Aug 2026", "view": "Q4 2026 US$63/oz; 2026 average US$70; 2027 average about US$63.9; gold/silver ratio drifting toward 75" }
+      ],
+      "watch": ["Gold's direction", "Solar-panel demand and thrifting", "China and India imports", "Fed rate path"],
+      "sources": [
+        { "name": "J.P. Morgan — Silver price forecast", "url": "https://www.jpmorgan.com/insights/global-research/commodities/silver-prices" }
+      ]
+    },
+    "Platinum": {
+      "headline": "Supply still falls short of demand, but investors have been pulling money out",
+      "context": "Peaked near US$2,924/oz on 26 Jan 2026, then fell to about US$1,566 by 30 Jun.",
+      "supportive": [
+        "The World Platinum Investment Council expects a 4th year in a row where demand exceeds supply (2026)",
+        "More than 60% of demand is industrial (car catalytic converters, chemicals, glass)",
+        "Most supply comes from South Africa, so disruptions there move the price"
+      ],
+      "headwinds": [
+        "Platinum ETFs saw about 700,000 oz of outflows in the first half of 2026",
+        "A strong US dollar and high Treasury yields"
+      ],
+      "forecasts": [
+        { "who": "Bank of America", "when": "2026", "view": "US$3,000/oz by Q4 2026" },
+        { "who": "J.P. Morgan", "when": "2026", "view": "About US$1,800/oz average by year-end" }
+      ],
+      "watch": ["South African mine output", "Car catalytic-converter demand", "ETF flows"],
+      "sources": [
+        { "name": "INN — Platinum & palladium H1 2026 review", "url": "https://investingnews.com/platinum-palladium-forecast/" },
+        { "name": "WPIC — 2 to 5 year supply & demand view", "url": "https://platinuminvestment.com/supply-and-demand/2-to-5-year-view" }
+      ]
+    },
+    "Palladium": {
+      "headline": "Depends on car demand; the risk of a supply surplus caps the upside",
+      "context": "Hit US$2,195/oz on 26 Jan 2026, then fell to a nine-month low near US$1,177 in June.",
+      "supportive": [
+        "Supply is concentrated in Russia and South Africa, so sanctions or outages can cause spikes",
+        "Hybrid cars still use palladium catalytic converters"
+      ],
+      "headwinds": [
+        "About 80% of demand comes from petrol-car exhausts; the shift to electric cars erodes it",
+        "Forecasters see a higher risk of supply exceeding demand than for platinum"
+      ],
+      "forecasts": [
+        { "who": "Bank of America", "when": "2026", "view": "US$2,200/oz" },
+        { "who": "J.P. Morgan", "when": "2026", "view": "About US$1,350/oz" }
+      ],
+      "watch": ["Electric vs petrol car sales", "Russian supply", "Recycling volumes"],
+      "sources": [
+        { "name": "INN — Platinum & palladium H1 2026 review", "url": "https://investingnews.com/platinum-palladium-forecast/" }
+      ]
+    }
+  }
+}

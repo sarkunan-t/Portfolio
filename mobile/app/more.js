@@ -101,7 +101,7 @@ App.screens.more={
   title:seg=>TITLES[seg]||'More',
   segs:[{id:'menu'},{id:'quote'},{id:'alerts'},{id:'metals'},{id:'asnb'}],
   hideSegs:true,
-  fab:seg=>seg==='metals'&&App.metals.status==='ok'?{label:'Add',onClick:()=>App.metals.form()}:null,
+  fab:seg=>seg==='metals'&&App.metals.view!=='market'&&App.metals.status==='ok'?{label:'Add',onClick:()=>App.metals.form()}:null,
   sub:seg=>seg==='menu'?App.priceNote():`<a class="link" href="#more/menu">‹ More</a>`,
   render(el,seg){
     if(seg==='quote')renderQuote(el);
