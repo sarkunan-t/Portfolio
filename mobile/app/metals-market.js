@@ -1,18 +1,22 @@
-/* ===== Metals → Market: price chart, key data, trend snapshot, outlook =====
+/* ===== Market view (shared by Metals and Crypto): price chart, key data, trend snapshot, outlook =====
    Price history: Edge Function "metal-chart" (mobile/supabase/metal-chart/index.ts).
-   Outlook: data/metals-outlook.json on GitHub Pages (edit + push to update — no app rebuild),
-            with the copy bundled in the app as a fallback. */
+   Outlook: data/<name>-outlook.json on GitHub Pages (edit + push to update — no app rebuild),
+            with the copy bundled in the app as a fallback.
+   App.makeMarket(cfg) → one market view. cfg: {name, assets()→{label:yahooSymbol}, perUnit (USD price ÷ this → MYR unit),
+   usdLbl, myrLbl, unitNote, outlookFile, ratio:{a,b,label,sub}, first} */
 (function(){
-const H=App.h, OZ=31.1034768;
-const SYM={Gold:'GC=F',Silver:'SI=F',Platinum:'PL=F',Palladium:'PA=F'}, FXS='USDMYR=X';
+const H=App.h;
+const FXS='USDMYR=X';
 const RANGES=[['1M',31],['6M',183],['1Y',366],['2Y',731],['5Y',0]];
-const OUTLOOK_URL='https://sarkunan-t.github.io/Portfolio/data/metals-outlook.json';
-const K=App.metalsMarket={metal:'Gold',unit:'usd',range:'1Y',
-  h2:null,h2Status:'idle',h2At:0,h5:null,h5Status:'idle',err:'',outlook:null,outlookStatus:'idle'};
+const PAGES='https://sarkunan-t.github.io/Portfolio/';
+App.makeMarket=function(cfg){
+const SYMF=()=>cfg.assets(), OZ=cfg.perUnit||1, NS='App.'+cfg.name;
+const K={metal:cfg.first,unit:'usd',range:'1Y',
+  h2:null,h2Status:'idle',h2At:0,h2Key:'',h5:null,h5Status:'idle',err:'',outlook:null,outlookStatus:'idle'};
 
 /* ---------- data ---------- */
 async function invokeChart(range){
-  const call=sb.functions.invoke('metal-chart',{body:{symbols:[...Object.values(SYM),FXS],range}});
+  const call=sb.functions.invoke('metal-chart',{body:{symbols:[...Object.values(SYMF()),FXS],range}});
   const to=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Timed out')),20000));
   const {data,error}=await Promise.race([call,to]);
   if(error){let msg=error.message||String(error);
@@ -22,12 +26,14 @@ async function invokeChart(range){
 }
 K.load=async(force)=>{
   if(K.h2Status==='loading')return;
-  if(!force&&K.h2&&Date.now()-K.h2At<15*60*1000)return;
+  const key=Object.values(SYMF()).sort().join(',');
+  if(!force&&K.h2&&K.h2Key===key&&Date.now()-K.h2At<15*60*1000)return;
+  K.h2Key=key;
   K.h2Status='loading';App.refreshView();
   try{K.h2=await invokeChart('2y');K.h2At=Date.now();K.h2Status='ok';
-    if(!K.h2||!K.h2[SYM.Gold]||K.h2[SYM.Gold].error)throw new Error((K.h2&&K.h2[SYM.Gold]&&K.h2[SYM.Gold].error)||'No data');}
+    const s0=Object.values(SYMF())[0];if(!K.h2||!K.h2[s0]||K.h2[s0].error)throw new Error((K.h2&&K.h2[s0]&&K.h2[s0].error)||'No data');}
   catch(e){console.error('metal-chart',e);K.err=e.message;K.h2Status=/not-deployed|not found|404/i.test(e.message)?'missing':'error';}
-  if(force)K.h5=null,K.h5Status='idle';
+  K.h5=null;K.h5Status='idle';
   App.refreshView();
 };
 async function load5y(){
@@ -41,8 +47,8 @@ K.loadOutlook=async()=>{
   K.outlookStatus='loading';
   const get=async url=>{const c=new AbortController();const t=setTimeout(()=>c.abort(),8000);
     try{const r=await fetch(url,{signal:c.signal,cache:'no-store'});if(!r.ok)throw 0;return await r.json();}finally{clearTimeout(t);}};
-  const res=await Promise.allSettled([get(OUTLOOK_URL+'?t='+Date.now()),get('data/metals-outlook.json')]);
-  const ok=res.filter(r=>r.status==='fulfilled'&&r.value&&r.value.metals).map(r=>r.value);
+  const res=await Promise.allSettled([get(PAGES+cfg.outlookFile+'?t='+Date.now()),get(cfg.outlookFile)]);
+  const ok=res.filter(r=>r.status==='fulfilled'&&r.value&&(r.value.metals||r.value.assets)).map(r=>r.value);
   K.outlook=ok.sort((a,b)=>String(b.updated).localeCompare(String(a.updated)))[0]||null;
   K.outlookStatus=K.outlook?'ok':'error';App.refreshView();
 };
@@ -54,7 +60,7 @@ function fxLookup(fxPts){
 }
 /* [[tSec, value]] in the chosen unit */
 function series(src,metal,unit){
-  const s=src&&src[SYM[metal]];if(!s||s.error||!s.points)return [];
+  const s=src&&src[SYMF()[metal]];if(!s||s.error||!s.points)return [];
   if(unit==='usd')return s.points.slice();
   const fx=src[FXS]&&src[FXS].points||[];if(!fx.length)return [];
   const at=fxLookup(fx);
@@ -78,8 +84,9 @@ function stats(pts){
 }
 
 /* ---------- formatting ---------- */
-const unitLbl=u=>u==='usd'?'US$/oz':'MYR/g';
-const money=(v,u)=>v==null?'—':u==='usd'?`US$ ${fmt(v,v<100?2:0)}`:`MYR ${fmt(v,2)}`;
+const unitLbl=u=>u==='usd'?cfg.usdLbl:cfg.myrLbl;
+const dp=v=>{const a=Math.abs(v);return a<1?4:a<100?2:a<10000?2:0;};
+const money=(v,u)=>v==null?'—':u==='usd'?`US$ ${fmt(v,dp(v))}`:`MYR ${fmt(v,dp(v))}`;
 const dLong=t=>new Date(t*1000).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
 const pctTxt=v=>v==null||!isFinite(v)?'—':`${v>=0?'+':'−'}${fmt(Math.abs(v),1)}%`;
 const pctSpan=v=>v==null||!isFinite(v)?'<span class="dim">—</span>':`<span class="${v>=0?'up':'down'}">${pctTxt(v)}</span>`;
@@ -148,8 +155,8 @@ function signals(st,u){
 /* ---------- outlook ---------- */
 function outlookCard(metal){
   if(K.outlookStatus==='loading'||K.outlookStatus==='idle')return App.skeleton(2);
-  const o=K.outlook&&K.outlook.metals&&K.outlook.metals[metal];
-  if(!o)return `<div class="card muted-card"><div class="tiny">No outlook available offline.</div></div>`;
+  const src=K.outlook&&(K.outlook.metals||K.outlook.assets);const o=src&&src[metal];
+  if(!o)return `<div class="card muted-card"><div class="tiny">${K.outlook?'No analyst summary for '+H.esc(metal)+' yet — ask Claude to add one.':'No outlook available offline.'}</div></div>`;
   const li=(arr,cls,mark)=>arr&&arr.length?`<ul class="olist">${arr.map(x=>`<li><span class="${cls}">${mark}</span>${H.esc(x)}</li>`).join('')}</ul>`:'';
   return `<div class="card">
     <div class="t-head">${H.esc(o.headline)}</div>
@@ -170,16 +177,17 @@ function outlookCard(metal){
 K.render=el=>{
   K.load();K.loadOutlook();
   const opt=(name,items,val)=>`<div class="opts" data-mk="${name}">${items.map(([v,l])=>`<button type="button" data-v="${v}" class="${v===val?'on':''}">${l}</button>`).join('')}</div>`;
-  let html=opt('metal',Object.keys(SYM).map(m=>[m,m]),K.metal)+
-    `<div class="mk-bar">${opt('unit',[['usd','US$/oz'],['myr','MYR/g']],K.unit)}
+  if(!SYMF()[K.metal])K.metal=Object.keys(SYMF())[0];
+  let html=opt('metal',Object.keys(SYMF()).map(m=>[m,m]),K.metal)+
+    `<div class="mk-bar">${opt('unit',[['usd',cfg.usdLbl],['myr',cfg.myrLbl]],K.unit)}
       <div class="chips mk-range">${RANGES.map(([r])=>`<button class="chip ${K.range===r?'on':''}" data-mkr="${r}">${r}</button>`).join('')}</div></div>`;
 
   if(K.h2Status==='missing'){
     html+=`<div class="card" style="margin-top:12px"><div class="val">One-time setup: price history</div>
       <p class="sub" style="margin-top:8px;font-size:14px">Charts need the <b>metal-chart</b> function in Supabase. Supabase → Edge Functions → Deploy a new function → Via editor → name it <b>metal-chart</b> → paste <b>mobile/supabase/metal-chart/index.ts</b> → Deploy. Then tap Retry.</p>
-      <button class="btn btn-p" style="width:100%;margin-top:14px" onclick="App.metalsMarket.load(true)">Retry</button></div>`;
+      <button class="btn btn-p" style="width:100%;margin-top:14px" onclick="${NS}.load(true)">Retry</button></div>`;
   }else if(K.h2Status==='error'){
-    html+=`<div class="notice warn">Couldn't load price history: ${H.esc(K.err)}</div><button class="btn btn-s" style="width:100%;margin-top:10px" onclick="App.metalsMarket.load(true)">Retry</button>`;
+    html+=`<div class="notice warn">Couldn't load price history: ${H.esc(K.err)}</div><button class="btn btn-s" style="width:100%;margin-top:10px" onclick="${NS}.load(true)">Retry</button>`;
   }else if(K.h2Status!=='ok'){
     html+=`<div class="skel" style="height:300px;border-radius:16px;margin-top:12px"></div>`+App.skeleton(3);
   }else{
@@ -189,7 +197,7 @@ K.render=el=>{
     else{const days=RANGES.find(r=>r[0]===K.range)[1],cut=full.length?full[full.length-1][0]-days*DAY:0;pts=full.filter(p=>p[0]>=cut);}
     const rc=pts&&pts.length>1?(pts[pts.length-1][1]-pts[0][1])/pts[0][1]*100:null;
     html+=`<div class="card mchart" style="margin-top:12px">
-      <div class="dhead"><div><div class="lbl">${K.metal} · ${unitLbl(K.unit)}${K.unit==='myr'?' · pure':''}</div>
+      <div class="dhead"><div><div class="lbl">${K.metal} · ${unitLbl(K.unit)}${K.unit==='myr'?cfg.unitNote||'':''}</div>
         <div class="dprice">${st?money(st.last[1],K.unit):'—'}</div>
         <div class="sub">${st?`as of ${dLong(st.last[0])}`:''}</div></div>
         <div style="text-align:right">${H.pill(st?st.day:null)}<div class="sub" style="margin-top:6px">${K.range}: ${pctSpan(rc)}</div></div></div>
@@ -197,7 +205,7 @@ K.render=el=>{
     </div>`;
     if(st){
       const tile=(l,v,s='')=>`<div class="stat"><div class="lbl">${l}</div><div class="val">${v}</div><div class="sub">${s||'&nbsp;'}</div></div>`;
-      const g=series(K.h2,'Gold','usd'),s=series(K.h2,'Silver','usd');
+      const g=cfg.ratio?series(K.h2,cfg.ratio.a,'usd'):[],s=cfg.ratio?series(K.h2,cfg.ratio.b,'usd'):[];
       const ratio=g.length&&s.length?g[g.length-1][1]/s[s.length-1][1]:null;
       html+=`<div class="sec"><h2>Key data</h2><span class="note">${unitLbl(K.unit)}</span></div><div class="grid g3">
         ${tile('1 month',pctSpan(st.m1))}${tile('Year to date',pctSpan(st.ytd))}${tile('1 year',pctSpan(st.y1))}
@@ -205,7 +213,7 @@ K.render=el=>{
         ${tile('Position in 52-wk range',st.pos==null?'—':`${fmt(st.pos,0)}%`,`<span class="rbar"><i style="left:${Math.max(0,Math.min(100,st.pos||0))}%"></i></span>`)}
         ${tile('50-day average',money(st.ma50,K.unit),st.ma50?`price ${pctTxt((st.last[1]-st.ma50)/st.ma50*100)} vs avg`:'')}
         ${tile('200-day average',money(st.ma200,K.unit),st.ma200?`price ${pctTxt((st.last[1]-st.ma200)/st.ma200*100)} vs avg`:'')}
-        ${(K.metal==='Gold'||K.metal==='Silver')&&ratio?tile('Gold / silver ratio',fmt(ratio,1),'oz of silver per oz of gold'):tile('30-day volatility',st.vol==null?'—':`${fmt(st.vol,0)}%`,'annualised')}
+        ${cfg.ratio&&(K.metal===cfg.ratio.a||K.metal===cfg.ratio.b)&&ratio?tile(cfg.ratio.label,fmt(ratio,cfg.ratio.dp||1),cfg.ratio.sub):tile('30-day volatility',st.vol==null?'—':`${fmt(st.vol,0)}%`,'annualised')}
       </div>
       <div class="sec"><h2>Trend snapshot</h2><span class="note">from the price data</span></div>
       <div class="card"><ul class="olist sig">${signals(st,K.unit).map(([c,t])=>`<li><span class="${c}">${c==='up'?'▲':c==='down'?'▼':'•'}</span>${H.esc(t)}</li>`).join('')}</ul>
@@ -235,4 +243,10 @@ K.after=el=>{
     bindChart(wrap,pts,K.unit,W);
   }
 };
+return K;
+};
+const OZ_=31.1034768;
+App.metalsMarket=App.makeMarket({name:'metalsMarket',first:'Gold',
+  assets:()=>({Gold:'GC=F',Silver:'SI=F',Platinum:'PL=F',Palladium:'PA=F'}),perUnit:OZ_,usdLbl:'US$/oz',myrLbl:'MYR/g',unitNote:' · pure',
+  outlookFile:'data/metals-outlook.json',ratio:{a:'Gold',b:'Silver',label:'Gold / silver ratio',sub:'oz of silver per oz of gold'}});
 })();

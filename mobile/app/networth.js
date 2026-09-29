@@ -22,10 +22,12 @@ App.state.seg.home=App.state.seg.home||'overview';
 N.load=async force=>{
   if(N.status==='loading')return;
   if(!force&&N.hist&&Date.now()-N.at<30*60*1000)return;
-  if(!App.state.sharesLoaded||(App.metals&&App.metals.status==='loading'))return;
+  if(!App.state.sharesLoaded||App.classes().some(c=>c.m.status==='loading'))return;
   const syms=new Set([FXS]);let first=null;
   transactions.forEach(t=>{syms.add(toYahoo(t));if(!first||t.tx_date<first)first=t.tx_date;});
   ((App.metals&&App.metals.rows)||[]).forEach(r=>{if(METAL_SYM[r.metal])syms.add(METAL_SYM[r.metal]);if(!first||r.txn_date<first)first=r.txn_date;});
+  ((App.crypto&&App.crypto.rows)||[]).forEach(r=>{syms.add(App.crypto.sym(r.coin));if(!first||r.txn_date<first)first=r.txn_date;});
+  ((App.asnb&&App.asnb.rows)||[]).forEach(r=>{if(!first||r.txn_date<first)first=r.txn_date;});
   if(!first){N.status='empty';App.refreshView();return;}
   N.status='loading';App.refreshView();
   try{
@@ -56,14 +58,15 @@ function days(from,to){const out=[];let d=new Date(from+'T00:00:00Z');const end=
 
 let memo=null,memoKey='';
 N.build=()=>{
-  const k=[N.at,transactions.length,transactions.reduce((a,t)=>a+(Number(t.quantity)||0),0),((App.metals&&App.metals.rows)||[]).length,
-    App.state.pricesAt?App.state.pricesAt.getTime():0,App.metals&&App.metals.spotAt?App.metals.spotAt.getTime():0,H.fx()||0,H.today()].join('|');
+  const k=[N.at,transactions.length,transactions.reduce((a,t)=>a+(Number(t.quantity)||0),0),((App.metals&&App.metals.rows)||[]).length,((App.crypto&&App.crypto.rows)||[]).length,((App.asnb&&App.asnb.rows)||[]).length,((App.asnb&&App.asnb.rows)||[]).reduce((a,r)=>a+(Number(r.units)||0)+(Number(r.nav)||0),0),
+    App.crypto&&App.crypto.spotAt?App.crypto.spotAt.getTime():0,App.state.pricesAt?App.state.pricesAt.getTime():0,App.metals&&App.metals.spotAt?App.metals.spotAt.getTime():0,H.fx()||0,H.today()].join('|');
   if(memo&&memoKey===k)return memo;
   memoKey=k;memo=buildTimeline();return memo;
 };
 function buildTimeline(){
   const mrows=(App.metals&&App.metals.rows)||[];
-  const firsts=[...transactions.map(t=>t.tx_date),...mrows.map(r=>r.txn_date)].filter(Boolean).sort();
+  const crows=(App.crypto&&App.crypto.rows)||[],arows=(App.asnb&&App.asnb.rows)||[];
+  const firsts=[...transactions.map(t=>t.tx_date),...mrows.map(r=>r.txn_date),...crows.map(r=>r.txn_date),...arows.map(r=>r.txn_date)].filter(Boolean).sort();
   if(!firsts.length)return null;
   const D=days(firsts[0],todayKey()), n=D.length, today=D[n-1];
   const fxM=priceMap(FXS); let fx=null;
@@ -85,11 +88,12 @@ function buildTimeline(){
     list.sort((a,b)=>String(a.txn_date).localeCompare(String(b.txn_date))||String(a.created_at).localeCompare(String(b.created_at)));
     return {id:'m:'+m,kind:'metal',metal:m,label:m,ev:list,i:0,pure:0,cost:0,pxUsdOz:null,pm:METAL_SYM[m]?priceMap(METAL_SYM[m]):null,v:new Array(n).fill(null)};
   });
+  const fxArr=new Array(n);
   const S={nw:new Array(n).fill(null),cost:new Array(n).fill(null),shares:new Array(n).fill(null),metals:new Array(n).fill(null)};
   for(let di=0;di<n;di++){
     const d=D[di];
     if(fxM&&fxM.has(d))fx=fxM.get(d);
-    const fxNow=di===n-1&&H.fx()?H.fx():fx;
+    const fxNow=di===n-1&&H.fx()?H.fx():fx;fxArr[di]=fxNow;
     let sh=0,me=0,co=0,any=false;
     stocks.forEach(s=>{
       while(s.i<s.ev.length&&s.ev[s.i].tx_date<=d){
@@ -115,9 +119,35 @@ function buildTimeline(){
     });
     if(any){S.shares[di]=sh>0?sh:null;S.metals[di]=me>0?me:null;S.nw[di]=sh+me;S.cost[di]=co;}
   }
-  const holdings=[...stocks,...metals];
+  // crypto — quantity × daily close (COIN-USD) × that day's USD/MYR
+  const chron=(rows)=>[...rows].sort((a,b)=>String(a.txn_date).localeCompare(String(b.txn_date))||String(a.created_at).localeCompare(String(b.created_at)));
+  const byC={};chron(crows).forEach(r=>{(byC[r.coin]=byC[r.coin]||[]).push(r);});
+  const coins=Object.entries(byC).map(([c,ev])=>({id:'c:'+c,kind:'crypto',coin:c,label:c,ev,i:0,qty:0,cost:0,px:null,pm:priceMap(App.crypto.sym(c)),v:new Array(n).fill(null),cv:new Array(n).fill(null)}));
+  // ASNB — units × price per unit (RM1.00 for fixed-price funds; last recorded price for others)
+  const byA={};chron(arows).forEach(r=>{(byA[r.fund]=byA[r.fund]||[]).push(r);});
+  const funds=Object.entries(byA).map(([f,ev])=>({id:'a:'+f,kind:'asnb',fund:f,label:f,ev,i:0,p:App.asnb.newPos(f),v:new Array(n).fill(null),cv:new Array(n).fill(null)}));
+  S.crypto=new Array(n).fill(null);S.asnb=new Array(n).fill(null);
+  for(let di=0;di<n;di++){
+    const d=D[di],fxd=fxArr[di];let cs=null,cc=0,as=null,ac=0;
+    coins.forEach(k=>{
+      while(k.i<k.ev.length&&k.ev[k.i].txn_date<=d){const r=k.ev[k.i++],q=Number(r.quantity)||0,amt=Number(r.amount_myr)||0;
+        if(r.tx_type==='Sell'){const avg=k.qty>0?k.cost/k.qty:0,take=Math.min(q,k.qty);k.cost-=avg*take;k.qty-=take;}else{k.qty+=q;k.cost+=amt;}
+        if(k.px==null&&q>0&&amt>0)k.px=amt/q/fxd;}
+      if(k.pm&&k.pm.has(d))k.px=k.pm.get(d);
+      if(di===n-1){const m=App.crypto.priceMyr(k.coin);if(m)k.px=m/fxd;}
+      if(k.qty>1e-12&&k.px!=null){k.v[di]=k.qty*k.px*fxd;cs=(cs||0)+k.v[di];cc+=k.cost;}
+    });
+    funds.forEach(f=>{
+      while(f.i<f.ev.length&&f.ev[f.i].txn_date<=d)App.asnb.apply(f.p,f.ev[f.i++]);
+      const nav=f.p.fixed?1:f.p.nav;
+      if(f.p.units>1e-9&&nav){f.v[di]=f.p.units*nav;as=(as||0)+f.v[di];ac+=f.p.cost;}
+    });
+    S.crypto[di]=cs;S.asnb[di]=as;
+    if(cs!=null||as!=null){S.nw[di]=(S.nw[di]||0)+(cs||0)+(as||0);S.cost[di]=(S.cost[di]||0)+cc+ac;}
+  }
+  const holdings=[...stocks,...metals,...coins,...funds];
   holdings.forEach(h=>{h.active=h.v[n-1]!=null&&h.v[n-1]>0;});
-  return {D,S,holdings,hasMetals:metals.length>0};
+  return {D,S,holdings,hasMetals:metals.length>0,hasCrypto:coins.length>0,hasAsnb:funds.length>0};
 }
 
 /* ---------- periods ---------- */
@@ -149,6 +179,8 @@ function periods(tl,g){
 function catalogue(tl){
   const list=[{id:'nw',label:'Net worth',grp:'t'},{id:'cost',label:'Money invested',grp:'t'},{id:'shares',label:'Shares',grp:'t'}];
   if(tl.hasMetals)list.push({id:'metals',label:'Metals',grp:'t'});
+  if(tl.hasCrypto)list.push({id:'crypto',label:'Crypto',grp:'t'});
+  if(tl.hasAsnb)list.push({id:'asnb',label:'ASNB',grp:'t'});
   tl.holdings.filter(h=>h.active).sort((a,b)=>b.v[b.v.length-1]-a.v[a.v.length-1]).forEach(h=>list.push({id:h.id,label:h.label,grp:'h',h}));
   return list;
 }
@@ -250,19 +282,25 @@ function judge(x){
 }
 N.health=()=>{
   const pos=C.positions(),{c}=C.combined(pos),Mt=App.metals,mt=Mt&&Mt.status==='ok'&&Mt.rows.length?Mt.totals():null;
-  const nw=(c.value!=null?c.value:c.cost)+(mt?mt.value:0);
+  const Xt=App.crypto&&App.crypto.status==='ok'&&App.crypto.rows.length?App.crypto.totals():null,At=App.asnb&&App.asnb.status==='ok'&&App.asnb.rows.length?App.asnb.totals():null;
+  const nw=(c.value!=null?c.value:c.cost)+(mt?mt.value:0)+(Xt?Xt.value:0)+(At?At.value:0);
   const by={};
   pos.forEach(p=>{const k=p.ticker+'|'+p.market,b=by[k]||(by[k]={kind:'stock',ticker:p.ticker,market:p.market,label:p.label,sym:p.sym,value:0,cost:0,priced:true});
     const v=C.toMyr(p.ccy,p.value),co=C.toMyr(p.ccy,p.cost);if(v==null)b.priced=false;b.value+=v||0;b.cost+=co||0;});
   const items=Object.values(by).map(b=>({...b,pnlPct:b.priced&&b.cost?(b.value/b.cost-1)*100:null,weight:nw>0&&b.priced?b.value/nw*100:null,hs:histStats(b.sym)}));
   if(mt)Mt.positions().filter(p=>p.pure>0).forEach(p=>{const v=p.value!=null?p.value:p.cost;
     items.push({kind:'metal',metal:p.metal,label:p.metal,value:v,cost:p.cost,pnlPct:p.pnlPct,weight:nw>0?v/nw*100:null,hs:histStats(METAL_SYM[p.metal])});});
+  if(Xt)App.crypto.positions().filter(p=>p.qty>0).forEach(p=>{const v=p.value!=null?p.value:p.cost;
+    items.push({kind:'crypto',coin:p.coin,label:p.name+' ('+p.coin+')',value:v,cost:p.cost,pnlPct:p.pnlPct,weight:nw>0?v/nw*100:null,hs:['USDT','USDC'].includes(p.coin)?null:histStats(App.crypto.sym(p.coin))});});
+  if(At)App.asnb.positions().filter(p=>p.units>0).forEach(p=>{const v=p.value!=null?p.value:p.cost;
+    items.push({kind:'asnb',fund:p.fund,label:p.fund,value:v,cost:p.cost,pnlPct:p.fixed?null:p.pnlPct,weight:p.fixed?null:(nw>0?v/nw*100:null),hs:null,fixedNote:p.fixed});});
   items.forEach(it=>Object.assign(it,judge(it)));
+  items.forEach(it=>{if(it.fixedNote&&it.lvl==='g')it.why=[['g','Fixed price RM1.00 — capital stays at RM1 a unit']];});
   items.sort((a,b)=>RANK[a.lvl]-RANK[b.lvl]||(b.weight||0)-(a.weight||0));
   // net worth itself
   const why=[];let lvl='g';const bump=(l,t)=>{why.push([l,t]);if(RANK[l]<RANK[lvl])lvl=l;};
   const tl=N.status==='ok'?N.build():null;
-  const invested=c.cost+(mt?mt.cost:0);
+  const invested=c.cost+(mt?mt.cost:0)+(Xt?Xt.cost:0)+(At?At.cost:0);
   if(nw<invested)bump('r',`Worth ${fmt((1-nw/invested)*100,1)}% less than the money invested in current holdings`);
   if(tl){
     const n=tl.D.length,i3=Math.max(0,n-92),a=tl.S.nw[i3],b=tl.S.nw[n-1],ca=tl.S.cost[i3],cb=tl.S.cost[n-1];
@@ -290,7 +328,7 @@ N.strip=()=>{   // compact line for the Home overview
 
 /* ---------- screen ---------- */
 N.render=el=>{
-  if(!App.state.sharesLoaded||(App.metals&&App.metals.status==='loading')){el.innerHTML=`<div class="skel" style="height:320px;border-radius:20px"></div>`+App.skeleton(3);return;}
+  if(!App.state.sharesLoaded||App.classes().some(c=>c.m.status==='loading')){el.innerHTML=`<div class="skel" style="height:320px;border-radius:20px"></div>`+App.skeleton(3);return;}
   N.load();
   let html='';
   const tl=N.status==='ok'?N.build():null;
@@ -321,7 +359,7 @@ N.render=el=>{
       <div class="lbl" style="margin:12px 0 6px">Lines on the chart · tap to show or hide</div>
       <div class="chips nw-series">${cat.map(s=>{const on=N.on.includes(s.id);
         return `<button class="chip sc ${on?'on':''}" data-ser="${H.esc(s.id)}">${on?`<i class="sw ${s.id==='cost'?'dash':''}" style="background:${colorOf(s.id)}"></i>`:'<i class="sw off"></i>'}${H.esc(s.label)}</button>`;}).join('')}</div>
-      <div class="tiny" style="margin-top:10px">${N.mode==='pct'?'% change compares each line with its own value at the start of the period, so holdings of different sizes can be compared.':'Net worth = shares + metals at market value. “Money invested” = what you paid for what you still hold, so the gap between the two lines is your unrealised gain.'}</div>
+      <div class="tiny" style="margin-top:10px">${N.mode==='pct'?'% change compares each line with its own value at the start of the period, so holdings of different sizes can be compared.':'Net worth = shares + metals + crypto + ASNB at market value. “Money invested” = what you paid for what you still hold, so the gap between the two lines is your unrealised gain.'}</div>
     </div>`;
     // period table
     const rows=[];for(let j=P.idx.length-1;j>=0;j--){const i=P.idx[j],pi=j>0?P.idx[j-1]:null,v=tl.S.nw[i],pv=pi!=null?tl.S.nw[pi]:null;
@@ -338,9 +376,9 @@ N.render=el=>{
   html+=`<div class="sec"><h2>Health check</h2><span class="note">${hl.counts.r} review · ${hl.counts.a} watch · ${hl.counts.g} OK</span></div>
     <div class="card"><div class="dhead" style="margin-bottom:6px"><div class="t1" style="font-weight:800;font-size:15px">Net worth</div>${N.badge(hl.nw.lvl)}</div>
       <ul class="olist">${hl.nw.why.map(([l,t])=>`<li><span class="rg-${l}">${BADGE[l][0]}</span>${H.esc(t)}</li>`).join('')}</ul></div>
-    <div class="list" style="margin-top:12px">${hl.items.map(it=>`<button class="lrow" onclick="${it.kind==='stock'?`App.holdings.openStock('${it.ticker}','${it.market}')`:`App.go('more','metals')`}">
+    <div class="list" style="margin-top:12px">${hl.items.map(it=>`<button class="lrow" onclick="${it.kind==='stock'?`App.holdings.openStock('${it.ticker}','${it.market}')`:`App.go('more','${it.kind==='metal'?'metals':it.kind}')`}">
       <div style="width:74px;flex-shrink:0">${N.badge(it.lvl)}</div>
-      <div class="main-col"><div class="t1">${H.esc(it.label)}${it.kind==='metal'?' <span class="tag gold">metal</span>':''}</div>
+      <div class="main-col"><div class="t1">${H.esc(it.label)}${it.kind!=='stock'?` <span class="tag ${it.kind==='metal'?'gold':''}">${it.kind==='metal'?'metal':it.kind==='crypto'?'crypto':'ASNB'}</span>`:''}</div>
         <div class="t2 wrap">${it.why.map(w=>H.esc(w[1])).join(' · ')}</div></div>
       <div class="end"><div class="v">${it.pnlPct==null?'—':H.pct(it.pnlPct,1)}</div><div class="s dim">${it.weight==null?'':fmt(it.weight,1)+'% of NW'}</div></div></button>`).join('')||'<div class="empty">No active holdings.</div>'}</div>
     ${hl.hasHist?'':'<div class="tiny" style="margin-top:6px">Trend checks (200-day average, 3-month move) appear once price history has loaded.</div>'}

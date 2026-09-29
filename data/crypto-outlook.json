@@ -1,0 +1,52 @@
+{
+  "updated": "2026-09-30",
+  "note": "A summary of published views, not a recommendation. Crypto forecasts vary enormously and are often wrong — treat them as context only.",
+  "assets": {
+    "BTC": {
+      "headline": "Recovering from a weak first half, helped by money flowing back into Bitcoin ETFs, but a hawkish Fed caps it",
+      "context": "About US$84,400 on 25 Sep 2026: up about 6% in a month but down about 23% over the year, and well below its record of about US$126,000 (Oct 2025).",
+      "supportive": [
+        "US spot Bitcoin ETFs took in about US$3.5 billion in August 2026, reversing about US$5.3 billion of outflows from January to July",
+        "Long-term holders stopped selling at the end of August",
+        "Regulation is getting clearer (the US GENIUS Act framework, access through 401(k) retirement accounts)"
+      ],
+      "headwinds": [
+        "The Fed raised rates in September 2026 and no cuts are expected this year, which is bad for risky assets",
+        "ETF outflows earlier in 2026 (about US$4 billion in June alone) show how quickly investor sentiment can reverse",
+        "Some analysts expect a further pullback based on Bitcoin's usual four-year cycle"
+      ],
+      "forecasts": [
+        { "who": "Citigroup", "when": "Jul 2026", "view": "End-2026 US$82,000 base case / US$53,000 bear case (cut twice this year)" },
+        { "who": "Standard Chartered", "when": "Jul 2026", "view": "End-2026 US$100,000 (cut from US$150,000)" },
+        { "who": "J.P. Morgan", "when": "Jul 2026", "view": "US$150,000–170,000" },
+        { "who": "Fidelity", "when": "Jul 2026", "view": "US$65,000–75,000 (stuck in a range)" }
+      ],
+      "watch": ["Spot ETF flows", "Fed rate path", "US$77k support / US$100k resistance", "Regulation"],
+      "sources": [
+        { "name": "CoinGecko — 2026 Bitcoin price predictions", "url": "https://www.coingecko.com/learn/bitcoin-price-predictions-expert-forecasts" },
+        { "name": "Yahoo Finance — Bitcoin September 2026 outlook", "url": "https://finance.yahoo.com/markets/crypto/articles/bitcoin-price-prediction-september-2026-080209568.html" },
+        { "name": "Fortune — Bitcoin price, 25 Sep 2026", "url": "https://fortune.com/article/price-of-bitcoin-09-25-2026/" }
+      ]
+    },
+    "ETH": {
+      "headline": "Broke out of its downtrend in late August but is struggling to get past US$2,550",
+      "context": "About US$2,450 at the start of September 2026, up from June lows of US$1,600–1,760 and roughly half its August 2025 peak of about US$4,958.",
+      "supportive": [
+        "A 31% weekly gain in late August gave the first higher high of this cycle",
+        "Big investors and institutions are still buying on dips"
+      ],
+      "headwinds": [
+        "It hasn't broken above resistance around US$2,550 (its 50-week average), and the next level up is about US$2,920",
+        "Heavy borrowed (leveraged) bets could cause sharp swings if the price moves against them",
+        "The same rate and risk headwinds as Bitcoin"
+      ],
+      "forecasts": [
+        { "who": "Analyst view (Ted Pillows)", "when": "Sep 2026", "view": "More sideways first; support about US$2,200, resistance about US$2,800" }
+      ],
+      "watch": ["Weekly close above US$2,438", "ETH ETF flows", "Bitcoin's direction"],
+      "sources": [
+        { "name": "Yahoo Finance — What to expect from Ethereum in September 2026", "url": "https://finance.yahoo.com/markets/crypto/articles/expect-ethereum-price-september-2026-125459420.html" }
+      ]
+    }
+  }
+}

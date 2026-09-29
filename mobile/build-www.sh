@@ -19,7 +19,7 @@ cp app/index.html www/index.html
 
 # 2b. metals outlook (bundled fallback; the app also fetches the latest copy from GitHub Pages)
 mkdir -p www/data
-cp "$ROOT"/data/metals-outlook.json www/data/
+cp "$ROOT"/data/*.json www/data/
 
 # 3. libraries bundled locally (no CDN)
 cp node_modules/@supabase/supabase-js/dist/umd/supabase.js www/vendor/supabase.js

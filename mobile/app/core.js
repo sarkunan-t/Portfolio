@@ -48,6 +48,7 @@ H.icon={
   search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
   bell:'<svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>',
   gold:'<svg viewBox="0 0 24 24"><path d="M4 19l3-8h10l3 8z"/><path d="M8 11l2-5h4l2 5"/></svg>',
+  coin:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 8h4a2 2 0 0 1 0 4h-4m0 0h4.5a2 2 0 0 1 0 4H9.5M9.5 8v8M11 6v2M11 16v2"/></svg>',
   unit:'<svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V4h8v3"/></svg>',
   out:'<svg viewBox="0 0 24 24"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 17l-5-5 5-5M5 12h11"/></svg>',
   trash:'<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
@@ -205,6 +206,14 @@ document.addEventListener('click',e=>{
 });
 App.fPass=(key,g,v)=>{const a=(App.state.filters[key]||{})[g];return !a||!a.length||a.includes(String(v));};
 
+/* ---------- other asset classes (metals, crypto, ASNB) ----------
+   Each module: {status, rows, totals()→{value,cost,pnl,pnlPct,atCost,n}}. Used by Home and the net worth trend. */
+App.classes=()=>[
+  {key:'metals',label:'Metals',sub:'gold & silver',m:App.metals},
+  {key:'crypto',label:'Crypto',sub:'bitcoin & more',m:App.crypto},
+  {key:'asnb',label:'ASNB',sub:'unit trusts',m:App.asnb}].filter(c=>c.m);
+App.classTotals=()=>App.classes().map(c=>({...c,on:c.m.status==='ok'&&c.m.rows.length>0,t:c.m.status==='ok'&&c.m.rows.length?c.m.totals():null}));
+
 /* ---------- data ---------- */
 App.loadFunds=async()=>{
   App.state.fundsStatus='loading';
@@ -223,11 +232,13 @@ App.refreshPrices=async()=>{
   if(App.state.loadingPrices)return;
   App.state.loadingPrices=true;App.refreshView();
   if(App.metals&&App.metals.status==='ok')App.metals.loadSpot();
+  if(App.crypto&&App.crypto.status==='ok')App.crypto.loadSpot();
+  if(App.cryptoMarket&&App.crypto&&App.crypto.view==='market')App.cryptoMarket.load(true);
   if(App.metalsMarket&&App.metals&&App.metals.view==='market')App.metalsMarket.load(true);
   if(App.nw&&App.state.tab==='home'&&App.state.seg.home==='trend')App.nw.load(true);
   await refreshPrices();
 };
-App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();if(App.nw)App.nw.at=0;};
+App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();App.crypto&&App.crypto.load();App.asnb&&App.asnb.load();if(App.nw)App.nw.at=0;};
 
 /* shares.js hooks */
 window.onSharesData=()=>{App.state.sharesLoaded=true;App.state.loadingPrices=true;App.refreshView();};

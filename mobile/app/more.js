@@ -70,7 +70,8 @@ function renderMenu(el){
     <div class="sec"><h2>Other assets</h2></div>
     <div class="list menu">
       ${item('#more/metals',H.icon.gold,'div','Metals',App.metals.menuSub())}
-      ${item('#more/asnb',H.icon.unit,'xf','ASNB','Unit trusts — not set up')}
+      ${item('#more/crypto',H.icon.coin,'usd','Crypto',App.crypto.menuSub())}
+      ${item('#more/asnb',H.icon.unit,'xf','ASNB',App.asnb.menuSub())}
     </div>
     <div class="sec"><h2>Data</h2></div>
     <div class="list menu">
@@ -96,18 +97,21 @@ App.more.reset=async()=>{
   showToast('All data cleared ✓');App.reloadShares();
 };
 
-const TITLES={menu:'More',quote:'Quote lookup',alerts:'Price alerts',metals:'Metals',asnb:'ASNB'};
+const TITLES={menu:'More',quote:'Quote lookup',alerts:'Price alerts',metals:'Metals',crypto:'Crypto',asnb:'ASNB'};
 App.screens.more={
   title:seg=>TITLES[seg]||'More',
-  segs:[{id:'menu'},{id:'quote'},{id:'alerts'},{id:'metals'},{id:'asnb'}],
+  segs:[{id:'menu'},{id:'quote'},{id:'alerts'},{id:'metals'},{id:'crypto'},{id:'asnb'}],
   hideSegs:true,
-  fab:seg=>seg==='metals'&&App.metals.view!=='market'&&App.metals.status==='ok'?{label:'Add',onClick:()=>App.metals.form()}:null,
+  fab:seg=>seg==='metals'&&App.metals.view!=='market'&&App.metals.status==='ok'?{label:'Add',onClick:()=>App.metals.form()}:
+    seg==='crypto'&&App.crypto.view!=='market'&&App.crypto.status==='ok'?{label:'Add',onClick:()=>App.crypto.form()}:
+    seg==='asnb'&&App.asnb.status==='ok'?{label:'Add',onClick:()=>App.asnb.form()}:null,
   sub:seg=>seg==='menu'?App.priceNote():`<a class="link" href="#more/menu">‹ More</a>`,
   render(el,seg){
     if(seg==='quote')renderQuote(el);
     else if(seg==='alerts')renderAlerts(el);
     else if(seg==='metals')App.metals.render(el);
-    else if(seg==='asnb')el.innerHTML=placeholder('ASNB','Track ASNB unit trust balances, dividends and bonus units.',['asnb','fund, units, nav, contributions, notes']);
+    else if(seg==='crypto')App.crypto.render(el);
+    else if(seg==='asnb')App.asnb.render(el);
     else renderMenu(el);
   }
 };
