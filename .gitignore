@@ -12,3 +12,7 @@ mobile/out/
 _signing/
 *.jks
 *.keystore
+
+# Growth scanner local test output
+scanner/out/
+__pycache__/

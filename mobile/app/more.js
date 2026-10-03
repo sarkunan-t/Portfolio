@@ -1,4 +1,4 @@
-/* ===== More: quote lookup · price alerts · metals · ASNB · account ===== */
+/* ===== More: quote lookup · price alerts · growth scanner · metals · ASNB · account ===== */
 (function(){
 const H=App.h, C=App.calc;
 App.more={};
@@ -67,6 +67,10 @@ function renderMenu(el){
       ${item('#more/quote',H.icon.search,'myr','Quote lookup','Any stock, Bursa, US, SGX, HK, crypto')}
       ${item('#more/alerts',H.icon.bell,'div','Price alerts',`${App.state.alerts.length} recent · −3% / +5% rule`)}
     </div>
+    <div class="sec"><h2>Research</h2></div>
+    <div class="list menu">
+      ${item('#more/scanner',H.icon.radar,'buy','Growth scanner',App.scanner.menuSub())}
+    </div>
     <div class="sec"><h2>Other assets</h2></div>
     <div class="list menu">
       ${item('#more/metals',H.icon.gold,'div','Metals',App.metals.menuSub())}
@@ -97,11 +101,13 @@ App.more.reset=async()=>{
   showToast('All data cleared ✓');App.reloadShares();
 };
 
-const TITLES={menu:'More',quote:'Quote lookup',alerts:'Price alerts',metals:'Metals',crypto:'Crypto',asnb:'ASNB'};
+const TITLES={menu:'More',scanner:'Growth scanner',quote:'Quote lookup',alerts:'Price alerts',metals:'Metals',crypto:'Crypto',asnb:'ASNB'};
 App.screens.more={
   title:seg=>TITLES[seg]||'More',
-  segs:[{id:'menu'},{id:'quote'},{id:'alerts'},{id:'metals'},{id:'crypto'},{id:'asnb'}],
+  segs:[{id:'menu'},{id:'quote'},{id:'alerts'},{id:'scanner'},{id:'metals'},{id:'crypto'},{id:'asnb'}],
   hideSegs:true,
+  actions:seg=>seg==='scanner'&&App.scanner.status==='ok'?[{id:'filter',active:App.filterActive(App.state.filters.scanner)}]:[],
+  openFilter:seg=>{if(seg==='scanner')App.scanner.openFilter();},
   fab:seg=>seg==='metals'&&App.metals.view!=='market'&&App.metals.status==='ok'?{label:'Add',onClick:()=>App.metals.form()}:
     seg==='crypto'&&App.crypto.view!=='market'&&App.crypto.status==='ok'?{label:'Add',onClick:()=>App.crypto.form()}:
     seg==='asnb'&&App.asnb.status==='ok'?{label:'Add',onClick:()=>App.asnb.form()}:null,
@@ -109,6 +115,7 @@ App.screens.more={
   render(el,seg){
     if(seg==='quote')renderQuote(el);
     else if(seg==='alerts')renderAlerts(el);
+    else if(seg==='scanner')App.scanner.render(el);
     else if(seg==='metals')App.metals.render(el);
     else if(seg==='crypto')App.crypto.render(el);
     else if(seg==='asnb')App.asnb.render(el);

@@ -236,9 +236,10 @@ App.refreshPrices=async()=>{
   if(App.cryptoMarket&&App.crypto&&App.crypto.view==='market')App.cryptoMarket.load(true);
   if(App.metalsMarket&&App.metals&&App.metals.view==='market')App.metalsMarket.load(true);
   if(App.nw&&App.state.tab==='home'&&App.state.seg.home==='trend')App.nw.load(true);
+  if(App.scanner&&App.state.tab==='more'&&App.state.seg.more==='scanner')App.scanner.load(true);
   await refreshPrices();
 };
-App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();App.crypto&&App.crypto.load();App.asnb&&App.asnb.load();if(App.nw)App.nw.at=0;};
+App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();App.crypto&&App.crypto.load();App.asnb&&App.asnb.load();if(App.nw)App.nw.at=0;if(App.scanner)App.scanner.at=0;};
 
 /* shares.js hooks */
 window.onSharesData=()=>{App.state.sharesLoaded=true;App.state.loadingPrices=true;App.refreshView();};
