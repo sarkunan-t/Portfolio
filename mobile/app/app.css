@@ -420,3 +420,5 @@ textarea{width:100%;font:inherit;font-size:15px;border:1px solid var(--edge);bor
 .chip .tip{margin-left:4px;}
 .dt th .tip{margin-left:4px;}
 @media (max-width:700px){.sc-sigs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-right:-16px;padding-right:16px;}.sc-sigs::-webkit-scrollbar{display:none;}.sc-sigs .chip{flex:0 0 auto;}}
+.sc-sortnote{margin:10px 2px 0;display:flex;justify-content:flex-end;gap:6px;align-items:baseline;}
+.sc-dt .dt td,.sc-dt .dt th{padding-left:9px;padding-right:9px;}

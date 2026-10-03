@@ -9,7 +9,39 @@ const LIST_COLS='symbol,name,sector,price,chg_pct,market_cap,score,score_chg_1m,
 const CLASSES=['Emerging','Confirmed','Extended','Deteriorating'];
 const VIEWS=[['top','Top 20'],['rising','Score rising'],['discovery','Discovery'],['all','All qualified']];
 const MINS=[50,60,70,80,90];
-const S=App.scanner={status:'idle',at:0,run:null,rows:[],err:'',view:'top',min:60,detail:{},hist:{},px:{}};
+const S=App.scanner={status:'idle',at:0,run:null,rows:[],err:'',view:'top',min:60,detail:{},hist:{},px:{},sort:null};
+/* column sorting (table headers on the web site, "Sort" sheet in the app). null = the view's natural order */
+const SIG_ORDER={Emerging:1,Confirmed:2,Extended:3,Deteriorating:4};
+const SORTS={sc:['Score',r=>r.score],s:['Stock',r=>r.symbol],sec:['Sector',r=>(r.sector||'~').toLowerCase()],c:['Signal',r=>SIG_ORDER[r.classification]||9],
+  p:['Price',r=>r.price],d:['Today',r=>r.chg_pct],m1:['Score 1m',r=>r.score_chg_1m],m3:['Score 3m',r=>r.score_chg_3m],
+  f:['Fundamentals',r=>r.fund_score],mo:['Momentum',r=>r.mom_score],mc:['Market cap',r=>r.market_cap]};
+const ASC_FIRST={s:1,sec:1,c:1};   // text-like columns start A→Z / Emerging first
+function sorted(list){
+  if(!S.sort)return list;
+  const [,f]=SORTS[S.sort.col],d=S.sort.dir==='asc'?1:-1;
+  return [...list].sort((a,b)=>{const x=f(a),y=f(b);
+    if(x==null&&y==null)return b.score-a.score; if(x==null)return 1; if(y==null)return -1;   // blanks always last
+    return (x<y?-d:x>y?d:0)||b.score-a.score;});
+}
+S.sortBy=k=>{
+  if(S.sort&&S.sort.col===k)S.sort.dir=S.sort.dir==='desc'?'asc':'desc';
+  else S.sort={col:k,dir:ASC_FIRST[k]?'asc':'desc'};
+  App.render(false);
+};
+S.sortSheet=()=>{
+  const cur=S.sort||{col:'',dir:'desc'};
+  App.openSheet({title:'Sort scanner list',body:`<div class="form-sec">Sort by</div><div class="chips">
+      <button class="chip ${!S.sort?'on':''}" data-sc="">Default</button>${Object.entries(SORTS).map(([k,[l]])=>`<button class="chip ${cur.col===k?'on':''}" data-sc="${k}">${l}</button>`).join('')}</div>
+    <div class="form-sec">Order</div><div class="opts"><button data-sd="desc" class="${cur.dir==='desc'?'on':''}">↓ High to low / Z→A</button><button data-sd="asc" class="${cur.dir==='asc'?'on':''}">↑ Low to high / A→Z</button></div>
+    <p class="tiny" style="margin-top:12px">Default = by score (Score rising: by 3-month change · Discovery: by fundamentals). Signal order: Emerging, Confirmed, Extended, Deteriorating.</p>`,
+    foot:`<button class="btn btn-p" id="scSortGo">Apply</button>`});
+  let col=cur.col,dir=cur.dir;
+  H.$('#shBody').onclick=e=>{const c=e.target.closest('[data-sc]'),d=e.target.closest('[data-sd]');
+    if(c){col=c.dataset.sc;if(col)dir=ASC_FIRST[col]?'asc':'desc';H.$('#shBody').querySelectorAll('[data-sc]').forEach(b=>b.classList.toggle('on',b===c));
+      H.$('#shBody').querySelectorAll('[data-sd]').forEach(b=>b.classList.toggle('on',b.dataset.sd===dir));}
+    if(d){dir=d.dataset.sd;H.$('#shBody').querySelectorAll('[data-sd]').forEach(b=>b.classList.toggle('on',b===d));}};
+  H.$('#scSortGo').onclick=()=>{S.sort=col?{col,dir}:null;App.closeSheet();App.render(false);};
+};
 App.state.filters.scanner=App.state.filters.scanner||{};
 
 /* ---------- data ---------- */
@@ -76,8 +108,15 @@ function filtered(ignoreCls){
   list=list.filter(r=>r.score>=S.min);
   return S.view==='top'?list.slice(0,20):list;
 }
+const shown=()=>sorted(filtered());
 
 /* ---------- list ---------- */
+/* phone list: when sorted by a column that isn't on the row, show its value under the price */
+function sortedNote(r){
+  const k=S.sort&&S.sort.col, sp=v=>v==null?'<span class="dim">—</span>':pts(v);
+  return k==='m1'?`${sp(r.score_chg_1m)} <span class="dim">1m</span>`:k==='m3'?`${sp(r.score_chg_3m)} <span class="dim">3m</span>`:
+    k==='f'?`<span class="dim">Fund</span> ${r.fund_score}`:k==='mo'?`<span class="dim">Mom</span> ${r.mom_score}`:k==='mc'?`<span class="dim">${big(r.market_cap)}</span>`:'';
+}
 function row(r,hs){
   const disc=S.view==='discovery';
   const sub=disc?`Fund ${r.fund_score} · Mom ${r.mom_score} · ${H.esc(r.name||'')}`:`${H.esc(r.name||'')} · ${H.esc(r.sector||'')}`;
@@ -85,17 +124,18 @@ function row(r,hs){
     <div class="sc-badge ${band(r.score)}">${r.score}</div>
     <div class="main-col"><div class="t1">${H.esc(r.symbol)} ${clsTag(r.classification)}${r.discovery&&!disc?discTag:''}${hs.has(r.symbol)?'<span class="tag myr">Held</span>':''}${App.watch?App.watch.tag(r.symbol):''}</div>
       <div class="t2">${sub}</div></div>
-    <div class="end"><div class="v">${usd(r.price)}</div><div class="s">${S.view==='rising'?chg3(r):H.pill(r.chg_pct)}</div></div></button>`;
+    <div class="end"><div class="v">${usd(r.price)}</div><div class="s">${sortedNote(r)||(S.view==='rising'?chg3(r):H.pill(r.chg_pct))}</div></div></button>`;
 }
 function table(list,hs){
-  const cols=[{k:'sc',label:'Score'+H.tip('score'),cls:'n',w:'64px'},{k:'s',label:'Stock'},{k:'sec',label:'Sector'},{k:'c',label:'Signal'+H.tip('signal')},{k:'p',label:'Price',cls:'n'},
-    {k:'d',label:'Today',cls:'n'},{k:'m1',label:'Score 1m'+H.tip('chg1m'),cls:'n'},{k:'m3',label:'Score 3m'+H.tip('chg3m'),cls:'n'},{k:'f',label:'Fund'+H.tip('fund')+' / Mom'+H.tip('mom'),cls:'n'},{k:'mc',label:'Market cap',cls:'n'}];
+  const cols=[{k:'sc',label:'Score'+H.tip('score'),cls:'n',w:'64px',sort:1},{k:'s',label:'Stock',sort:1},{k:'sec',label:'Sector',sort:1},{k:'c',label:'Signal'+H.tip('signal'),sort:1},{k:'p',label:'Price',cls:'n',sort:1},
+    {k:'d',label:'Today',cls:'n',sort:1},{k:'m1',label:'Score 1m'+H.tip('chg1m'),cls:'n',sort:1},{k:'m3',label:'Score 3m'+H.tip('chg3m'),cls:'n',sort:1},
+    {k:'f',label:'Fund'+H.tip('fund'),cls:'n',sort:1},{k:'mo',label:'Mom'+H.tip('mom'),cls:'n',sort:1},{k:'mc',label:'Market cap',cls:'n',sort:1}];
   const ch=v=>v==null?'<span class="dim">—</span>':pts(v);
   return H.table(cols,list.map(r=>({on:`App.scanner.open('${H.esc(r.symbol)}')`,cells:{
     sc:`<span class="sc-badge sm ${band(r.score)}">${r.score}</span>`,
     s:`<div class="t-main">${H.esc(r.symbol)}${hs.has(r.symbol)?' <span class="tag myr">Held</span>':''} ${App.watch?App.watch.tag(r.symbol):''}</div><div class="t-sub">${H.esc(r.name||'')}</div>`,
     sec:H.esc(r.sector||''),c:clsTag(r.classification)+(r.discovery?' '+discTag:''),
-    p:usd(r.price),d:H.pill(r.chg_pct),m1:ch(r.score_chg_1m),m3:ch(r.score_chg_3m),f:`${r.fund_score} / ${r.mom_score}`,mc:big(r.market_cap)}})));
+    p:usd(r.price),d:H.pill(r.chg_pct),m1:ch(r.score_chg_1m),m3:ch(r.score_chg_3m),f:r.fund_score,mo:r.mom_score,mc:big(r.market_cap)}})),{sort:S.sort||{},onSort:'App.scanner.sortBy'});
 }
 S.render=el=>{
   if(S.status==='idle'){S.load();}
@@ -104,7 +144,7 @@ S.render=el=>{
     <p class="sub" style="margin-top:8px;font-size:14px;line-height:1.5">Run <b>mobile/supabase/scanner.sql</b> in Supabase → SQL Editor, add the three GitHub secrets, then run the <b>NASDAQ growth scanner</b> workflow once from the Actions tab.</p></div>`;return;}
   if(S.status==='error'){el.innerHTML=`<div class="notice warn">Couldn't load the scanner: ${H.esc(S.err)}</div><button class="btn btn-s" style="margin-top:12px" onclick="App.scanner.load(true)">Try again</button>`;return;}
   if(S.status==='empty'){el.innerHTML=`<div class="card muted-card"><div class="val">No scan yet</div><p class="sub" style="margin-top:8px;font-size:14px">The scan runs every weekday after the US close (about 6:40 am Malaysia time). You can also start it from GitHub → Actions → NASDAQ growth scanner → Run workflow.</p></div>`;return;}
-  const run=S.run, list=filtered(), hs=held();
+  const run=S.run, list=shown(), hs=held();
   const views=VIEWS.map(([id,l])=>`<button class="chip ${S.view===id?'on':''}" data-scv="${id}">${l}${H.tip('view.'+id)}</button>`).join('');
   const sel=(App.state.filters.scanner||{}).cls||[], pool=filtered(true), cnt=c=>pool.filter(r=>(r.classification||'None')===c).length;
   const sigs=`<div class="sc-sigs"><span class="lbl">Signal${H.tip('signal')}</span>
@@ -124,8 +164,10 @@ S.render=el=>{
       <button class="link" onclick="App.glossary.sheet()">ⓘ How to read the scanner</button></div>
     <div class="chips sc-views">${views}</div>${sigs}${mins}
     ${App.filterChips('scanner')}
+    ${App.wide()?(S.sort?`<div class="sc-sortnote tiny">Sorted by <b>${SORTS[S.sort.col][0]}</b> ${S.sort.dir==='asc'?'↑':'↓'} · <button class="link" onclick="App.scanner.sort=null;App.render(false)">Reset to default</button></div>`:''):
+      `<div class="sc-sortnote"><button class="link" onclick="App.scanner.sortSheet()">Sort: ${S.sort?SORTS[S.sort.col][0]+' '+(S.sort.dir==='asc'?'↑':'↓'):'Default'}</button></div>`}
     ${intro?`<div class="notice info">${intro}</div>`:''}
-    ${list.length?(App.wide()?`<div style="margin-top:14px">${table(list,hs)}</div>`:`<div class="list" style="margin-top:12px">${list.map(r=>row(r,hs)).join('')}</div>`):
+    ${list.length?(App.wide()?`<div class="sc-dt" style="margin-top:14px">${table(list,hs)}</div>`:`<div class="list" style="margin-top:12px">${list.map(r=>row(r,hs)).join('')}</div>`):
       `<div class="empty">${S.view==='rising'?'No score history yet — it builds up with each daily scan (or run a backfill).':'Nothing matches these filters.'}</div>`}
     <p class="tiny sc-foot">Scores rank stocks for research — they are not buy recommendations, and a high score doesn't mean a stock can multiply. Free data: prices from Yahoo (end of day), financials from SEC filings. Analyst revisions and institutional activity aren't scored yet.</p>
   </div>`;
