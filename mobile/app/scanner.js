@@ -7,6 +7,10 @@ const H=App.h;
 H.icon.radar='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/><circle cx="12" cy="12" r="1"/></svg>';
 const LIST_COLS='symbol,name,sector,price,chg_pct,market_cap,score,score_chg_1m,score_chg_3m,classification,discovery,fund_score,mom_score';
 const TARGET_COLS=',target_mean,target_high,target_low,analysts,rating,upside';   // needs mobile/supabase/price-targets.sql
+/* analyst target: stored by the nightly scan, or fetched live (App.pt / price-target Edge Function) until it is */
+const tgtOf=r=>{if(r.target_mean!=null)return {mean:Number(r.target_mean),low:r.target_low,high:r.target_high,analysts:r.analysts};
+  const t=App.pt&&App.pt.get(r.symbol);return t?{mean:t.mean,low:t.low,high:t.high,analysts:t.analysts}:null;};
+const upOf=r=>{if(r.upside!=null)return Number(r.upside);const t=tgtOf(r);return t&&t.mean&&r.price?(t.mean/r.price-1)*100:null;};
 const CLASSES=['Emerging','Confirmed','Extended','Deteriorating'];
 const VIEWS=[['top','Top 20'],['rising','Score rising'],['discovery','Discovery'],['all','All qualified']];
 const MINS=[50,60,70,80,90];
@@ -15,7 +19,7 @@ const S=App.scanner={status:'idle',at:0,run:null,rows:[],err:'',view:'top',min:6
 const SIG_ORDER={Emerging:1,Confirmed:2,Extended:3,Deteriorating:4};
 const SORTS={sc:['Score',r=>r.score],s:['Stock',r=>r.symbol],sec:['Sector',r=>(r.sector||'~').toLowerCase()],c:['Signal',r=>SIG_ORDER[r.classification]||9],
   p:['Price',r=>r.price],d:['Today',r=>r.chg_pct],m1:['Score 1m',r=>r.score_chg_1m],m3:['Score 3m',r=>r.score_chg_3m],
-  up:['Upside',r=>r.upside],f:['Fundamentals',r=>r.fund_score],mo:['Momentum',r=>r.mom_score],mc:['Market cap',r=>r.market_cap]};
+  up:['Upside',r=>upOf(r)],f:['Fundamentals',r=>r.fund_score],mo:['Momentum',r=>r.mom_score],mc:['Market cap',r=>r.market_cap]};
 const ASC_FIRST={s:1,sec:1,c:1};   // text-like columns start A→Z / Emerging first
 function sorted(list){
   if(!S.sort)return list;
@@ -118,7 +122,7 @@ function sortedNote(r){
   const k=S.sort&&S.sort.col, sp=v=>v==null?'<span class="dim">—</span>':pts(v);
   return k==='m1'?`${sp(r.score_chg_1m)} <span class="dim">1m</span>`:k==='m3'?`${sp(r.score_chg_3m)} <span class="dim">3m</span>`:
     k==='f'?`<span class="dim">Fund</span> ${r.fund_score}`:k==='mo'?`<span class="dim">Mom</span> ${r.mom_score}`:k==='mc'?`<span class="dim">${big(r.market_cap)}</span>`:
-    k==='up'?(r.upside==null?'<span class="dim">no target</span>':`${pts(r.upside)}% <span class="dim">target</span>`):'';
+    k==='up'?(upOf(r)==null?'<span class="dim">no target</span>':`${pts(upOf(r))}% <span class="dim">target</span>`):'';
 }
 function row(r,hs){
   const disc=S.view==='discovery';
@@ -129,7 +133,8 @@ function row(r,hs){
       <div class="t2">${sub}</div></div>
     <div class="end"><div class="v">${usd(r.price)}</div><div class="s">${sortedNote(r)||(S.view==='rising'?chg3(r):H.pill(r.chg_pct))}</div></div></button>`;
 }
-const upCell=r=>r.upside==null?'<span class="dim">—</span>':`<b class="${r.upside>=0?'up':'down'}">${r.upside>=0?'+':'−'}${fmt(Math.abs(r.upside),0)}%</b><div class="t-sub">${usd(r.target_mean)}${r.analysts?' · '+r.analysts:''}</div>`;
+const upCell=r=>{const u=upOf(r),t=tgtOf(r);if(u==null)return App.pt&&App.pt.busy&&App.pt.cache[r.symbol]===null?'<span class="spin-i"></span>':'<span class="dim">—</span>';
+  return `<b class="${u>=0?'up':'down'}">${u>=0?'+':'−'}${fmt(Math.abs(u),0)}%</b><div class="t-sub">${usd(t.mean)}${t.analysts?' · '+t.analysts:''}</div>`;};
 function table(list,hs){
   const cols=[{k:'sc',label:'Score'+H.tip('score'),cls:'n',w:'64px',sort:1},{k:'s',label:'Stock',sort:1},{k:'c',label:'Signal'+H.tip('signal'),sort:1},{k:'p',label:'Price',cls:'n',sort:1},
     {k:'d',label:'Today',cls:'n',sort:1},{k:'m1',label:'Score 1m'+H.tip('chg1m'),cls:'n',sort:1},{k:'m3',label:'Score 3m'+H.tip('chg3m'),cls:'n',sort:1},
@@ -148,6 +153,7 @@ S.render=el=>{
   if(S.status==='error'){el.innerHTML=`<div class="notice warn">Couldn't load the scanner: ${H.esc(S.err)}</div><button class="btn btn-s" style="margin-top:12px" onclick="App.scanner.load(true)">Try again</button>`;return;}
   if(S.status==='empty'){el.innerHTML=`<div class="card muted-card"><div class="val">No scan yet</div><p class="sub" style="margin-top:8px;font-size:14px">The scan runs every weekday after the US close (about 6:40 am Malaysia time). You can also start it from GitHub → Actions → NASDAQ growth scanner → Run workflow.</p></div>`;return;}
   const run=S.run, list=shown(), hs=held();
+  if(App.pt){const need=list.filter(r=>r.target_mean==null&&r.upside==null).slice(0,100).map(r=>r.symbol);if(need.length)App.pt.ensure(need);}
   const views=VIEWS.map(([id,l])=>`<button class="chip ${S.view===id?'on':''}" data-scv="${id}">${l}${H.tip('view.'+id)}</button>`).join('');
   const sel=(App.state.filters.scanner||{}).cls||[], pool=filtered(true), cnt=c=>pool.filter(r=>(r.classification||'None')===c).length;
   const sigs=`<div class="sc-sigs"><span class="lbl">Signal${H.tip('signal')}</span>
@@ -247,8 +253,8 @@ function metricsHTML(m,r){
     kv('Financials to',m.period_end?H.date(m.period_end)+(m.quarterly?'':' (annual)'):'—')].join('');
   const val=[kv(H.lt('Market cap','m.mcap'),big(r.market_cap)),kv(H.lt('Price / sales','m.ps'),m.ps!=null?`${fmt(m.ps,1)}${m.sector_ps?` <span class="dim">· sector ${fmt(m.sector_ps,1)}</span>`:''}`:'—'),
     kv(H.lt('Price / earnings','m.pe'),m.pe!=null?fmt(m.pe,1):'—'),
-    kv(H.lt('Analyst target','w.target'),r.target_mean!=null?`${usd(r.target_mean)} <span class="dim">(${usd(r.target_low)}–${usd(r.target_high)}${r.analysts?' · '+r.analysts+' analysts':''})</span>`:'<span class="dim">no coverage</span>'),
-    kv(H.lt('Upside to target','w.upside'),r.upside!=null?pts(r.upside,1)+'%':'—')].join('');
+    (()=>{const t=tgtOf(r),u=upOf(r);return kv(H.lt('Analyst target','w.target'),t?`${usd(t.mean)} <span class="dim">(${usd(t.low)}–${usd(t.high)}${t.analysts?' · '+t.analysts+' analysts':''})</span>`:'<span class="dim">no coverage</span>')+
+      kv(H.lt('Upside to target','w.upside'),u!=null?pts(u,1)+'%':'—');})()].join('');
   const mom=[kv(H.lt('Return 1m / 3m','m.ret'),`${pc(m.ret_1m)} / ${pc(m.ret_3m)}`),kv(H.lt('Return 6m / 12m','m.ret'),`${pc(m.ret_6m)} / ${pc(m.ret_12m)}`),
     kv(H.lt('vs NASDAQ, 3 months','m.rs'),m.rs_3m!=null?pts(m.rs_3m)+' pts':'—'),
     kv(H.lt('vs 50-day / 200-day avg','m.ma'),`${pc(m.vs_ma50)} / ${pc(m.vs_ma200)}`),
@@ -289,7 +295,7 @@ S.open=async sym=>{
   App.openSheet({title:sym,sub:H.esc(r.name||''),full:true,body:head+App.skeleton(4)+'</div>',foot:watchFoot(sym)});
   bindWatchFoot(sym);
   let d=null,err='';
-  try{d=await loadDetail(sym);}catch(e){err=e.message;}
+  try{[d]=await Promise.all([loadDetail(sym),App.pt&&upOf(r)==null?App.pt.ensure([sym]):null]);}catch(e){err=e.message;}
   if(!App.sheetIsOpen()||H.$('#shTitle').textContent!==sym)return;
   if(!d){H.$('#shBody').innerHTML=head+`<div class="notice warn">${H.esc(err||'No detail for this stock')}</div></div>`;return;}
   const m=d.metrics||{};
