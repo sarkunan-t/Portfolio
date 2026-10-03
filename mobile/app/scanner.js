@@ -86,6 +86,16 @@ function row(r,hs){
       <div class="t2">${sub}</div></div>
     <div class="end"><div class="v">${usd(r.price)}</div><div class="s">${S.view==='rising'?chg3(r):H.pill(r.chg_pct)}</div></div></button>`;
 }
+function table(list,hs){
+  const cols=[{k:'sc',label:'Score',cls:'n',w:'64px'},{k:'s',label:'Stock'},{k:'sec',label:'Sector'},{k:'c',label:'Signal'},{k:'p',label:'Price',cls:'n'},
+    {k:'d',label:'Today',cls:'n'},{k:'m1',label:'Score 1m',cls:'n'},{k:'m3',label:'Score 3m',cls:'n'},{k:'f',label:'Fund / Mom',cls:'n'},{k:'mc',label:'Market cap',cls:'n'}];
+  const ch=v=>v==null?'<span class="dim">—</span>':pts(v);
+  return H.table(cols,list.map(r=>({on:`App.scanner.open('${H.esc(r.symbol)}')`,cells:{
+    sc:`<span class="sc-badge sm ${band(r.score)}">${r.score}</span>`,
+    s:`<div class="t-main">${H.esc(r.symbol)}${hs.has(r.symbol)?' <span class="tag myr">Held</span>':''}</div><div class="t-sub">${H.esc(r.name||'')}</div>`,
+    sec:H.esc(r.sector||''),c:clsTag(r.classification)+(r.discovery?' <span class="tag gold">Discovery</span>':''),
+    p:usd(r.price),d:H.pill(r.chg_pct),m1:ch(r.score_chg_1m),m3:ch(r.score_chg_3m),f:`${r.fund_score} / ${r.mom_score}`,mc:big(r.market_cap)}})));
+}
 S.render=el=>{
   if(S.status==='idle'){S.load();}
   if(S.status==='idle'||S.status==='loading'){el.innerHTML=App.skeleton(6);return;}
@@ -109,7 +119,7 @@ S.render=el=>{
     <div class="chips sc-views">${views}</div>${mins}
     ${App.filterChips('scanner')}
     ${intro?`<div class="notice info">${intro}</div>`:''}
-    ${list.length?`<div class="list" style="margin-top:12px">${list.map(r=>row(r,hs)).join('')}</div>`:
+    ${list.length?(App.wide()?`<div style="margin-top:14px">${table(list,hs)}</div>`:`<div class="list" style="margin-top:12px">${list.map(r=>row(r,hs)).join('')}</div>`):
       `<div class="empty">${S.view==='rising'?'No score history yet — it builds up with each daily scan (or run a backfill).':'Nothing matches these filters.'}</div>`}
     <p class="tiny sc-foot">Scores rank stocks for research — they are not buy recommendations, and a high score doesn't mean a stock can multiply. Free data: prices from Yahoo (end of day), financials from SEC filings. Analyst revisions and institutional activity aren't scored yet.</p>
   </div>`;

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Builds mobile/www — the Android app's files.
-# The app has its own touch-first screens (mobile/app/), and reuses the web app's
-# data + maths (assets/common.js, assets/shares.js) so both always calculate the same.
-# The web site in the repo root is never modified.
+# The app screens live in mobile/app/ and reuse assets/common.js + assets/shares.js for data + maths.
+# The web site (repo root index.html) runs the SAME mobile/app/ screens with a desktop layer
+# (mobile/app/web.css, window.WEB_SITE=true), so a feature added here reaches both.
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT=..

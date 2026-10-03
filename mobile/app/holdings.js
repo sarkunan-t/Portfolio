@@ -56,6 +56,7 @@ function renderOpen(el){
   let html=App.filterChips(FK)+summaryCard(T,c);
   if(!pos.length){el.innerHTML=html+`<div class="empty">No open positions${App.filterActive(filters())?' match these filters':''}.</div>`;return;}
   const sortV=l=>[...l].sort((a,b)=>(C.toMyr(b.ccy,b.value)||0)-(C.toMyr(a.ccy,a.value)||0)||b.cost-a.cost);
+  if(App.wide()){el.innerHTML=html+openTables(by,T,c.value);return;}
   ['MYR','USD'].forEach(ccy=>{
     const l=by[ccy]; if(!l.length)return; const t=T[ccy];
     html+=`<div class="sec"><h2>${ccy==='MYR'?'Bursa · MYR':'US · USD'}</h2><span class="note">${t.n} position${t.n!==1?'s':''} · ${t.value==null?'—':H.money(ccy,t.value)}</span></div>
@@ -65,6 +66,30 @@ function renderOpen(el){
   el.innerHTML=html;
 }
 const r0=()=>H.fx();
+
+/* ---- desktop tables (web site) ---- */
+const hs={col:'value',dir:'desc'};
+App.holdings.sort=k=>{hs.dir=hs.col===k&&hs.dir==='desc'?'asc':'desc';hs.col=k;App.render(false);};
+const SORTV={stock:p=>p.label.toLowerCase(),wallet:p=>p.wallet,units:p=>p.units,avg:p=>p.avg,price:p=>p.price??-1e18,day:p=>p.dayPct??-1e18,
+  cost:p=>p.cost,value:p=>C.toMyr(p.ccy,p.value)??-1e18,pnl:p=>p.pnl??-1e18,pct:p=>p.pnlPct??-1e18};
+function openTables(by,T,grand){
+  const f=SORTV[hs.col]||SORTV.value, d=hs.dir==='asc'?1:-1;
+  const cols=[{k:'stock',label:'Stock',sort:1},{k:'wallet',label:'Wallet',sort:1},{k:'units',label:'Units',cls:'n',sort:1},{k:'avg',label:'Avg cost',cls:'n',sort:1},
+    {k:'price',label:'Price',cls:'n',sort:1},{k:'day',label:'Today',cls:'n',sort:1},{k:'cost',label:'Cost',cls:'n',sort:1},{k:'value',label:'Market value',cls:'n',sort:1},
+    {k:'pnl',label:'Unrealised P&amp;L',cls:'n',sort:1},{k:'pct',label:'Return',cls:'n',sort:1},{k:'w',label:'Weight',cls:'n'}];
+  return ['MYR','USD'].map(ccy=>{
+    const l=by[ccy];if(!l.length)return '';const t=T[ccy];
+    const rows=[...l].sort((a,b)=>{const x=f(a),y=f(b);return x<y?-d:x>y?d:0;}).map(p=>{
+      const my=C.toMyr(p.ccy,p.value),w=grand&&my!=null?my/grand*100:null,dp=p.market==='Bursa'?3:2;
+      return {on:`App.holdings.openStock('${p.ticker}','${p.market}')`,cells:{
+        stock:`<div class="t-main">${H.esc(p.label)}</div><div class="t-sub">${H.esc(p.subl)}</div>`,wallet:`<span class="tag ${p.ccy==='USD'?'usd':'myr'}">${p.wallet}</span>`,
+        units:fmt(p.units,p.units%1?4:0),avg:fmt(p.avg,dp),price:p.price==null?(p.state==='loading'?'<span class="spin-i"></span>':'—'):fmt(p.price,dp),
+        day:H.pill(p.dayPct),cost:fmt(p.cost),value:p.value==null?'—':`<b>${fmt(p.value)}</b>`,pnl:p.pnl==null?'—':H.money(p.ccy,p.pnl,true).replace(p.ccy+' ',''),
+        pct:H.pct(p.pnlPct),w:w==null?'—':`<div class="wcell"><div class="wbar"><i style="width:${Math.min(w*2,100)}%"></i></div>${fmt(w,1)}%</div>`}};});
+    return `<div class="dt-note"><h2>${ccy==='MYR'?'Bursa · MYR':'US · USD'}</h2><span class="note">${t.n} position${t.n!==1?'s':''} · ${t.value==null?'—':H.money(ccy,t.value)}${ccy==='USD'&&t.value!=null&&H.fx()?' · '+H.eqMyr('USD',t.value):''}</span></div>`+
+      H.table(cols,rows,{sort:hs,onSort:'App.holdings.sort',foot:{stock:'Total',cost:fmt(t.cost),value:t.value==null?'—':fmt(t.value),pnl:t.pnl==null?'—':H.money(ccy,t.pnl,true).replace(ccy+' ',''),pct:H.pct(t.pnlPct)}});
+  }).join('')+`<div class="tiny" style="margin:14px 2px 0">One row per stock per wallet. Cost is each wallet's average cost over its full history. Click a row for details, or a column heading to sort.${H.fx()?` USD converted to MYR at ${fmt(H.fx(),4)}.`:''}</div>`;
+}
 
 function walletCard(w,list,grand){
   const t=C.totals(list), usd=w.ccy==='USD';
@@ -100,7 +125,7 @@ function renderStocks(el){
   const tot={buy:{MYR:0,USD:0},sell:{MYR:0,USD:0},pnl:{MYR:0,USD:0},est:{MYR:0,USD:0},div:0};
   rows.forEach(h=>{const c=h.ccy==='USD'?'USD':'MYR';tot.buy[c]+=h.nettBuy;tot.sell[c]+=h.nettSell;tot.pnl[c]+=h.realised;if(h.est)tot.est[c]+=h.est;tot.div+=h.divTot;});
   const openN=rows.filter(h=>h.open).length;
-  let html=`<div class="card"><div class="grid g2" style="gap:12px">
+  let html=`<div class="card"><div class="grid g2 ${App.wide()?'g4':''}" style="gap:12px">
     <div><div class="lbl">Realised P&amp;L (all time)</div><div class="val">${H.money('MYR',tot.pnl.MYR,true)}</div>${tot.pnl.USD?`<div class="tiny">${H.money('USD',tot.pnl.USD,true)}</div>`:''}</div>
     <div><div class="lbl">Dividends (all time)</div><div class="val gold">${fmt(tot.div)}</div><div class="tiny">as recorded (MYR, USD rows as-is)</div></div>
     <div><div class="lbl">Nett bought</div><div style="font-weight:800">MYR ${fmt(tot.buy.MYR)}</div>${tot.buy.USD?`<div class="tiny">USD ${fmt(tot.buy.USD)}</div>`:''}</div>
@@ -113,6 +138,18 @@ function renderStocks(el){
     <div class="end"><div class="v">${h.est!=null?fmt(h.est):h.open?(h.state==='loading'?'<span class="spin-i"></span>':'—'):''}</div>
       <div class="s">${H.money(h.ccy,h.realised,true)} <span class="dim" style="font-weight:600">realised</span></div></div>
     ${H.icon.chev}</button>`;
+  if(App.wide()){
+    const cols=[{k:'s',label:'Stock'},{k:'q',label:'Units held',cls:'n'},{k:'a',label:'Avg cost',cls:'n'},{k:'e',label:'Est. value',cls:'n'},
+      {k:'b',label:'Nett bought',cls:'n'},{k:'sl',label:'Nett sold',cls:'n'},{k:'r',label:'Realised P&amp;L',cls:'n'},{k:'d',label:'Dividends',cls:'n'}];
+    const tr=h=>({on:`App.holdings.openStock('${h.ticker}','${h.market}')`,cells:{
+      s:`<div class="t-main">${H.esc(h.label)}</div><div class="t-sub">${h.ticker} ${H.ccyTag(h.ccy==='USD'?'USD':'MYR')}</div>`,
+      q:h.open?fmt(h.qty,0):'<span class="dim">sold</span>',a:h.open?fmt(h.avg,h.market==='Bursa'?4:2):'',e:h.est!=null?fmt(h.est):h.open?(h.state==='loading'?'<span class="spin-i"></span>':'—'):'',
+      b:fmt(h.nettBuy),sl:fmt(h.nettSell),r:H.money(h.ccy,h.realised,true).replace(h.ccy+' ',''),d:h.divTot?`<span class="gold">${fmt(h.divTot)}</span>`:'<span class="dim">—</span>'}});
+    html+=`<div class="dt-note"><h2>Holding</h2><span class="note">${openN} stocks</span></div>`+H.table(cols,rows.filter(h=>h.open).map(tr));
+    const cl=rows.filter(h=>!h.open);
+    if(cl.length)html+=`<div class="dt-note"><h2>Sold</h2><span class="note">${cl.length} stocks</span></div>`+H.table(cols,cl.map(tr));
+    el.innerHTML=html;return;
+  }
   html+=`<div class="sec"><h2>Holding</h2><span class="note">${openN} stocks</span></div><div class="list">${rows.filter(h=>h.open).map(row).join('')||'<div class="empty">None</div>'}</div>`;
   const closed=rows.filter(h=>!h.open);
   if(closed.length)html+=`<div class="sec"><h2>Sold</h2><span class="note">${closed.length} stocks</span></div><div class="list">${closed.map(row).join('')}</div>`;

@@ -12,6 +12,14 @@ const App=window.App={
   }
 };
 
+/* ---------- web site vs Android app ----------
+   The web site (repo root index.html) sets window.WEB_SITE=true and loads the same screens.
+   App.wide() = web site on a desktop-sized window → sidebar, header buttons, tables. */
+App.web=!!window.WEB_SITE;
+App.brand=App.web?'Markets Suite':'UnicornHunter';
+const WIDE_MQ=window.matchMedia('(min-width:1024px)');
+App.wide=()=>App.web&&WIDE_MQ.matches;
+
 /* ---------- helpers ---------- */
 const H=App.h={};
 H.$=(s,r=document)=>r.querySelector(s);
@@ -93,7 +101,34 @@ function parseHash(){
   App.state.tab=tab;
   if(s&&App.screens[tab].segs&&App.screens[tab].segs.some(x=>x.id===s))App.state.seg[tab]=s;
 }
+/* desktop sidebar (web site only): every screen and sub-screen gets its own link */
+const WEBNAV=[
+  {items:[['home','overview','Dashboard','home'],['home','trend','Trend & health','trend']]},
+  {group:'Shares',items:[['holdings','open','Open positions','holdings'],['holdings','wallets','Wallets','unit'],['holdings','stocks','All stocks','list'],
+    ['activity','trades','Trades','swap'],['activity','dividends','Dividends','pct'],['activity','funds','Funds','fx']]},
+  {group:'Insights',items:[['insights','pnl','P&L by year','insights'],['insights','cash','Cash by wallet','wallet'],['insights','capital','Capital','flow'],['insights','dividends','Dividend stats','pct']]},
+  {group:'Other assets',items:[['more','metals','Metals','gold'],['more','crypto','Crypto','coin'],['more','asnb','ASNB','unit']]},
+  {group:'Research',items:[['more','scanner','Growth scanner','radar'],['more','quote','Quote lookup','search'],['more','alerts','Price alerts','bell']]}
+];
+const WEBNAV_EXTRA=[['more','menu','Settings']];   // reached from the gear in the sidebar footer
+App.webNavItem=()=>{const t=App.state.tab,sg=App.state.seg[t];
+  for(const g of WEBNAV)for(const i of g.items)if(i[0]===t&&(i[1]===sg))return {group:g.group,label:i[2]};
+  for(const i of WEBNAV_EXTRA)if(i[0]===t&&i[1]===sg)return {group:'',label:i[2]};return null;};
+const LOGO='<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="23" fill="#00332F"/><circle cx="50" cy="52" r="30" fill="none" stroke="#00A19C" stroke-width="5"/><path d="M50 16V25M50 79V88M14 52H23M77 52H86" stroke="#00A19C" stroke-width="5" stroke-linecap="round"/><g transform="rotate(35 50 52)"><path d="M42 70L50 22L58 70Z" fill="#fff" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M43.7 60L55.3 54M45.7 48L53.3 42M47.7 36L51.3 30" stroke="#00332F" stroke-width="2.5" stroke-linecap="round"/></g><path d="M79 13L81 19L87 21L81 23L79 29L77 23L71 21L77 19Z" fill="#E8B04A"/></svg>';
+function renderWebNav(){
+  const t=App.state.tab,sg=App.state.seg[t];
+  H.$('#nav').innerHTML=`<a class="wn-brand" href="#home"><span class="logo-mark">${LOGO}</span><span><b>Markets</b> Suite</span></a>
+    <div class="wn-scroll">${WEBNAV.map(g=>`${g.group?`<div class="wn-group">${g.group}</div>`:g.group===''?'<div class="wn-sep"></div>':''}`+
+      g.items.map(([tb,seg,label,ic])=>`<a class="wn-link ${t===tb&&sg===seg?'on':''}" href="#${tb}/${seg}">${H.icon[ic]||''}<span>${label}</span></a>`).join('')).join('')}</div>
+    <div class="wn-foot"><div class="wn-who" id="wnWho"></div>
+      <a class="wn-ic ${t==='more'&&sg==='menu'?'on':''}" href="#more/menu" title="Settings" aria-label="Settings">${H.icon.gear}</a>
+      <button class="wn-ic" onclick="App.more.signOut()" title="Sign out" aria-label="Sign out">${H.icon.out}</button></div>`;
+  if(!App._who)sb.auth.getSession().then(({data:{session}})=>{App._who=session&&session.user.email;const w=document.getElementById('wnWho');if(w)w.textContent=App._who||'';});
+  else{const w=document.getElementById('wnWho');if(w)w.textContent=App._who;}
+}
 function renderNav(){
+  document.body.classList.toggle('wide',App.wide());
+  if(App.wide()){renderWebNav();return;}
   H.$('#nav').innerHTML=`<div class="logo-mark rail-logo"><svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" rx="23" fill="#00332F"/><circle cx="50" cy="52" r="30" fill="none" stroke="#00A19C" stroke-width="5"/><path d="M50 16V25M50 79V88M14 52H23M77 52H86" stroke="#00A19C" stroke-width="5" stroke-linecap="round"/><g transform="rotate(35 50 52)"><path d="M42 70L50 22L58 70Z" fill="#fff" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M43.7 60L55.3 54M45.7 48L53.3 42M47.7 36L51.3 30" stroke="#00332F" stroke-width="2.5" stroke-linecap="round"/></g><path d="M79 13L81 19L87 21L81 23L79 29L77 23L71 21L77 19Z" fill="#E8B04A"/></svg></div>`+TABS.map(t=>
     `<a href="#${t.id}" class="${App.state.tab===t.id?'on':''}" aria-label="${t.label}"><span class="pill"></span>${H.icon[t.id]}<span>${t.label}</span></a>`).join('');
 }
@@ -101,11 +136,13 @@ App.render=(resetScroll)=>{
   const sc=App.screens[App.state.tab];
   renderNav();
   const seg=App.state.seg[App.state.tab];
-  H.$('#title').textContent=typeof sc.title==='function'?sc.title(seg):sc.title;
-  H.$('#sub').innerHTML=sc.sub?sc.sub(seg):App.priceNote();
+  const wide=App.wide(), ni=wide?App.webNavItem():null;
+  H.$('#title').textContent=ni?ni.label:typeof sc.title==='function'?sc.title(seg):sc.title;
+  H.$('#sub').innerHTML=wide?(ni&&ni.group?`<span class="eyebrow">${ni.group}</span> · `:'')+App.priceNote():sc.sub?sc.sub(seg):App.priceNote();
+  document.title=wide&&ni?`${ni.label} — ${App.brand}`:App.brand;
   // segments
   H.$('#segs').innerHTML=(sc.segs||[]).map(s=>`<button class="seg ${s.id===seg?'on':''}" data-seg="${s.id}">${s.label}</button>`).join('');
-  H.$('#segs').hidden=!(sc.segs&&sc.segs.length)||!!sc.hideSegs;
+  H.$('#segs').hidden=wide||!(sc.segs&&sc.segs.length)||!!sc.hideSegs;
   // header actions
   const acts=(sc.actions?sc.actions(seg):[]).concat(['eye','refresh']);
   H.$('#actions').innerHTML=acts.map(a=>{
@@ -116,8 +153,11 @@ App.render=(resetScroll)=>{
   }).join('');
   // FAB
   const fab=sc.fab?sc.fab(seg):null;
-  H.$('#fab').hidden=!fab;
-  if(fab){H.$('#fabLbl').textContent=fab.label;H.$('#fab').onclick=fab.onClick;}
+  H.$('#fab').hidden=!fab||wide;
+  if(fab&&!wide){H.$('#fabLbl').textContent=fab.label;H.$('#fab').onclick=fab.onClick;}
+  if(fab&&wide){   // desktop: primary "+ Add" button in the header instead of a floating button
+    H.$('#actions').insertAdjacentHTML('beforeend',`<button class="btn btn-p hdr-add" id="hdrAdd"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>${H.esc(fab.label)}</button>`);
+    H.$('#hdrAdd').onclick=fab.onClick;}
   const y=window.scrollY;
   sc.render(H.$('#view'),seg);
   App.applyPrivacy(H.$('#view'));App.applyPrivacy(H.$('#sub'));
@@ -142,6 +182,7 @@ document.addEventListener('click',e=>{
 });
 window.addEventListener('hashchange',()=>{parseHash();App.closeSheet(true);App.render(true);});
 App.initRouter=()=>{parseHash();App.render(true);};
+WIDE_MQ.addEventListener&&WIDE_MQ.addEventListener('change',()=>{if(App.web)App.refreshView();});
 
 /* ---------- sheet ---------- */
 let sheetOpen=false, sheetOnClose=null;
@@ -247,6 +288,32 @@ window.onPricesUpdated=()=>{
   const settled=Object.values(priceCache).every(v=>v!==null);
   if(settled&&Object.keys(priceCache).length){App.state.loadingPrices=false;App.state.pricesAt=new Date();}
   App.refreshView();
+};
+
+/* extra icons (web sidebar) */
+Object.assign(H.icon,{
+  trend:'<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+  list:'<svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>',
+  swap:'<svg viewBox="0 0 24 24"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg>',
+  pct:'<svg viewBox="0 0 24 24"><path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg>',
+  wallet:'<svg viewBox="0 0 24 24"><path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7V6a2 2 0 0 1 2-2h11v3"/><circle cx="16.5" cy="13.5" r="1.2"/></svg>',
+  flow:'<svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-6M22 19H2"/></svg>',
+  gear:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>'
+});
+
+/* ---------- desktop data table ----------
+   cols: [{k, label, cls:'n' (right-aligned numbers), sort:true, w}]
+   rows: [{cells:{k:html}, on:"js onclick", cls}]  ·  opts: {sort:{col,dir}, onSort:'App.x.sort', foot:{k:html}, group:fn(row)→label} */
+H.table=(cols,rows,opts={})=>{
+  const s=opts.sort||{};
+  const th=cols.map(c=>{const on=c.sort&&s.col===c.k;
+    return `<th class="${c.cls||''} ${c.sort?'srt':''} ${on?'on':''}" ${c.w?`style="width:${c.w}"`:''} ${c.sort&&opts.onSort?`onclick="${opts.onSort}('${c.k}')"`:''}>${c.label}${on?`<i>${s.dir==='asc'?'▲':'▼'}</i>`:''}</th>`;}).join('');
+  let body='',grp=null;
+  rows.forEach(r=>{
+    if(opts.group){const g=opts.group(r);if(g!==grp){grp=g;body+=`<tr class="tgrp"><td colspan="${cols.length}">${g}</td></tr>`;}}
+    body+=`<tr class="${r.on?'tap':''} ${r.cls||''}" ${r.on?`onclick="${r.on}"`:''}>${cols.map(c=>`<td class="${c.cls||''}">${r.cells[c.k]==null?'':r.cells[c.k]}</td>`).join('')}</tr>`;});
+  const foot=opts.foot?`<tfoot><tr>${cols.map(c=>`<td class="${c.cls||''}">${opts.foot[c.k]==null?'':opts.foot[c.k]}</td>`).join('')}</tr></tfoot>`:'';
+  return `<div class="dt-wrap"><table class="dt"><thead><tr>${th}</tr></thead><tbody>${body}</tbody>${foot}</table></div>`;
 };
 
 /* skeleton while data loads */

@@ -42,8 +42,10 @@ function renderTrades(el){
     const a=T[c]=T[c]||{n:0,gross:0,broker:0,stax:0,stamp:0,clearing:0,net:0,buyN:0,buy:0,sellN:0,sell:0};
     a.n++;a.gross+=n(t.gross_amount);a.broker+=n(t.broker_fee);a.stax+=n(t.stax);a.stamp+=n(t.stamp_duty);a.clearing+=n(t.clearing_fee);a.net+=n(t.net_amount);
     if(t.tx_type==='Buy'){a.buyN++;a.buy+=n(t.net_amount);}else{a.sellN++;a.sell+=n(t.net_amount);}});
+  const wide=App.wide();
   let html=App.filterChips(TK);
-  html+=Object.keys(T).sort().map(c=>{const a=T[c],flow=a.sell-a.buy;return `<div class="card" style="margin-bottom:10px">
+  if(wide)html+='<div class="grid g2">';
+  html+=Object.keys(T).sort().map(c=>{const a=T[c],flow=a.sell-a.buy;return `<div class="card" style="margin-bottom:${wide?0:10}px">
     <div class="pos-top"><div class="lbl">${c} · ${a.n} trade${a.n!==1?'s':''}</div>${H.ccyTag(c)}</div>
     <div class="grid g3" style="gap:10px;margin-top:8px">
       <div><div class="tiny">Bought (${a.buyN})</div><div style="font-weight:800">${c} ${fmt(a.buy)}</div></div>
@@ -54,7 +56,26 @@ function renderTrades(el){
       <div class="kv"><span>Broker</span><span>${fmt(a.broker)}</span></div><div class="kv"><span>SST</span><span>${fmt(a.stax)}</span></div>
       <div class="kv"><span>Stamp duty</span><span>${fmt(a.stamp)}</span></div><div class="kv"><span>Clearing</span><span>${fmt(a.clearing)}</span></div>
       <div class="kv b"><span>Net total</span><span>${c} ${fmt(a.net)}</span></div></details></div>`;}).join('');
+  if(wide)html+='</div>';
   if(!list.length){el.innerHTML=html+'<div class="empty">No trades found.</div>';return;}
+  if(wide){
+    const n=v=>Number(v)||0, dp=t=>t.market==='Bursa'?3:2;
+    const cols=[{k:'tx_date',label:'Date',sort:1},{k:'ticker',label:'Stock',sort:1},{k:'tx_type',label:'Type',sort:1},{k:'cds_account',label:'Wallet',sort:1},
+      {k:'quantity',label:'Units',cls:'n',sort:1},{k:'price',label:'Price',cls:'n',sort:1},{k:'gross_amount',label:'Gross',cls:'n',sort:1},
+      {k:'fees',label:'Fees',cls:'n'},{k:'net_amount',label:'Net amount',cls:'n',sort:1},{k:'notes',label:'Notes'}];
+    const rows=list.slice(0,limits.trades).map(t=>{const buy=t.tx_type==='Buy',ccy=t.currency||(t.market==='Bursa'?'MYR':'USD'),st=txSettle(t);
+      const fees=n(t.broker_fee)+n(t.stax)+n(t.stamp_duty)+n(t.clearing_fee);
+      return {on:`App.activity.openTrade('${t.id}')`,cells:{tx_date:H.date(t.tx_date),
+        ticker:`<div class="t-main">${H.esc(t.company_name||t.ticker)}${t.is_contra?' <span class="tag gold">contra</span>':''}</div><div class="t-sub">${H.esc(t.ticker)} · ${t.market}</div>`,
+        tx_type:`<span class="tag ${buy?'buy':'sell'}">${buy?'BUY':'SELL'}</span>`,cds_account:`<span class="tag ${ccy==='USD'?'usd':'myr'}">${normCds(t.cds_account)}-${ccy}</span>`,
+        quantity:fmt(t.quantity,t.quantity%1?4:0),price:fmt(t.price,dp(t)),gross_amount:fmt(t.gross_amount),fees:fmt(fees),
+        net_amount:`<b class="${buy?'':'up'}">${buy?'−':'+'}${ccy} ${fmt(t.net_amount)}</b>${st.cross?`<div class="t-sub">settled ${st.ccy} ${fmt(st.amt)}</div>`:''}`,
+        notes:t.notes?`<span class="t-sub" title="${H.esc(t.notes)}" style="display:inline-block;max-width:220px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom">${H.esc(t.notes)}</span>`:''}};});
+    html+=`<div class="dt-note"><h2>${list.length} trade${list.length!==1?'s':''}</h2><span class="note">Click a column heading to sort · a row to view, edit or delete</span></div>`+
+      H.table(cols,rows,{sort:s,onSort:'App.activity.sortBy'});
+    if(list.length>limits.trades)html+=`<button class="btn btn-s" style="margin-top:12px" onclick="App.activity.more('trades')">Show ${Math.min(LIMIT_STEP,list.length-limits.trades)} more (${list.length-limits.trades} left)</button>`;
+    el.innerHTML=html;return;
+  }
   html+=`<div class="sec" style="margin-top:14px"><h2>${list.length} trade${list.length!==1?'s':''}</h2>
     <button class="link" onclick="App.activity.sortSheet()">Sort: ${{tx_date:'Date',ticker:'Stock',net_amount:'Amount',quantity:'Units',cds_account:'CDS'}[s.col]||s.col} ${s.dir==='asc'?'↑':'↓'}</button></div>`;
   html+=groupedList(list.slice(0,limits.trades),t=>t.tx_date,App.activity.tradeRow,s.col==='tx_date');
@@ -68,6 +89,7 @@ function groupedList(list,dateOf,rowFn,byMonth){
   return html+'</div>';
 }
 App.activity.more=k=>{limits[k]+=LIMIT_STEP;App.render(false);};
+App.activity.sortBy=k=>{const s=sortState.trades;s.dir=s.col===k&&s.dir==='desc'?'asc':'desc';s.col=k;App.render(false);};
 App.activity.sortSheet=()=>{
   const s=sortState.trades;
   const cols=[['tx_date','Date'],['ticker','Stock'],['net_amount','Net amount'],['quantity','Units'],['cds_account','CDS account']];
@@ -141,8 +163,13 @@ function renderDivs(el){
     <div class="stat"><div class="lbl">Last year</div><div class="val">MYR ${fmt(s.byYear[s.now-1]||0)}</div><div class="sub">${s.now-1}</div></div></div>`;
   if(!list.length){el.innerHTML=html+'<div class="empty">No dividends found.</div>';return;}
   const T={};list.forEach(l=>{const t=T[l.ccy]=T[l.ccy]||{n:0,all:0};t.n++;t.all+=l.amount;});
-  html+=`<div class="sec"><h2>${list.length} payout${list.length!==1?'s':''}</h2><span class="note">${Object.keys(T).sort().map(c=>`${c} ${fmt(T[c].all)}`).join(' · ')}</span></div>`;
-  html+=groupedList(list.slice(0,limits.dividends),l=>l.date,divRow,true);
+  html+=`<div class="${App.wide()?'dt-note':'sec'}"><h2>${list.length} payout${list.length!==1?'s':''}</h2><span class="note">${Object.keys(T).sort().map(c=>`${c} ${fmt(T[c].all)}`).join(' · ')}</span></div>`;
+  if(App.wide())html+=H.table([{k:'d',label:'Date'},{k:'s',label:'Stock'},{k:'w',label:'Wallet'},{k:'p',label:'Paid to'},{k:'a',label:'Amount',cls:'n'},{k:'m',label:'≈ MYR',cls:'n'}],
+    list.slice(0,limits.dividends).map(l=>({on:`App.activity.openDiv('${l.id}')`,cells:{d:H.date(l.date),
+      s:`<div class="t-main">${H.esc(l.name)}${l.auto&&l.cds?` <span class="tag">auto${Number(l.div.amount)!==l.amount?' split':''}</span>`:''}</div><div class="t-sub">${H.esc(l.ticker)}</div>`,
+      w:`<span class="tag ${l.ccy==='USD'?'usd':'myr'}">${l.wallet}</span>`,p:l.dest==='CDS wallet'?'CDS wallet':H.esc(l.dest),
+      a:`<b class="gold">${l.ccy} ${fmt(l.amount)}</b>`,m:l.ccy==='USD'?(H.fx()?fmt(l.amount*H.fx()):'—'):fmt(l.amount)}})));
+  else html+=groupedList(list.slice(0,limits.dividends),l=>l.date,divRow,true);
   if(list.length>limits.dividends)html+=`<button class="btn btn-s" style="width:100%;margin-top:12px" onclick="App.activity.more('dividends')">Show more</button>`;
   if(s.pending)html+=`<div class="tiny" style="margin-top:10px">${s.pending} USD payout(s) waiting for the exchange rate.</div>`;
   el.innerHTML=html;
@@ -206,8 +233,13 @@ function renderFunds(el){
     return `<div class="stat"><div class="lbl">${c} net in · ${t[c].n} rows</div><div class="val">${H.money(c,net,true)}</div>
       <div class="sub">in ${H.k(t[c].inn)} · out ${H.k(t[c].out)}${c==='USD'&&H.fx()?' · '+H.eqMyr('USD',net):''}</div></div>`;}).join('')+`</div>`;
   if(!list.length){el.innerHTML=html+'<div class="empty">No movements found.</div>';return;}
-  html+=`<div class="sec"><h2>${list.length} movement${list.length!==1?'s':''}</h2><a class="link" href="#insights/capital">Balances →</a></div>`;
-  html+=groupedList(list.slice(0,limits.funds),f=>f.txn_date,fundRow,true);
+  html+=`<div class="${App.wide()?'dt-note':'sec'}"><h2>${list.length} movement${list.length!==1?'s':''}</h2><a class="link" href="#insights/capital">Balances →</a></div>`;
+  if(App.wide())html+=H.table([{k:'d',label:'Date'},{k:'t',label:'Type'},{k:'w',label:'Wallet'},{k:'x',label:'Detail'},{k:'a',label:'Amount',cls:'n'},{k:'n',label:'Notes'}],
+    list.slice(0,limits.funds).map(f=>{const ccy=f.currency||'MYR',plus=(f.txn_type==='Deposit'||f.txn_type==='Transfer In'),xf=!!f.transfer_group||f.txn_type.startsWith('Transfer');
+      return {on:`App.activity.openFund('${f.id}')`,cells:{d:H.date(f.txn_date),t:`<span class="tag ${xf?'usd':plus?'buy':'sell'}">${H.esc(f.txn_type)}</span>`,
+        w:`<span class="tag ${ccy==='USD'?'usd':'myr'}">${wk(f.cds_account,ccy)}</span>`,x:H.esc(fundDetail(f)),
+        a:`<b class="${plus?'up':'down'}">${plus?'+':'−'}${ccy} ${fmt(f.amount)}</b>`,n:f.notes?`<span class="t-sub" title="${H.esc(f.notes)}" style="display:inline-block;max-width:260px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom">${H.esc(f.notes)}</span>`:''}};}));
+  else html+=groupedList(list.slice(0,limits.funds),f=>f.txn_date,fundRow,true);
   if(list.length>limits.funds)html+=`<button class="btn btn-s" style="width:100%;margin-top:12px" onclick="App.activity.more('funds')">Show more</button>`;
   el.innerHTML=html;
 }

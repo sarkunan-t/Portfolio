@@ -363,6 +363,7 @@ details.more-dt[open] summary::before{content:'▾ ';}
 .sc-badge.ok{background:var(--teal-bg);color:var(--deep);}
 .sc-badge.mid{background:#eef3f2;color:var(--ink2);}
 .sc-badge.lo{background:var(--down-bg);color:var(--down);}
+.sc-badge.sm{width:38px;height:30px;border-radius:9px;font-size:14px;display:inline-flex;}
 .sc-badge.xl{width:64px;height:64px;border-radius:18px;font-size:26px;}
 .sc-row .t1 .tag{font-size:10.5px;padding:1px 6px;}
 .tag.cls-emerging{background:var(--up-bg);color:var(--up);}
