@@ -6,6 +6,7 @@
 const H=App.h;
 H.icon.radar='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/><circle cx="12" cy="12" r="1"/></svg>';
 const LIST_COLS='symbol,name,sector,price,chg_pct,market_cap,score,score_chg_1m,score_chg_3m,classification,discovery,fund_score,mom_score';
+const TARGET_COLS=',target_mean,target_high,target_low,analysts,rating,upside';   // needs mobile/supabase/price-targets.sql
 const CLASSES=['Emerging','Confirmed','Extended','Deteriorating'];
 const VIEWS=[['top','Top 20'],['rising','Score rising'],['discovery','Discovery'],['all','All qualified']];
 const MINS=[50,60,70,80,90];
@@ -14,7 +15,7 @@ const S=App.scanner={status:'idle',at:0,run:null,rows:[],err:'',view:'top',min:6
 const SIG_ORDER={Emerging:1,Confirmed:2,Extended:3,Deteriorating:4};
 const SORTS={sc:['Score',r=>r.score],s:['Stock',r=>r.symbol],sec:['Sector',r=>(r.sector||'~').toLowerCase()],c:['Signal',r=>SIG_ORDER[r.classification]||9],
   p:['Price',r=>r.price],d:['Today',r=>r.chg_pct],m1:['Score 1m',r=>r.score_chg_1m],m3:['Score 3m',r=>r.score_chg_3m],
-  f:['Fundamentals',r=>r.fund_score],mo:['Momentum',r=>r.mom_score],mc:['Market cap',r=>r.market_cap]};
+  up:['Upside',r=>r.upside],f:['Fundamentals',r=>r.fund_score],mo:['Momentum',r=>r.mom_score],mc:['Market cap',r=>r.market_cap]};
 const ASC_FIRST={s:1,sec:1,c:1};   // text-like columns start A→Z / Emerging first
 function sorted(list){
   if(!S.sort)return list;
@@ -55,7 +56,8 @@ S.load=async(force)=>{
     if(r.error)throw r.error;
     if(!r.data.length){S.status='empty';S.run=null;S.rows=[];App.refreshView();return;}
     S.run=r.data[0];
-    const q=await sb.from('scan_scores').select(LIST_COLS).eq('scan_date',S.run.scan_date).order('score',{ascending:false}).limit(3000);
+    let q=await sb.from('scan_scores').select(LIST_COLS+TARGET_COLS).eq('scan_date',S.run.scan_date).order('score',{ascending:false}).limit(3000);
+    if(q.error&&/column/i.test(q.error.message||''))q=await sb.from('scan_scores').select(LIST_COLS).eq('scan_date',S.run.scan_date).order('score',{ascending:false}).limit(3000);
     if(q.error)throw q.error;
     S.rows=q.data||[];S.at=Date.now();S.status='ok';S.detail={};
   }catch(e){console.error('scanner',e);S.err=e.message||String(e);S.status=isMissing(e)?'missing':'error';}
@@ -115,7 +117,8 @@ const shown=()=>sorted(filtered());
 function sortedNote(r){
   const k=S.sort&&S.sort.col, sp=v=>v==null?'<span class="dim">—</span>':pts(v);
   return k==='m1'?`${sp(r.score_chg_1m)} <span class="dim">1m</span>`:k==='m3'?`${sp(r.score_chg_3m)} <span class="dim">3m</span>`:
-    k==='f'?`<span class="dim">Fund</span> ${r.fund_score}`:k==='mo'?`<span class="dim">Mom</span> ${r.mom_score}`:k==='mc'?`<span class="dim">${big(r.market_cap)}</span>`:'';
+    k==='f'?`<span class="dim">Fund</span> ${r.fund_score}`:k==='mo'?`<span class="dim">Mom</span> ${r.mom_score}`:k==='mc'?`<span class="dim">${big(r.market_cap)}</span>`:
+    k==='up'?(r.upside==null?'<span class="dim">no target</span>':`${pts(r.upside)}% <span class="dim">target</span>`):'';
 }
 function row(r,hs){
   const disc=S.view==='discovery';
@@ -126,16 +129,16 @@ function row(r,hs){
       <div class="t2">${sub}</div></div>
     <div class="end"><div class="v">${usd(r.price)}</div><div class="s">${sortedNote(r)||(S.view==='rising'?chg3(r):H.pill(r.chg_pct))}</div></div></button>`;
 }
+const upCell=r=>r.upside==null?'<span class="dim">—</span>':`<b class="${r.upside>=0?'up':'down'}">${r.upside>=0?'+':'−'}${fmt(Math.abs(r.upside),0)}%</b><div class="t-sub">${usd(r.target_mean)}${r.analysts?' · '+r.analysts:''}</div>`;
 function table(list,hs){
-  const cols=[{k:'sc',label:'Score'+H.tip('score'),cls:'n',w:'64px',sort:1},{k:'s',label:'Stock',sort:1},{k:'sec',label:'Sector',sort:1},{k:'c',label:'Signal'+H.tip('signal'),sort:1},{k:'p',label:'Price',cls:'n',sort:1},
+  const cols=[{k:'sc',label:'Score'+H.tip('score'),cls:'n',w:'64px',sort:1},{k:'s',label:'Stock',sort:1},{k:'c',label:'Signal'+H.tip('signal'),sort:1},{k:'p',label:'Price',cls:'n',sort:1},
     {k:'d',label:'Today',cls:'n',sort:1},{k:'m1',label:'Score 1m'+H.tip('chg1m'),cls:'n',sort:1},{k:'m3',label:'Score 3m'+H.tip('chg3m'),cls:'n',sort:1},
-    {k:'f',label:'Fund'+H.tip('fund'),cls:'n',sort:1},{k:'mo',label:'Mom'+H.tip('mom'),cls:'n',sort:1},{k:'mc',label:'Market cap',cls:'n',sort:1}];
+    {k:'up',label:'Upside'+H.tip('w.upside'),cls:'n',sort:1},{k:'f',label:'Fund'+H.tip('fund'),cls:'n',sort:1},{k:'mo',label:'Mom'+H.tip('mom'),cls:'n',sort:1},{k:'mc',label:'Market cap',cls:'n',sort:1}];
   const ch=v=>v==null?'<span class="dim">—</span>':pts(v);
   return H.table(cols,list.map(r=>({on:`App.scanner.open('${H.esc(r.symbol)}')`,cells:{
     sc:`<span class="sc-badge sm ${band(r.score)}">${r.score}</span>`,
-    s:`<div class="t-main">${H.esc(r.symbol)}${hs.has(r.symbol)?' <span class="tag myr">Held</span>':''} ${App.watch?App.watch.tag(r.symbol):''}</div><div class="t-sub">${H.esc(r.name||'')}</div>`,
-    sec:H.esc(r.sector||''),c:clsTag(r.classification)+(r.discovery?' '+discTag:''),
-    p:usd(r.price),d:H.pill(r.chg_pct),m1:ch(r.score_chg_1m),m3:ch(r.score_chg_3m),f:r.fund_score,mo:r.mom_score,mc:big(r.market_cap)}})),{sort:S.sort||{},onSort:'App.scanner.sortBy'});
+    s:`<div class="t-main">${H.esc(r.symbol)}${hs.has(r.symbol)?' <span class="tag myr">Held</span>':''} ${App.watch?App.watch.tag(r.symbol):''}</div><div class="t-sub">${H.esc(r.name||'')}${r.sector?' · '+H.esc(r.sector):''}</div>`,c:clsTag(r.classification)+(r.discovery?' '+discTag:''),
+    p:usd(r.price),d:H.pill(r.chg_pct),m1:ch(r.score_chg_1m),m3:ch(r.score_chg_3m),up:upCell(r),f:r.fund_score,mo:r.mom_score,mc:big(r.market_cap)}})),{sort:S.sort||{},onSort:'App.scanner.sortBy'});
 }
 S.render=el=>{
   if(S.status==='idle'){S.load();}
@@ -243,7 +246,9 @@ function metricsHTML(m,r){
     m.dilution!=null?kv(H.lt('Share count, 1 year','m.dil'),pc(m.dilution,1)):'',
     kv('Financials to',m.period_end?H.date(m.period_end)+(m.quarterly?'':' (annual)'):'—')].join('');
   const val=[kv(H.lt('Market cap','m.mcap'),big(r.market_cap)),kv(H.lt('Price / sales','m.ps'),m.ps!=null?`${fmt(m.ps,1)}${m.sector_ps?` <span class="dim">· sector ${fmt(m.sector_ps,1)}</span>`:''}`:'—'),
-    kv(H.lt('Price / earnings','m.pe'),m.pe!=null?fmt(m.pe,1):'—')].join('');
+    kv(H.lt('Price / earnings','m.pe'),m.pe!=null?fmt(m.pe,1):'—'),
+    kv(H.lt('Analyst target','w.target'),r.target_mean!=null?`${usd(r.target_mean)} <span class="dim">(${usd(r.target_low)}–${usd(r.target_high)}${r.analysts?' · '+r.analysts+' analysts':''})</span>`:'<span class="dim">no coverage</span>'),
+    kv(H.lt('Upside to target','w.upside'),r.upside!=null?pts(r.upside,1)+'%':'—')].join('');
   const mom=[kv(H.lt('Return 1m / 3m','m.ret'),`${pc(m.ret_1m)} / ${pc(m.ret_3m)}`),kv(H.lt('Return 6m / 12m','m.ret'),`${pc(m.ret_6m)} / ${pc(m.ret_12m)}`),
     kv(H.lt('vs NASDAQ, 3 months','m.rs'),m.rs_3m!=null?pts(m.rs_3m)+' pts':'—'),
     kv(H.lt('vs 50-day / 200-day avg','m.ma'),`${pc(m.vs_ma50)} / ${pc(m.vs_ma200)}`),

@@ -55,7 +55,10 @@ class YahooPrices(PriceSource):
 # ---------------------------------------------------------------- analyst price targets
 # Wall Street consensus from Yahoo's quoteSummary "financialData" module (needs a cookie + crumb).
 # Mirrors mobile/supabase/price-target/index.ts so the app and the nightly job store the same fields.
-def analyst_targets(symbols: list[str]) -> dict[str, dict]:
+def analyst_targets(symbols: list[str], workers: int = 1) -> dict[str, dict]:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
     import requests
     ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     s = requests.Session()
@@ -68,18 +71,31 @@ def analyst_targets(symbols: list[str]) -> dict[str, dict]:
     if not crumb or len(crumb) > 40 or "<" in crumb:
         raise RuntimeError("Yahoo crumb unavailable")
     raw = lambda v: v.get("raw") if isinstance(v, dict) else v
-    out = {}
-    for sym in symbols:
-        try:
-            r = s.get(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{sym}",
-                      params={"modules": "financialData", "crumb": crumb}, timeout=20)
-            if r.status_code != 200:
-                continue
-            f = (((r.json().get("quoteSummary") or {}).get("result") or [{}])[0] or {}).get("financialData") or {}
-            out[sym] = {"target_mean": raw(f.get("targetMeanPrice")), "target_median": raw(f.get("targetMedianPrice")),
-                        "target_high": raw(f.get("targetHighPrice")), "target_low": raw(f.get("targetLowPrice")),
-                        "analysts": raw(f.get("numberOfAnalystOpinions")), "rating": f.get("recommendationKey"),
-                        "rating_mean": raw(f.get("recommendationMean")), "target_ccy": f.get("financialCurrency")}
-        except Exception as e:  # noqa: BLE001
-            print(f"  target {sym}: {e}")
+    out, lock = {}, threading.Lock()
+
+    def one(sym):
+        import time
+        for attempt in range(3):
+            try:
+                r = s.get(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{sym}",
+                          params={"modules": "financialData", "crumb": crumb}, timeout=20)
+                if r.status_code == 429:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+                if r.status_code != 200:
+                    return
+                f = (((r.json().get("quoteSummary") or {}).get("result") or [{}])[0] or {}).get("financialData") or {}
+                row = {"target_mean": raw(f.get("targetMeanPrice")), "target_median": raw(f.get("targetMedianPrice")),
+                       "target_high": raw(f.get("targetHighPrice")), "target_low": raw(f.get("targetLowPrice")),
+                       "analysts": raw(f.get("numberOfAnalystOpinions")), "rating": f.get("recommendationKey"),
+                       "rating_mean": raw(f.get("recommendationMean")), "target_ccy": f.get("financialCurrency")}
+                with lock:
+                    out[sym] = row
+                return
+            except Exception as e:  # noqa: BLE001
+                print(f"  target {sym}: {e}")
+                return
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
+        list(ex.map(one, symbols))
     return out

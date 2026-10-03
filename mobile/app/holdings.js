@@ -17,6 +17,11 @@ function filterGroups(){
   ];
 }
 
+/* analyst target / upside (App.pt, filled by the price-target Edge Function) */
+const tgt=p=>App.pt?App.pt.get(p.sym):null;
+const upside=p=>App.pt?App.pt.upside(p.sym,p.price):null;
+function tgtLine(p){const t=tgt(p),u=upside(p);if(!t)return '';
+  return `<div class="pos-meta" style="margin-top:3px">Analyst target ${p.ccy} ${fmt(t.mean,p.market==='Bursa'?3:2)} · <span class="${u>=0?'up':'down'}">${u>=0?'+':'−'}${fmt(Math.abs(u),1)}% upside</span>${t.analysts?` · ${t.analysts} analysts`:''}</div>`;}
 function posCard(p,grand){
   const usd=p.ccy==='USD', my=C.toMyr(p.ccy,p.value), w=grand&&my!=null?my/grand*100:null;
   const val=p.state==='loading'?'<span class="spin-i"></span>':p.value==null?'—':H.money(p.ccy,p.value);
@@ -27,6 +32,7 @@ function posCard(p,grand){
       ${H.pill(p.dayPct)}
     </div>
     <div class="pos-meta" style="margin-top:8px">${fmt(p.units,p.units%1?4:0)} units · avg ${p.ccy} ${fmt(p.avg,p.market==='Bursa'?3:2)} · now ${p.price==null?'—':p.ccy+' '+fmt(p.price,p.market==='Bursa'?3:2)}</div>
+    ${tgtLine(p)}
     <div class="pos-bot">
       <div><div class="pos-val">${val}</div>${usd&&p.value!=null&&H.fx()?`<div class="tiny">${H.eqMyr('USD',p.value)}</div>`:''}</div>
       <div class="pos-pl">${p.pnl==null?'—':H.money(p.ccy,p.pnl,true)}<div>${H.pct(p.pnlPct)}</div></div>
@@ -53,6 +59,7 @@ function summaryCard(T,c){
 
 function renderOpen(el){
   const pos=C.positions(filters()), {by,T,c}=C.combined(pos);
+  if(App.pt&&pos.length)App.pt.ensure(pos.map(p=>p.sym));
   let html=App.filterChips(FK)+summaryCard(T,c);
   if(!pos.length){el.innerHTML=html+`<div class="empty">No open positions${App.filterActive(filters())?' match these filters':''}.</div>`;return;}
   const sortV=l=>[...l].sort((a,b)=>(C.toMyr(b.ccy,b.value)||0)-(C.toMyr(a.ccy,a.value)||0)||b.cost-a.cost);
@@ -71,24 +78,26 @@ const r0=()=>H.fx();
 const hs={col:'value',dir:'desc'};
 App.holdings.sort=k=>{hs.dir=hs.col===k&&hs.dir==='desc'?'asc':'desc';hs.col=k;App.render(false);};
 const SORTV={stock:p=>p.label.toLowerCase(),wallet:p=>p.wallet,units:p=>p.units,avg:p=>p.avg,price:p=>p.price??-1e18,day:p=>p.dayPct??-1e18,
-  cost:p=>p.cost,value:p=>C.toMyr(p.ccy,p.value)??-1e18,pnl:p=>p.pnl??-1e18,pct:p=>p.pnlPct??-1e18};
+  cost:p=>p.cost,value:p=>C.toMyr(p.ccy,p.value)??-1e18,pnl:p=>p.pnl??-1e18,pct:p=>p.pnlPct??-1e18,up:p=>upside(p)??-1e18};
 function openTables(by,T,grand){
   const f=SORTV[hs.col]||SORTV.value, d=hs.dir==='asc'?1:-1;
-  const cols=[{k:'stock',label:'Stock',sort:1},{k:'wallet',label:'Wallet',sort:1},{k:'units',label:'Units',cls:'n',sort:1},{k:'avg',label:'Avg cost',cls:'n',sort:1},
+  const cols=[{k:'stock',label:'Stock',sort:1},{k:'units',label:'Units',cls:'n',sort:1},{k:'avg',label:'Avg cost',cls:'n',sort:1},
     {k:'price',label:'Price',cls:'n',sort:1},{k:'day',label:'Today',cls:'n',sort:1},{k:'cost',label:'Cost',cls:'n',sort:1},{k:'value',label:'Market value',cls:'n',sort:1},
-    {k:'pnl',label:'Unrealised P&amp;L',cls:'n',sort:1},{k:'pct',label:'Return',cls:'n',sort:1},{k:'w',label:'Weight',cls:'n'}];
+    {k:'pnl',label:'Unrealised P&amp;L',cls:'n',sort:1},{k:'pct',label:'Return',cls:'n',sort:1},{k:'up',label:'Upside'+H.tip('w.upside'),cls:'n',sort:1},{k:'w',label:'Weight',cls:'n'}];
   return ['MYR','USD'].map(ccy=>{
     const l=by[ccy];if(!l.length)return '';const t=T[ccy];
     const rows=[...l].sort((a,b)=>{const x=f(a),y=f(b);return x<y?-d:x>y?d:0;}).map(p=>{
       const my=C.toMyr(p.ccy,p.value),w=grand&&my!=null?my/grand*100:null,dp=p.market==='Bursa'?3:2;
       return {on:`App.holdings.openStock('${p.ticker}','${p.market}')`,cells:{
-        stock:`<div class="t-main">${H.esc(p.label)} ${H.wtag(p.ticker,p.market)}</div><div class="t-sub">${H.esc(p.subl)}</div>`,wallet:`<span class="tag ${p.ccy==='USD'?'usd':'myr'}">${p.wallet}</span>`,
+        stock:`<div class="t-main">${H.esc(p.label)} ${H.wtag(p.ticker,p.market)}</div><div class="t-sub">${H.esc(p.subl)} <span class="tag ${p.ccy==='USD'?'usd':'myr'}">${p.wallet}</span></div>`,
+        up:(()=>{const t=tgt(p),u=upside(p);return t&&u!=null?`<b class="${u>=0?'up':'down'}">${u>=0?'+':'−'}${fmt(Math.abs(u),0)}%</b><div class="t-sub">${fmt(t.mean,dp)}${t.analysts?' · '+t.analysts:''}</div>`:
+          App.pt&&App.pt.busy&&!App.pt.get(p.sym)&&!(p.sym in App.pt.cache&&App.pt.cache[p.sym])?'<span class="spin-i"></span>':'<span class="dim">—</span>';})(),
         units:fmt(p.units,p.units%1?4:0),avg:fmt(p.avg,dp),price:p.price==null?(p.state==='loading'?'<span class="spin-i"></span>':'—'):fmt(p.price,dp),
         day:H.pill(p.dayPct),cost:fmt(p.cost),value:p.value==null?'—':`<b>${fmt(p.value)}</b>`,pnl:p.pnl==null?'—':H.money(p.ccy,p.pnl,true).replace(p.ccy+' ',''),
         pct:H.pct(p.pnlPct),w:w==null?'—':`<div class="wcell"><div class="wbar"><i style="width:${Math.min(w*2,100)}%"></i></div>${fmt(w,1)}%</div>`}};});
     return `<div class="dt-note"><h2>${ccy==='MYR'?'Bursa · MYR':'US · USD'}</h2><span class="note">${t.n} position${t.n!==1?'s':''} · ${t.value==null?'—':H.money(ccy,t.value)}${ccy==='USD'&&t.value!=null&&H.fx()?' · '+H.eqMyr('USD',t.value):''}</span></div>`+
       H.table(cols,rows,{sort:hs,onSort:'App.holdings.sort',foot:{stock:'Total',cost:fmt(t.cost),value:t.value==null?'—':fmt(t.value),pnl:t.pnl==null?'—':H.money(ccy,t.pnl,true).replace(ccy+' ',''),pct:H.pct(t.pnlPct)}});
-  }).join('')+`<div class="tiny" style="margin:14px 2px 0">One row per stock per wallet. Cost is each wallet's average cost over its full history. Click a row for details, or a column heading to sort.${H.fx()?` USD converted to MYR at ${fmt(H.fx(),4)}.`:''}</div>`;
+  }).join('')+`<div class="tiny" style="margin:14px 2px 0">One row per stock per wallet. Cost is each wallet's average cost over its full history. Click a row for details, or a column heading to sort. Upside = average Wall Street analyst target vs today's price (via Yahoo Finance)${App.pt&&App.pt.state==='missing'?' — deploy the price-target Edge Function to see it':''}.${H.fx()?` USD converted to MYR at ${fmt(H.fx(),4)}.`:''}</div>`;
 }
 
 function walletCard(w,list,grand){
@@ -171,7 +180,8 @@ App.holdings.openStock=(ticker,market)=>{
       ${ccy==='USD'&&t.value!=null?`<div class="eq">${H.eqMyr('USD',t.value)}</div>`:''}
       <div class="kv"><span>Cost</span><span>${H.money(ccy,t.cost)}</span></div>
       <div class="kv"><span>Unrealised P&amp;L</span><span>${t.pnl==null?'—':H.money(ccy,t.pnl,true)} ${t.pnlPct==null?'':'('+H.pct(t.pnlPct)+')'}</span></div>
-      <div class="kv"><span>Today</span><span>${t.dayBase?H.money(ccy,t.day,true):'—'}</span></div></div>`;
+      <div class="kv"><span>Today</span><span>${t.dayBase?H.money(ccy,t.day,true):'—'}</span></div>
+      ${(()=>{const pt=App.pt&&App.pt.get(sym),u=App.pt&&q?App.pt.upside(sym,q.price):null;return pt?`<div class="kv"><span>${H.lt('Analyst target','w.target')}</span><span>${ccy} ${fmt(pt.mean,dp)} <span class="${u>=0?'up':'down'}">(${u>=0?'+':'−'}${fmt(Math.abs(u||0),1)}%)</span>${pt.analysts?` <span class="dim">· ${pt.analysts} analysts</span>`:''}</span></div>`:'';})()}</div>`;
     body+=`<div class="form-sec">By wallet</div>`+pos.map(p=>`<div class="card" style="box-shadow:none;margin-top:8px">
       <div class="pos-top"><div class="pos-name">${p.wallet}</div><span class="tiny">since ${H.date(p.since)}${p.lots>1?` · ${p.lots} buy lots`:''}</span></div>
       <div class="kv" style="margin-top:6px"><span>Shares</span><span>${fmt(p.units,p.units%1?4:0)}</span></div>

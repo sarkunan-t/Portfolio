@@ -295,6 +295,30 @@ def main():
                 "discovery": x["discovery"], "fund_score": s["fund_score"], "mom_score": s["mom_score"],
                 "breakdown": {**s["breakdown"], "_scale": s["scale"]}, "metrics": metrics_payload(x),
                 "reasons": x["reasons"], "flags": S.soft_flags(x["f"], t)})
+        # analyst consensus targets for every stored stock (best effort; needs mobile/supabase/price-targets.sql)
+        if detail and not a.dry_run and os.environ.get("SCANNER_TARGETS", "1") != "0":
+            try:
+                store.select("scan_scores", {"select": "upside", "limit": "1"}, page=1)
+                have_cols = True
+            except Exception:  # noqa: BLE001
+                have_cols = False
+                log("Price targets skipped: run mobile/supabase/price-targets.sql to add the columns")
+            if have_cols:
+                try:
+                    from sources.yahoo import analyst_targets
+                    tg = analyst_targets([d["symbol"] for d in detail], workers=4)
+                    for d in detail:
+                        t = tg.get(d["symbol"]) or {}
+                        mean = t.get("target_mean")
+                        d.update({"target_mean": mean, "target_high": t.get("target_high"), "target_low": t.get("target_low"),
+                                  "analysts": t.get("analysts"), "rating": t.get("rating"),
+                                  "upside": round((mean / d["price"] - 1) * 100, 1) if mean and d.get("price") else None})
+                    log(f"Price targets: {sum(1 for d in detail if d.get('target_mean'))}/{len(detail)} stocks have analyst coverage")
+                except Exception as e:  # noqa: BLE001
+                    log(f"Price targets skipped: {e}")
+                    for d in detail:
+                        for k in ("target_mean", "target_high", "target_low", "analysts", "rating", "upside"):
+                            d.setdefault(k, None)
         log(f"Writing {len(detail)} detail rows, {len(history)} history rows…")
         store.upsert("scan_scores", detail, "scan_date,symbol")
         store.upsert("scan_history", history, "symbol,scan_date")

@@ -230,5 +230,24 @@ W.open=sym=>{
       `<button class="btn btn-s" onclick="App.watch.move('${sym}','triage')">‹ Back to Triage</button>`}`});
   H.$('#wStage').querySelectorAll('button').forEach(b=>b.onclick=()=>W.move(sym,b.dataset.v));
 };
+/* ---------- analyst targets for any symbols (Open positions) — one call per session, cached ----------
+   App.pt.get('1155.KL') → {mean,high,low,analysts,rating} | null.  Uses the same price-target Edge Function. */
+const PT=App.pt={cache:{},busy:false,state:''};
+PT.get=sym=>{const t=PT.cache[sym];return t&&!t.error?t:null;};
+PT.ensure=async syms=>{
+  const todo=[...new Set(syms)].filter(s=>s&&!(s in PT.cache));
+  if(!todo.length||PT.busy||PT.state==='missing')return;
+  PT.busy=true;todo.forEach(s=>PT.cache[s]=null);
+  try{
+    for(let i=0;i<todo.length;i+=25){
+      const {data,error}=await sb.functions.invoke('price-target',{body:{symbols:todo.slice(i,i+25)}});
+      if(error){let st=0;try{st=error.context&&error.context.status;}catch(e){}if(st===404)PT.state='missing';throw error;}
+      todo.slice(i,i+25).forEach(s=>{PT.cache[s]=data&&data[s]?data[s]:{error:'none'};});
+    }
+  }catch(e){console.error('targets',e);todo.forEach(s=>{if(PT.cache[s]===null)delete PT.cache[s];});if(PT.state!=='missing')PT.state='error';}
+  PT.busy=false;App.refreshView();
+};
+PT.upside=(sym,price)=>{const t=PT.get(sym);return t&&t.mean&&price?(t.mean/price-1)*100:null;};
+
 W.menuSub=()=>W.status==='ok'?`${W.rows.filter(r=>r.stage==='triage').length} in triage · ${W.rows.filter(r=>r.stage==='confirmation').length} in confirmation`:'Stocks tagged from the scanner';
 })();
