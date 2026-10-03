@@ -102,7 +102,7 @@ function enrich(r){
     since:price!=null&&r.added_price?(price/r.added_price-1)*100:null,score:s?s.score:null,cls:s?s.classification:null,
     dScore:s&&r.added_score!=null?s.score-r.added_score:null,days:days(r.added_at),inScan:!!s};
 }
-const clsTag=c=>c?`<span class="tag cls-${c.toLowerCase()}">${c}</span>`:'';
+const clsTag=c=>c?`<span class="tag cls-${c.toLowerCase()}" data-tip="cls.${c}">${c}</span>`:'';
 
 /* ---------- screen ---------- */
 W.render=el=>{
@@ -116,7 +116,7 @@ W.render=el=>{
   const all=W.rows.map(enrich), wide=App.wide();
   const avg=l=>{const v=l.filter(x=>x.since!=null);return v.length?v.reduce((a,x)=>a+x.since,0)/v.length:null;};
   let html=`<div data-nomask><div class="grid g3 sc-stats">
-    ${STAGES.map(([k,l])=>{const l2=all.filter(x=>x.stage===k);return `<div class="stat"><div class="lbl">${l}</div><div class="val">${l2.length}</div><div class="sub">avg ${l2.length?pcTxt(avg(l2)):'—'} since tagged</div></div>`;}).join('')}
+    ${STAGES.map(([k,l])=>{const l2=all.filter(x=>x.stage===k);return `<div class="stat"><div class="lbl">${l}${H.tip('w.'+k)}</div><div class="val">${l2.length}</div><div class="sub">avg ${l2.length?pcTxt(avg(l2)):'—'} since tagged</div></div>`;}).join('')}
     <div class="stat"><div class="lbl">Scanner</div><div class="val">${App.scanner&&App.scanner.run?H.dateShort(App.scanner.run.scan_date):'—'}</div><div class="sub">latest scores & signals</div></div></div>`;
   if(!all.length){
     html+=`<div class="card muted-card" style="margin-top:14px"><div class="val">Nothing tagged yet</div>
@@ -124,11 +124,11 @@ W.render=el=>{
     el.innerHTML=html;return;}
   STAGES.forEach(([k,l,sub])=>{
     const list=all.filter(x=>x.stage===k).sort((a,b)=>(b.since??-1e9)-(a.since??-1e9));
-    html+=`<div class="${wide?'dt-note':'sec'}"><h2>${l}</h2><span class="note">${list.length} stock${list.length!==1?'s':''} · ${sub}</span></div>`;
+    html+=`<div class="${wide?'dt-note':'sec'}"><h2>${l}${H.tip('w.'+k)}</h2><span class="note">${list.length} stock${list.length!==1?'s':''} · ${sub}</span></div>`;
     if(!list.length){html+=`<div class="card muted-card"><div class="tiny">${k==='triage'?'Nothing waiting for research.':'Nothing waiting for confirmation — promote a stock from Triage when your research checks out.'}</div></div>`;return;}
     if(wide){
       html+=H.table([{k:'s',label:'Stock'},{k:'a',label:'Tagged'},{k:'p0',label:'Price then',cls:'n'},{k:'p',label:'Price now',cls:'n'},{k:'d',label:'Today',cls:'n'},
-        {k:'sn',label:'Since tagged',cls:'n'},{k:'sc',label:'Score',cls:'n'},{k:'c',label:'Signal now'},{k:'n',label:'Notes'}],
+        {k:'sn',label:'Since tagged'+H.tip('w.since'),cls:'n'},{k:'sc',label:'Score'+H.tip('w.score'),cls:'n'},{k:'c',label:'Signal now'+H.tip('signal')},{k:'n',label:'Notes'}],
         list.map(x=>({on:`App.watch.open('${x.symbol}')`,cells:{
           s:`<div class="t-main">${H.esc(x.symbol)}${App.scanner&&held(x.symbol)?' <span class="tag myr">Held</span>':''}</div><div class="t-sub">${H.esc(x.name||'')}${x.sector?' · '+H.esc(x.sector):''}</div>`,
           a:`${H.dateShort(x.added_at)}<div class="t-sub">${x.days}d ago</div>`,p0:usd(x.added_price),p:x.price==null?(W.pxBusy?'<span class="spin-i"></span>':'—'):usd(x.price),
@@ -160,9 +160,9 @@ W.open=sym=>{
       ${kv('Tagged',`${H.date(r.added_at)} · ${x.days} days ago`)}
       ${r.confirmed_at?kv('Moved to confirmation',H.date(r.confirmed_at)):''}
       ${kv('Price when tagged',usd(r.added_price))}
-      ${kv('Since tagged',pc(x.since))}
-      ${kv('Score',x.score==null?'<span class="dim">not in latest scan</span>':`${x.score} ${r.added_score!=null?`<span class="dim">(was ${r.added_score}, ${x.dScore>=0?'+':'−'}${Math.abs(x.dScore)})</span>`:''}`)}
-      ${kv('Signal',`${clsTag(x.cls)||'—'}${r.added_class&&r.added_class!==x.cls?` <span class="dim">was ${H.esc(r.added_class)}</span>`:''}`)}
+      ${kv(H.lt('Since tagged','w.since'),pc(x.since))}
+      ${kv(H.lt('Score','w.score'),x.score==null?'<span class="dim">not in latest scan</span>':`${x.score} ${r.added_score!=null?`<span class="dim">(was ${r.added_score}, ${x.dScore>=0?'+':'−'}${Math.abs(x.dScore)})</span>`:''}`)}
+      ${kv(H.lt('Signal','signal'),`${clsTag(x.cls)||'—'}${r.added_class&&r.added_class!==x.cls?` <span class="dim">was ${H.esc(r.added_class)}</span>`:''}`)}
     </div>
     <label class="fld" style="margin-top:14px"><span>Notes — thesis, what would confirm it, what would kill it</span>
       <textarea id="wNote" rows="4">${H.esc(r.notes||'')}</textarea></label>
