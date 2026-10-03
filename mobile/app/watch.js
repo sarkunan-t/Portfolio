@@ -31,7 +31,7 @@ W.loadPrices=async(force)=>{
 };
 W.get=sym=>W.rows.find(r=>r.symbol===sym)||null;
 W.stageOf=sym=>{const r=W.get(sym);return r?r.stage:null;};
-W.tag=sym=>{const s=W.stageOf(sym);return s?`<span class="tag ${s==='triage'?'wt-tri':'wt-con'}">${s==='triage'?'Triage':'Confirm'}</span>`:'';};
+W.tag=sym=>{const s=W.stageOf(sym);return s?`<span class="tag ${s==='triage'?'wt-tri':'wt-con'}">${s==='triage'?'Triage':'Confirmation'}</span>`:'';};
 
 /* ---------- add / move / note / remove ---------- */
 W.add=async(sym,extra={})=>{

@@ -39,7 +39,7 @@ function renderQuote(el){
     ${qState.exch==='.KL'?'<div class="tiny" style="margin-top:8px">Bursa uses numeric codes — e.g. 1155 Maybank, 5347 Tenaga.</div>':''}</div>`;
   if(qState.err)html+=`<div class="notice warn">${H.esc(qState.err)}</div>`;
   if(q){const cur=q.currency||'';
-    html+=`<div class="card"><div class="dhead"><div><div class="lbl">${H.esc(q.sym)}</div><div class="dprice">${cur} ${fmt(q.price,q.price<10?3:2)}</div>
+    html+=`<div class="card"><div class="dhead"><div><div class="lbl">${H.esc(q.sym)} ${/^[A-Z0-9.\-]+$/.test(q.sym)&&!/\.|-USD/.test(q.sym)?H.wtag(q.sym,"US"):""}</div><div class="dprice">${cur} ${fmt(q.price,q.price<10?3:2)}</div>
       <div class="sub">${q.prevClose?`prev close ${fmt(q.prevClose,q.price<10?3:2)}`:''}</div></div>${H.pill(dp)}</div>
       <div class="tiny">Yahoo Finance · about 15 min delayed · ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div></div>`;}
   const r=recents();

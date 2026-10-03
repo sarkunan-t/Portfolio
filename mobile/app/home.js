@@ -65,7 +65,7 @@ App.screens.home={
       movers=`<div class="sec"><h2>Today</h2><span class="note">vs previous close · ${list.length} stocks</span></div>`+H.table(
         [{k:'s',label:'Stock'},{k:'p',label:'Price',cls:'n'},{k:'v',label:'Value',cls:'n'},{k:'d',label:'Today',cls:'n'},{k:'a',label:'Change',cls:'n'}],
         list.map(p=>({on:`App.holdings.openStock('${p.ticker}','${p.market}')`,cells:{
-          s:`<div class="t-main">${H.esc(p.label)}</div><div class="t-sub">${H.esc(p.subl||p.ticker)} ${H.ccyTag(p.ccy)}</div>`,
+          s:`<div class="t-main">${H.esc(p.label)} ${H.wtag(p.ticker,p.market)}</div><div class="t-sub">${H.esc(p.subl||p.ticker)} ${H.ccyTag(p.ccy)}</div>`,
           p:fmt(p.price,p.market==='Bursa'?3:2),v:fmt(p.value),d:H.pill(p.dayPct),
           a:`<span class="${p.dayAmt>=0?'up':'down'}">${p.dayAmt>=0?'+':'−'}${fmt(Math.abs(p.dayAmt))}</span>`}})));
     }else if(priced.length){
@@ -75,7 +75,7 @@ App.screens.home={
       movers=`<div class="sec"><h2>Today</h2><span class="note">vs previous close</span></div><div class="list">`+
         list.map(p=>`<button class="lrow" onclick="App.holdings.openStock('${p.ticker}','${p.market}')">
           <div class="ico ${p.ccy==='USD'?'usd':'myr'}">${p.ccy==='USD'?'$':'RM'}</div>
-          <div class="main-col"><div class="t1">${H.esc(p.label)}</div><div class="t2">${p.ccy} ${fmt(p.price,p.market==='Bursa'?3:2)} · ${fmt(p.units,0)} units</div></div>
+          <div class="main-col"><div class="t1">${H.esc(p.label)} ${H.wtag(p.ticker,p.market)}</div><div class="t2">${p.ccy} ${fmt(p.price,p.market==='Bursa'?3:2)} · ${fmt(p.units,0)} units</div></div>
           <div class="end">${H.pill(p.dayPct)}<div class="s ${p.dayAmt>=0?'up':'down'}">${p.dayAmt>=0?'+':'−'}${p.ccy} ${fmt(Math.abs(p.dayAmt))}</div></div>
         </button>`).join('')+`</div>`;
     }

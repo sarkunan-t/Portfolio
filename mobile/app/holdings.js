@@ -22,7 +22,7 @@ function posCard(p,grand){
   const val=p.state==='loading'?'<span class="spin-i"></span>':p.value==null?'—':H.money(p.ccy,p.value);
   return `<button class="pos tap ${usd?'usd':''}" onclick="App.holdings.openStock('${p.ticker}','${p.market}')">
     <div class="pos-top">
-      <div style="min-width:0"><div class="pos-name">${H.esc(p.label)}</div>
+      <div style="min-width:0"><div class="pos-name">${H.esc(p.label)} ${H.wtag(p.ticker,p.market)}</div>
         <div class="pos-meta">${H.esc(p.subl)} · <span class="tag ${usd?'usd':'myr'}">${p.wallet}</span></div></div>
       ${H.pill(p.dayPct)}
     </div>
@@ -82,7 +82,7 @@ function openTables(by,T,grand){
     const rows=[...l].sort((a,b)=>{const x=f(a),y=f(b);return x<y?-d:x>y?d:0;}).map(p=>{
       const my=C.toMyr(p.ccy,p.value),w=grand&&my!=null?my/grand*100:null,dp=p.market==='Bursa'?3:2;
       return {on:`App.holdings.openStock('${p.ticker}','${p.market}')`,cells:{
-        stock:`<div class="t-main">${H.esc(p.label)}</div><div class="t-sub">${H.esc(p.subl)}</div>`,wallet:`<span class="tag ${p.ccy==='USD'?'usd':'myr'}">${p.wallet}</span>`,
+        stock:`<div class="t-main">${H.esc(p.label)} ${H.wtag(p.ticker,p.market)}</div><div class="t-sub">${H.esc(p.subl)}</div>`,wallet:`<span class="tag ${p.ccy==='USD'?'usd':'myr'}">${p.wallet}</span>`,
         units:fmt(p.units,p.units%1?4:0),avg:fmt(p.avg,dp),price:p.price==null?(p.state==='loading'?'<span class="spin-i"></span>':'—'):fmt(p.price,dp),
         day:H.pill(p.dayPct),cost:fmt(p.cost),value:p.value==null?'—':`<b>${fmt(p.value)}</b>`,pnl:p.pnl==null?'—':H.money(p.ccy,p.pnl,true).replace(p.ccy+' ',''),
         pct:H.pct(p.pnlPct),w:w==null?'—':`<div class="wcell"><div class="wbar"><i style="width:${Math.min(w*2,100)}%"></i></div>${fmt(w,1)}%</div>`}};});
@@ -133,7 +133,7 @@ function renderStocks(el){
   </div></div>`;
   const row=h=>`<button class="lrow" onclick="App.holdings.openStock('${h.ticker}','${h.market}')">
     <div class="ico ${h.open?(h.ccy==='USD'?'usd':'myr'):''}" style="${h.open?'':'background:#eef2f1;color:var(--dim)'}">${h.open?(h.ccy==='USD'?'$':'RM'):'—'}</div>
-    <div class="main-col"><div class="t1">${H.esc(h.label)}</div>
+    <div class="main-col"><div class="t1">${H.esc(h.label)} ${H.wtag(h.ticker,h.market)}</div>
       <div class="t2">${h.ticker} · ${h.open?`${fmt(h.qty,0)} units @ ${fmt(h.avg,h.market==='Bursa'?4:2)}`:'fully sold'}${h.divTot?` · div ${fmt(h.divTot)}`:''}</div></div>
     <div class="end"><div class="v">${h.est!=null?fmt(h.est):h.open?(h.state==='loading'?'<span class="spin-i"></span>':'—'):''}</div>
       <div class="s">${H.money(h.ccy,h.realised,true)} <span class="dim" style="font-weight:600">realised</span></div></div>
@@ -142,7 +142,7 @@ function renderStocks(el){
     const cols=[{k:'s',label:'Stock'},{k:'q',label:'Units held',cls:'n'},{k:'a',label:'Avg cost',cls:'n'},{k:'e',label:'Est. value',cls:'n'},
       {k:'b',label:'Nett bought',cls:'n'},{k:'sl',label:'Nett sold',cls:'n'},{k:'r',label:'Realised P&amp;L',cls:'n'},{k:'d',label:'Dividends',cls:'n'}];
     const tr=h=>({on:`App.holdings.openStock('${h.ticker}','${h.market}')`,cells:{
-      s:`<div class="t-main">${H.esc(h.label)}</div><div class="t-sub">${h.ticker} ${H.ccyTag(h.ccy==='USD'?'USD':'MYR')}</div>`,
+      s:`<div class="t-main">${H.esc(h.label)} ${H.wtag(h.ticker,h.market)}</div><div class="t-sub">${h.ticker} ${H.ccyTag(h.ccy==='USD'?'USD':'MYR')}</div>`,
       q:h.open?fmt(h.qty,0):'<span class="dim">sold</span>',a:h.open?fmt(h.avg,h.market==='Bursa'?4:2):'',e:h.est!=null?fmt(h.est):h.open?(h.state==='loading'?'<span class="spin-i"></span>':'—'):'',
       b:fmt(h.nettBuy),sl:fmt(h.nettSell),r:H.money(h.ccy,h.realised,true).replace(h.ccy+' ',''),d:h.divTot?`<span class="gold">${fmt(h.divTot)}</span>`:'<span class="dim">—</span>'}});
     html+=`<div class="dt-note"><h2>Holding</h2><span class="note">${openN} stocks</span></div>`+H.table(cols,rows.filter(h=>h.open).map(tr));
@@ -194,7 +194,7 @@ App.holdings.openStock=(ticker,market)=>{
   const txs=transactions.filter(t=>t.ticker===ticker&&t.market===market).slice(0,8);
   if(txs.length)body+=`<div class="form-sec">Recent trades</div><div class="list">`+txs.map(App.activity.tradeRow).join('')+`</div>
     <button class="btn btn-s" style="width:100%;margin-top:10px" onclick="App.activity.showStock('${ticker}')">All trades for this stock</button>`;
-  App.openSheet({title:H.stockLabel(ticker,market,s&&s.company_name),sub:`${ticker} · ${market==='Bursa'?'Bursa Malaysia':'US'}`,body,
+  App.openSheet({title:H.stockLabel(ticker,market,s&&s.company_name),sub:`${ticker} · ${market==='Bursa'?'Bursa Malaysia':'US'} ${H.wtag(ticker,market)}`,body,
     foot:`<button class="btn btn-s" onclick="App.forms.trade(null,{ticker:'${ticker}',market:'${market}',type:'Sell'})">▼ Sell</button><button class="btn btn-p" onclick="App.forms.trade(null,{ticker:'${ticker}',market:'${market}',type:'Buy'})">▲ Buy more</button>`});
 };
 App.holdings.openWallet=key=>{
@@ -205,7 +205,7 @@ App.holdings.openWallet=key=>{
       <div class="kv"><span>Unrealised P&amp;L</span><span>${t.pnl==null?'—':H.money(ccy,t.pnl,true)} (${H.pct(t.pnlPct)})</span></div></div>
     <div class="form-sec">Positions</div><div class="list">`+
     pos.sort((a,b)=>(b.value||0)-(a.value||0)).map(p=>`<button class="lrow" onclick="App.holdings.openStock('${p.ticker}','${p.market}')">
-      <div class="main-col"><div class="t1">${H.esc(p.label)}</div><div class="t2">${fmt(p.units,0)} @ ${fmt(p.avg,p.market==='Bursa'?3:2)}</div></div>
+      <div class="main-col"><div class="t1">${H.esc(p.label)} ${H.wtag(p.ticker,p.market)}</div><div class="t2">${fmt(p.units,0)} @ ${fmt(p.avg,p.market==='Bursa'?3:2)}</div></div>
       <div class="end"><div class="v">${p.value==null?'—':fmt(p.value)}</div><div class="s">${H.pct(p.pnlPct)}</div></div></button>`).join('')+`</div>`;
   App.openSheet({title:key,sub:`${C.CDS_NAME[cds]} · ${ccy}`,body});
 };

@@ -42,6 +42,7 @@ H.month=d=>new Date(d+'T00:00:00').toLocaleDateString('en-GB',{month:'long',year
 H.today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 H.stockLabel=(ticker,market,name)=>market==='Bursa'?(name&&name!==ticker?name:(TICKER_NAME[ticker]||ticker)):ticker;
 H.stockSub=(ticker,market,name)=>market==='Bursa'?ticker:(TICKER_NAME[ticker]||name||'');
+H.wtag=(ticker,market)=>market==='Bursa'||!App.watch?'':App.watch.tag(String(ticker||'').toUpperCase());   // Triage / Confirmation tag (US stocks)
 H.ccyTag=c=>`<span class="tag ${c==='USD'?'usd':'myr'}">${c}</span>`;
 H.eqMyr=(ccy,v,signed)=>{const r=H.fx();return ccy==='USD'&&v!=null&&r?`≈ ${signed?H.money('MYR',v*r,true):H.money('MYR',v*r)}`:'';};
 H.icon={
