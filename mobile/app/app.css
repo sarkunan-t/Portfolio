@@ -388,3 +388,8 @@ details.more-dt[open] summary::before{content:'▾ ';}
 .sc-foot{margin:16px 2px 4px;line-height:1.5;}
 a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;}
 .kv>span:last-child span.up{color:var(--up);} .kv>span:last-child span.down{color:var(--down);} .kv>span:last-child span.dim{color:var(--dim);font-weight:600;}
+/* triage & confirmation watchlist */
+.tag.wt-tri{background:#fff4dc;color:#8a5a00;}
+.tag.wt-con{background:#e3eefc;color:#1d4f9a;}
+.btn.wt-btn{height:30px;font-size:12.5px;padding:0 10px;border-radius:9px;}
+textarea{width:100%;font:inherit;font-size:15px;border:1px solid var(--edge);border-radius:12px;padding:10px 12px;resize:vertical;background:#fff;color:var(--ink);}

@@ -108,7 +108,7 @@ const WEBNAV=[
     ['activity','trades','Trades','swap'],['activity','dividends','Dividends','pct'],['activity','funds','Funds','fx']]},
   {group:'Insights',items:[['insights','pnl','P&L by year','insights'],['insights','cash','Cash by wallet','wallet'],['insights','capital','Capital','flow'],['insights','dividends','Dividend stats','pct']]},
   {group:'Other assets',items:[['more','metals','Metals','gold'],['more','crypto','Crypto','coin'],['more','asnb','ASNB','unit']]},
-  {group:'Research',items:[['more','scanner','Growth scanner','radar'],['more','quote','Quote lookup','search'],['more','alerts','Price alerts','bell']]}
+  {group:'Research',items:[['more','scanner','Growth scanner','radar'],['more','triage','Triage & confirmation','flag'],['more','quote','Quote lookup','search'],['more','alerts','Price alerts','bell']]}
 ];
 const WEBNAV_EXTRA=[['more','menu','Settings']];   // reached from the gear in the sidebar footer
 App.webNavItem=()=>{const t=App.state.tab,sg=App.state.seg[t];
@@ -278,6 +278,7 @@ App.refreshPrices=async()=>{
   if(App.metalsMarket&&App.metals&&App.metals.view==='market')App.metalsMarket.load(true);
   if(App.nw&&App.state.tab==='home'&&App.state.seg.home==='trend')App.nw.load(true);
   if(App.scanner&&App.state.tab==='more'&&App.state.seg.more==='scanner')App.scanner.load(true);
+  if(App.watch&&App.state.tab==='more'&&App.state.seg.more==='triage'){App.watch.load();App.watch.loadPrices(true);}
   await refreshPrices();
 };
 App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();App.crypto&&App.crypto.load();App.asnb&&App.asnb.load();if(App.nw)App.nw.at=0;if(App.scanner)App.scanner.at=0;};

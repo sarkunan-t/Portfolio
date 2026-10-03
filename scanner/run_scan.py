@@ -273,12 +273,18 @@ def main():
                 if newly_q or moved:
                     new_signals += 1
 
+        # stocks on the Triage & confirmation list always keep their full detail row
+        try:
+            watched = {r["symbol"] for r in store.select("scan_watch", {"select": "symbol"})}
+        except Exception as e:  # noqa: BLE001 — table may not exist yet
+            print(f"  watchlist not read ({e})")
+            watched = set()
         detail, history = [], []
         for x in res:
             sym, s = x["u"]["symbol"], x["s"]
             history.append({"scan_date": d_iso, "symbol": sym, "score": s["score"],
                             "classification": x["cls"], "backfilled": False})
-            if s["score"] < C.STORE_DETAIL_MIN_SCORE and not x["discovery"]:
+            if s["score"] < C.STORE_DETAIL_MIN_SCORE and not x["discovery"] and sym not in watched:
                 continue
             t = x["t"]
             detail.append({

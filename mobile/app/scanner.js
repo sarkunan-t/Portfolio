@@ -82,7 +82,7 @@ function row(r,hs){
   const sub=disc?`Fund ${r.fund_score} · Mom ${r.mom_score} · ${H.esc(r.name||'')}`:`${H.esc(r.name||'')} · ${H.esc(r.sector||'')}`;
   return `<button class="lrow sc-row" data-sym="${H.esc(r.symbol)}">
     <div class="sc-badge ${band(r.score)}">${r.score}</div>
-    <div class="main-col"><div class="t1">${H.esc(r.symbol)} ${clsTag(r.classification)}${r.discovery&&!disc?'<span class="tag gold">Discovery</span>':''}${hs.has(r.symbol)?'<span class="tag myr">Held</span>':''}</div>
+    <div class="main-col"><div class="t1">${H.esc(r.symbol)} ${clsTag(r.classification)}${r.discovery&&!disc?'<span class="tag gold">Discovery</span>':''}${hs.has(r.symbol)?'<span class="tag myr">Held</span>':''}${App.watch?App.watch.tag(r.symbol):''}</div>
       <div class="t2">${sub}</div></div>
     <div class="end"><div class="v">${usd(r.price)}</div><div class="s">${S.view==='rising'?chg3(r):H.pill(r.chg_pct)}</div></div></button>`;
 }
@@ -92,7 +92,7 @@ function table(list,hs){
   const ch=v=>v==null?'<span class="dim">—</span>':pts(v);
   return H.table(cols,list.map(r=>({on:`App.scanner.open('${H.esc(r.symbol)}')`,cells:{
     sc:`<span class="sc-badge sm ${band(r.score)}">${r.score}</span>`,
-    s:`<div class="t-main">${H.esc(r.symbol)}${hs.has(r.symbol)?' <span class="tag myr">Held</span>':''}</div><div class="t-sub">${H.esc(r.name||'')}</div>`,
+    s:`<div class="t-main">${H.esc(r.symbol)}${hs.has(r.symbol)?' <span class="tag myr">Held</span>':''} ${App.watch?App.watch.tag(r.symbol):''}</div><div class="t-sub">${H.esc(r.name||'')}</div>`,
     sec:H.esc(r.sector||''),c:clsTag(r.classification)+(r.discovery?' <span class="tag gold">Discovery</span>':''),
     p:usd(r.price),d:H.pill(r.chg_pct),m1:ch(r.score_chg_1m),m3:ch(r.score_chg_3m),f:`${r.fund_score} / ${r.mom_score}`,mc:big(r.market_cap)}})));
 }
@@ -211,12 +211,28 @@ function sinceLast(h){
   const cls=a.classification!==b.classification?` · ${a.classification||'Unclassified'} → <b>${b.classification||'Unclassified'}</b>`:'';
   return `<div class="tiny" style="margin-top:8px">Since ${H.dateShort(a.scan_date)}: score ${d===0?'unchanged':pts(d)}${cls}</div>`;
 }
+/* Triage & confirmation buttons in the research sheet footer */
+function watchFoot(sym){
+  const W=App.watch;if(!W)return '';
+  const st=W.stageOf(sym);
+  if(!st)return `<button class="btn btn-p" id="scWatch" data-act2="add">＋ Add to Triage</button>`;
+  return `<button class="btn btn-s" id="scWatchOpen">${st==='triage'?'In Triage':'In Confirmation'} · manage</button>`+
+    (st==='triage'?`<button class="btn btn-p" id="scWatch" data-act2="confirm">Move to Confirmation ›</button>`:'');
+}
+function bindWatchFoot(sym){
+  const b=H.$('#scWatch'),o=H.$('#scWatchOpen');
+  if(o)o.onclick=()=>App.watch.open(sym);
+  if(b)b.onclick=async()=>{b.disabled=true;
+    if(b.dataset.act2==='add')await App.watch.add(sym);else await App.watch.move(sym,'confirmation');
+    if(App.sheetIsOpen()&&H.$('#shTitle').textContent===sym){H.$('#shFoot').innerHTML=watchFoot(sym);bindWatchFoot(sym);}};
+}
 S.open=async sym=>{
   const r=S.rows.find(x=>x.symbol===sym);if(!r)return;
   const head=`<div data-nomask><div class="dhead"><div><div class="dprice">${usd(r.price)}</div>
       <div class="sub">${H.esc(r.sector||'')} · ${big(r.market_cap)} market cap</div></div>${H.pill(r.chg_pct)}</div>
-    <div class="chips" style="gap:6px;margin-bottom:12px">${clsTag(r.classification)}${r.discovery?'<span class="tag gold">Discovery</span>':''}${held().has(sym)?'<span class="tag myr">You hold this</span>':''}</div>`;
-  App.openSheet({title:sym,sub:H.esc(r.name||''),full:true,body:head+App.skeleton(4)+'</div>'});
+    <div class="chips" style="gap:6px;margin-bottom:12px">${clsTag(r.classification)}${r.discovery?'<span class="tag gold">Discovery</span>':''}${held().has(sym)?'<span class="tag myr">You hold this</span>':''}${App.watch?App.watch.tag(sym):''}</div>`;
+  App.openSheet({title:sym,sub:H.esc(r.name||''),full:true,body:head+App.skeleton(4)+'</div>',foot:watchFoot(sym)});
+  bindWatchFoot(sym);
   let d=null,err='';
   try{d=await loadDetail(sym);}catch(e){err=e.message;}
   if(!App.sheetIsOpen()||H.$('#shTitle').textContent!==sym)return;

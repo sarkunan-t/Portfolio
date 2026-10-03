@@ -71,6 +71,7 @@ function renderMenu(el){
     <div class="sec"><h2>Research</h2></div>
     <div class="list menu">
       ${item('#more/scanner',H.icon.radar,'buy','Growth scanner',App.scanner.menuSub())}
+      ${item('#more/triage',H.icon.flag,'div','Triage &amp; confirmation',App.watch.menuSub())}
     </div>
     <div class="sec"><h2>Other assets</h2></div>
     <div class="list menu">
@@ -101,14 +102,15 @@ App.more.reset=async()=>{
   showToast('All data cleared ✓');App.reloadShares();
 };
 
-const TITLES={menu:'More',scanner:'Growth scanner',quote:'Quote lookup',alerts:'Price alerts',metals:'Metals',crypto:'Crypto',asnb:'ASNB'};
+const TITLES={menu:'More',scanner:'Growth scanner',triage:'Triage & confirmation',quote:'Quote lookup',alerts:'Price alerts',metals:'Metals',crypto:'Crypto',asnb:'ASNB'};
 App.screens.more={
   title:seg=>TITLES[seg]||'More',
-  segs:[{id:'menu'},{id:'quote'},{id:'alerts'},{id:'scanner'},{id:'metals'},{id:'crypto'},{id:'asnb'}],
+  segs:[{id:'menu'},{id:'quote'},{id:'alerts'},{id:'scanner'},{id:'triage'},{id:'metals'},{id:'crypto'},{id:'asnb'}],
   hideSegs:true,
   actions:seg=>seg==='scanner'&&App.scanner.status==='ok'?[{id:'filter',active:App.filterActive(App.state.filters.scanner)}]:[],
   openFilter:seg=>{if(seg==='scanner')App.scanner.openFilter();},
-  fab:seg=>seg==='metals'&&App.metals.view!=='market'&&App.metals.status==='ok'?{label:'Add',onClick:()=>App.metals.form()}:
+  fab:seg=>seg==='triage'&&App.watch.status==='ok'?{label:'Add',onClick:()=>App.watch.form()}:
+    seg==='metals'&&App.metals.view!=='market'&&App.metals.status==='ok'?{label:'Add',onClick:()=>App.metals.form()}:
     seg==='crypto'&&App.crypto.view!=='market'&&App.crypto.status==='ok'?{label:'Add',onClick:()=>App.crypto.form()}:
     seg==='asnb'&&App.asnb.status==='ok'?{label:'Add',onClick:()=>App.asnb.form()}:null,
   sub:seg=>seg==='menu'?App.priceNote():`<a class="link" href="#more/menu">‹ More</a>`,
@@ -116,6 +118,7 @@ App.screens.more={
     if(seg==='quote')renderQuote(el);
     else if(seg==='alerts')renderAlerts(el);
     else if(seg==='scanner')App.scanner.render(el);
+    else if(seg==='triage')App.watch.render(el);
     else if(seg==='metals')App.metals.render(el);
     else if(seg==='crypto')App.crypto.render(el);
     else if(seg==='asnb')App.asnb.render(el);

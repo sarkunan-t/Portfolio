@@ -6,7 +6,7 @@ function startApp(){
   if(started)return; started=true;
   H.$('#login').hidden=true; H.$('#shell').hidden=false;
   App.initRouter();
-  loadShares(); App.loadFunds(); App.loadAlerts(); App.metals.load(); App.crypto.load(); App.asnb.load();
+  loadShares(); App.loadFunds(); App.loadAlerts(); App.metals.load(); App.crypto.load(); App.asnb.load(); App.watch&&App.watch.load();
   // refresh prices when the app comes back to the foreground after a while
   let hiddenAt=0;
   document.addEventListener('visibilitychange',()=>{
