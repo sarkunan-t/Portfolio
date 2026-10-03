@@ -50,3 +50,36 @@ class YahooPrices(PriceSource):
             h.high.append(float(hi if hi is not None else c))
             h.low.append(float(lo if lo is not None else c))
         return h
+
+
+# ---------------------------------------------------------------- analyst price targets
+# Wall Street consensus from Yahoo's quoteSummary "financialData" module (needs a cookie + crumb).
+# Mirrors mobile/supabase/price-target/index.ts so the app and the nightly job store the same fields.
+def analyst_targets(symbols: list[str]) -> dict[str, dict]:
+    import requests
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    s = requests.Session()
+    s.headers.update({"User-Agent": ua})
+    try:
+        s.get("https://fc.yahoo.com/", timeout=15, allow_redirects=False)
+    except requests.RequestException:
+        pass
+    crumb = s.get("https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=15).text.strip()
+    if not crumb or len(crumb) > 40 or "<" in crumb:
+        raise RuntimeError("Yahoo crumb unavailable")
+    raw = lambda v: v.get("raw") if isinstance(v, dict) else v
+    out = {}
+    for sym in symbols:
+        try:
+            r = s.get(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{sym}",
+                      params={"modules": "financialData", "crumb": crumb}, timeout=20)
+            if r.status_code != 200:
+                continue
+            f = (((r.json().get("quoteSummary") or {}).get("result") or [{}])[0] or {}).get("financialData") or {}
+            out[sym] = {"target_mean": raw(f.get("targetMeanPrice")), "target_median": raw(f.get("targetMedianPrice")),
+                        "target_high": raw(f.get("targetHighPrice")), "target_low": raw(f.get("targetLowPrice")),
+                        "analysts": raw(f.get("numberOfAnalystOpinions")), "rating": f.get("recommendationKey"),
+                        "rating_mean": raw(f.get("recommendationMean")), "target_ccy": f.get("financialCurrency")}
+        except Exception as e:  # noqa: BLE001
+            print(f"  target {sym}: {e}")
+    return out

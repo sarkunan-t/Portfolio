@@ -8,7 +8,7 @@
 const H=App.h;
 H.icon.flag='<svg viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg>';
 const STAGES=[['triage','Triage','Tagged for research'],['confirmation','Confirmation','Waiting for the setup to confirm']];
-const W=App.watch={status:'idle',rows:[],err:'',px:{},pxAt:0,pxBusy:false};
+const W=App.watch={status:'idle',rows:[],err:'',px:{},pxAt:0,pxBusy:false,ptBusy:false,ptTried:{},ptState:''};
 const isMissing=e=>e&&(e.code==='42P01'||e.code==='PGRST205'||/does not exist|schema cache/i.test(e.message||''));
 
 /* ---------- data ---------- */
@@ -29,6 +29,31 @@ W.loadPrices=async(force)=>{
   catch(e){console.error('watch prices',e);}
   W.pxBusy=false;App.refreshView();
 };
+/* analyst price targets: Edge Function "price-target" (mobile/supabase/price-target/index.ts), saved on the row */
+W.fetchTargets=async(syms,force)=>{
+  syms=(syms||[]).filter(s=>force||!W.ptTried[s]);if(!syms.length||W.ptBusy)return;
+  syms.forEach(s=>W.ptTried[s]=1);W.ptBusy=true;App.refreshView();
+  try{
+    const call=sb.functions.invoke('price-target',{body:{symbols:syms}});
+    const to=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Timed out')),25000));
+    const {data,error}=await Promise.race([call,to]);
+    if(error){let st=0;try{st=error.context&&error.context.status;}catch(e){}
+      W.ptState=st===404?'missing':'error';throw error;}
+    W.ptState='ok';
+    const now=new Date().toISOString();
+    for(const sym of syms){
+      const t=data&&data[sym],r=W.get(sym);if(!t||!r)continue;
+      const patch={target_at:now,target_mean:t.mean??null,target_median:t.median??null,target_high:t.high??null,target_low:t.low??null,
+        analysts:t.analysts??null,rating:t.rating??null,rating_mean:t.ratingMean??null,target_ccy:t.currency??null};
+      const {error:e2}=await sb.from('scan_watch').update(patch).eq('id',r.id);
+      if(e2){if(/column/i.test(e2.message))W.ptState='nocols';continue;}
+      Object.assign(r,patch);
+    }
+  }catch(e){console.error('price-target',e);}
+  W.ptBusy=false;App.refreshView();
+  if(App.sheetIsOpen()&&syms.includes(H.$('#shTitle').textContent))W.open(H.$('#shTitle').textContent);
+};
+const stale=r=>!r.target_at||Date.now()-new Date(r.target_at)>3*864e5;   // refresh if older than 3 days
 W.get=sym=>W.rows.find(r=>r.symbol===sym)||null;
 W.stageOf=sym=>{const r=W.get(sym);return r?r.stage:null;};
 W.tag=sym=>{const s=W.stageOf(sym);return s?`<span class="tag ${s==='triage'?'wt-tri':'wt-con'}">${s==='triage'?'Triage':'Confirmation'}</span>`:'';};
@@ -45,7 +70,7 @@ W.add=async(sym,extra={})=>{
   const {error}=await sb.from('scan_watch').insert(payload);
   if(error){showToast(isMissing(error)?'Run mobile/supabase/watchlist.sql in Supabase first':'Could not add — '+error.message);return false;}
   showToast(`${sym} added to ${payload.stage==='triage'?'Triage':'Confirmation'} ✓`);
-  await W.load();W.loadPrices(true);return true;
+  await W.load();W.loadPrices(true);W.fetchTargets([sym],true);return true;
 };
 W.move=async(sym,stage)=>{
   const r=W.get(sym);if(!r||r.stage===stage)return;
@@ -100,7 +125,8 @@ function enrich(r){
   const price=q&&!q.error?q.price:(s?s.price:null);
   return {...r,price,live:!!(q&&!q.error),day:q&&!q.error&&q.prevClose?(q.price-q.prevClose)/q.prevClose*100:(s?s.chg_pct:null),
     since:price!=null&&r.added_price?(price/r.added_price-1)*100:null,score:s?s.score:null,cls:s?s.classification:null,
-    dScore:s&&r.added_score!=null?s.score-r.added_score:null,days:days(r.added_at),inScan:!!s};
+    dScore:s&&r.added_score!=null?s.score-r.added_score:null,days:days(r.added_at),inScan:!!s,
+    upside:price!=null&&r.target_mean?(r.target_mean/price-1)*100:null};
 }
 const clsTag=c=>c?`<span class="tag cls-${c.toLowerCase()}" data-tip="cls.${c}">${c}</span>`:'';
 
@@ -113,6 +139,7 @@ W.render=el=>{
     <p class="sub" style="margin-top:8px;font-size:14px;line-height:1.5">Run <b>mobile/supabase/watchlist.sql</b> in Supabase → SQL Editor, then reload.</p></div>`;return;}
   if(W.status==='error'){el.innerHTML=`<div class="notice warn">Couldn't load your list: ${H.esc(W.err)}</div>`;return;}
   W.loadPrices();
+  if(W.ptState!=='missing'&&W.ptState!=='nocols')W.fetchTargets(W.rows.filter(stale).map(r=>r.symbol));
   const all=W.rows.map(enrich), wide=App.wide();
   const avg=l=>{const v=l.filter(x=>x.since!=null);return v.length?v.reduce((a,x)=>a+x.since,0)/v.length:null;};
   let html=`<div data-nomask><div class="grid g3 sc-stats">
@@ -127,24 +154,50 @@ W.render=el=>{
     html+=`<div class="${wide?'dt-note':'sec'}"><h2>${l}${H.tip('w.'+k)}</h2><span class="note">${list.length} stock${list.length!==1?'s':''} · ${sub}</span></div>`;
     if(!list.length){html+=`<div class="card muted-card"><div class="tiny">${k==='triage'?'Nothing waiting for research.':'Nothing waiting for confirmation — promote a stock from Triage when your research checks out.'}</div></div>`;return;}
     if(wide){
-      html+=H.table([{k:'s',label:'Stock'},{k:'a',label:'Tagged'},{k:'p0',label:'Price then',cls:'n'},{k:'p',label:'Price now',cls:'n'},{k:'d',label:'Today',cls:'n'},
-        {k:'sn',label:'Since tagged'+H.tip('w.since'),cls:'n'},{k:'sc',label:'Score'+H.tip('w.score'),cls:'n'},{k:'c',label:'Signal now'+H.tip('signal')},{k:'n',label:'Notes'}],
+      html+='<div class="sc-dt">'+H.table([{k:'s',label:'Stock'},{k:'a',label:'Tagged'},{k:'p',label:'Price now',cls:'n'},{k:'d',label:'Today',cls:'n'},
+        {k:'sn',label:'Since tagged'+H.tip('w.since'),cls:'n'},{k:'tg',label:'Target'+H.tip('w.target'),cls:'n'},{k:'up',label:'Upside'+H.tip('w.upside'),cls:'n'},{k:'sc',label:'Score'+H.tip('w.score'),cls:'n'},{k:'c',label:'Signal now'+H.tip('signal')},{k:'n',label:'Notes'}],
         list.map(x=>({on:`App.watch.open('${x.symbol}')`,cells:{
-          s:`<div class="t-main">${H.esc(x.symbol)}${App.scanner&&held(x.symbol)?' <span class="tag myr">Held</span>':''}</div><div class="t-sub">${H.esc(x.name||'')}${x.sector?' · '+H.esc(x.sector):''}</div>`,
+          s:`<div class="t-main">${H.esc(x.symbol)}${App.scanner&&held(x.symbol)?' <span class="tag myr">Held</span>':''}</div><div class="t-sub" title="${H.esc(x.sector||'')}">${H.esc(x.name||'')}</div>`,
           a:`${H.dateShort(x.added_at)}<div class="t-sub">${x.days}d ago</div>`,p0:usd(x.added_price),p:x.price==null?(W.pxBusy?'<span class="spin-i"></span>':'—'):usd(x.price),
-          d:H.pill(x.day),sn:`<b>${pc(x.since)}</b>`,sc:x.score==null?'<span class="dim">—</span>':`<b>${x.score}</b> <span class="t-sub" style="display:inline">${x.added_score!=null?'from '+x.added_score:''}</span>`,
-          c:clsTag(x.cls)||'<span class="dim">—</span>',n:x.notes?`<span class="t-sub" title="${H.esc(x.notes)}" style="display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom">${H.esc(x.notes)}</span>`:''}})));
+          d:H.pill(x.day),sn:`<b>${pc(x.since)}</b><div class="t-sub">from ${usd(x.added_price)}</div>`,tg:tgCell(x),up:pc(x.upside),sc:x.score==null?'<span class="dim">—</span>':`<b>${x.score}</b> <span class="t-sub" style="display:inline">${x.added_score!=null?'from '+x.added_score:''}</span>`,
+          c:clsTag(x.cls)||'<span class="dim">—</span>',n:x.notes?`<span class="t-sub" title="${H.esc(x.notes)}" style="display:inline-block;max-width:130px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom">${H.esc(x.notes)}</span>`:''}})))+'</div>';
     }else{
       html+=`<div class="list">${list.map(x=>`<button class="lrow" onclick="App.watch.open('${x.symbol}')">
         <div class="sc-badge ${x.score==null?'mid':x.score>=80?'hi':x.score>=60?'ok':x.score>=45?'mid':'lo'}">${x.score??'–'}</div>
         <div class="main-col"><div class="t1">${H.esc(x.symbol)} ${clsTag(x.cls)}</div>
-          <div class="t2">${H.esc(x.name||'')} · ${x.days}d · from ${usd(x.added_price)}</div></div>
+          <div class="t2">${x.target_mean?`target ${usd(x.target_mean)} (${pcTxt(x.upside)})`:H.esc(x.name||'')} · ${x.days}d · from ${usd(x.added_price)}</div></div>
         <div class="end"><div class="v">${x.price==null?(W.pxBusy?'<span class="spin-i"></span>':'—'):usd(x.price)}</div><div class="s">${pc(x.since)} <span class="dim">since</span></div></div></button>`).join('')}</div>`;
     }
   });
-  html+=`<p class="tiny sc-foot">${W.pxAt?`Live prices ${new Date(W.pxAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} (about 15 min delayed). `:''}Score and signal are from the latest nightly scan. A watchlist is for research — not a buy list.</p></div>`;
+  html+=`<p class="tiny sc-foot">${W.pxAt?`Live prices ${new Date(W.pxAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} (about 15 min delayed). `:''}Score and signal are from the latest nightly scan. Price targets are the Wall Street analyst consensus (via Yahoo Finance)${W.ptState==='missing'?' — <b>deploy the price-target Edge Function to see them</b>':W.ptState==='nocols'?' — <b>run mobile/supabase/price-targets.sql to save them</b>':''}. A watchlist is for research — not a buy list.</p></div>`;
   el.innerHTML=html;
 };
+const RATING={strong_buy:'Strong buy',buy:'Buy',hold:'Hold',underperform:'Underperform',sell:'Sell',none:'—'};
+const tgCell=x=>x.target_mean?`${usd(x.target_mean)}${x.analysts?`<div class="t-sub">${x.analysts} analysts</div>`:''}`:
+  (W.ptBusy&&!x.target_at?'<span class="spin-i"></span>':'<span class="dim">—</span>');
+function targetCard(r,x,sym){
+  const tv=`https://www.tradingview.com/symbols/${x.inScan?'NASDAQ-':''}${encodeURIComponent(sym)}/forecast/`;
+  const kv=(k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+  let inner;
+  if(r.target_mean){
+    const lo=Number(r.target_low),hi=Number(r.target_high),mean=Number(r.target_mean),p=x.price;
+    const vals=[lo,hi,mean,p].filter(v=>v!=null&&isFinite(v)),mn=Math.min(...vals),mx=Math.max(...vals),span=mx-mn||1,pos=v=>((v-mn)/span*100).toFixed(1);
+    inner=`<div class="pt-bar"><div class="pt-rng" style="left:${pos(lo)}%;right:${(100-pos(hi)).toFixed(1)}%"></div>
+        <i class="pt-mean" style="left:${pos(mean)}%" title="Average target"></i>${p!=null?`<i class="pt-now" style="left:${pos(p)}%" title="Price now"></i>`:''}</div>
+      <div class="pt-leg"><span>Low ${usd(lo)}</span><span><i class="pt-k now"></i>Now ${usd(p)} · <i class="pt-k mean"></i>Avg ${usd(mean)}</span><span>High ${usd(hi)}</span></div>
+      ${kv(H.lt('Average target','w.target'),`<b>${usd(mean)}</b>${r.target_median?` <span class="dim">median ${usd(r.target_median)}</span>`:''}`)}
+      ${kv(H.lt('Upside to average','w.upside'),pc(x.upside))}
+      ${kv('Upside to high / low',`${pc(p?(hi/p-1)*100:null)} / ${pc(p?(lo/p-1)*100:null)}`)}
+      ${kv(H.lt('Analyst rating','w.rating'),`${RATING[r.rating]||H.esc(r.rating||'—')}${r.rating_mean?` <span class="dim">${fmt(r.rating_mean,1)} of 5</span>`:''}${r.analysts?` <span class="dim">· ${r.analysts} analysts</span>`:''}`)}
+      <div class="tiny" style="margin-top:6px">Wall Street consensus via Yahoo Finance · updated ${r.target_at?H.date(String(r.target_at).slice(0,10)):'—'}</div>`;
+  }else if(W.ptBusy){inner=App.skeleton(1);}
+  else inner=`<div class="tiny">${W.ptState==='missing'?'Deploy the <b>price-target</b> Edge Function in Supabase to load analyst targets.':
+      W.ptState==='nocols'?'Run <b>mobile/supabase/price-targets.sql</b> in Supabase to store analyst targets.':
+      r.target_at?'No analysts cover this stock — common for small caps.':'Not loaded yet.'}</div>`;
+  return `<div class="card" style="box-shadow:none;margin-top:14px"><div class="form-sec" style="margin-top:0">Analyst price target${H.tip('w.target')}</div>${inner}
+    <div class="btn-row" style="margin-top:12px"><button class="btn btn-s" onclick="App.watch.fetchTargets(['${sym}'],true)">${W.ptBusy?'Loading…':'Refresh target'}</button>
+      <a class="btn btn-s" href="${tv}" target="_blank" rel="noopener">View on TradingView ↗</a></div></div>`;
+}
 const pcTxt=v=>v==null?'—':`${v>=0?'+':'−'}${fmt(Math.abs(v),1)}%`;
 const held=sym=>{try{return App.calc.positions().some(p=>p.market==='US'&&String(p.ticker).toUpperCase()===sym);}catch(e){return false;}};
 
@@ -164,6 +217,7 @@ W.open=sym=>{
       ${kv(H.lt('Score','w.score'),x.score==null?'<span class="dim">not in latest scan</span>':`${x.score} ${r.added_score!=null?`<span class="dim">(was ${r.added_score}, ${x.dScore>=0?'+':'−'}${Math.abs(x.dScore)})</span>`:''}`)}
       ${kv(H.lt('Signal','signal'),`${clsTag(x.cls)||'—'}${r.added_class&&r.added_class!==x.cls?` <span class="dim">was ${H.esc(r.added_class)}</span>`:''}`)}
     </div>
+    ${targetCard(r,x,sym)}
     <label class="fld" style="margin-top:14px"><span>Notes — thesis, what would confirm it, what would kill it</span>
       <textarea id="wNote" rows="4">${H.esc(r.notes||'')}</textarea></label>
     <div class="btn-row" style="margin-top:0">

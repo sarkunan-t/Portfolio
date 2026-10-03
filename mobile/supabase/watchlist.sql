@@ -36,3 +36,17 @@ notify pgrst, 'reload schema';
 
 -- Check: should return one row, owner_only, cmd ALL
 select policyname, cmd from pg_policies where tablename = 'scan_watch';
+
+-- ===== Analyst price targets (added later — safe to run on its own) =====
+-- Filled by the "price-target" Edge Function when you tag a stock, and refreshed by the nightly scanner.
+alter table public.scan_watch
+  add column if not exists target_mean    numeric(14,4),
+  add column if not exists target_median  numeric(14,4),
+  add column if not exists target_high    numeric(14,4),
+  add column if not exists target_low     numeric(14,4),
+  add column if not exists analysts       smallint,
+  add column if not exists rating         text,           -- strong_buy / buy / hold / underperform / sell
+  add column if not exists rating_mean    numeric(4,2),   -- 1 = strong buy … 5 = sell
+  add column if not exists target_ccy     text,
+  add column if not exists target_at      timestamptz;
+notify pgrst, 'reload schema';

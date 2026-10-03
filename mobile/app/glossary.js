@@ -72,7 +72,12 @@ const G=App.gloss={
   'w.triage':{t:'Triage',d:'Stocks you\'ve tagged to research: read the filings, check the story, write your thesis in the notes.',g:'Promote to Confirmation when the research checks out — or remove it.'},
   'w.confirmation':{t:'Confirmation',d:'Research done; waiting for the setup to confirm — e.g. an Emerging signal turning Confirmed, a breakout on volume, or the next earnings report.',g:'Write in the notes exactly what would make you act, and what would make you drop it.'},
   'w.since':{t:'Since tagged',d:'Price change since the day you added the stock — a quick check on whether your instinct was early or late.'},
-  'w.score':{t:'Score now vs then',d:'Latest scan score, with the score on the day you tagged it.'}
+  'w.score':{t:'Score now vs then',d:'Latest scan score, with the score on the day you tagged it.'},
+  'w.target':{t:'Analyst price target',d:'The average 12-month price target from Wall Street analysts covering the stock (the same consensus TradingView shows on its Forecast page), via Yahoo Finance. The bar shows the lowest and highest target, the average, and today\'s price.',
+    g:'Targets lag the news and are often optimistic. Treat them as a sanity check on your own thesis, not a forecast.'},
+  'w.upside':{t:'Upside to target',d:'How far the average analyst target is above (+) or below (−) today\'s price.',
+    g:'A big upside with few analysts (under 5) is less reliable than the same upside with 20+.'},
+  'w.rating':{t:'Analyst rating',d:'Consensus recommendation on a 1–5 scale: 1 = strong buy, 2 = buy, 3 = hold, 4 = underperform, 5 = sell.'}
 };
 
 /* ---------- ⓘ markup ---------- */

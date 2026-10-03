@@ -27,7 +27,9 @@ class Store:
             raise SystemExit("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY")
         self.base = url + "/rest/v1/"
         self.s = requests.Session()
-        self.s.headers.update({"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+        self.s.headers.update({"apikey": key, "Content-Type": "application/json"})
+        if key.startswith("eyJ"):   # legacy JWT service_role key; new sb_secret_ keys go in apikey only
+            self.s.headers["Authorization"] = f"Bearer {key}"
 
     def select(self, table, params: dict | None = None, page=1000):
         out, off = [], 0
@@ -50,6 +52,12 @@ class Store:
                             headers={"Prefer": "resolution=merge-duplicates,return=minimal"}, timeout=120)
             if r.status_code not in (200, 201, 204):
                 raise RuntimeError(f"upsert {table}: {r.status_code} {r.text[:300]}")
+
+    def patch(self, table, params: dict, data: dict):
+        r = self.s.patch(self.base + table, params=params, data=json.dumps(_clean(data)),
+                         headers={"Prefer": "return=minimal"}, timeout=60)
+        if r.status_code not in (200, 204):
+            raise RuntimeError(f"patch {table}: {r.status_code} {r.text[:300]}")
 
     def delete(self, table, params: dict):
         r = self.s.delete(self.base + table, params=params, headers={"Prefer": "return=minimal"}, timeout=120)
@@ -74,4 +82,7 @@ class DryStore:
             json.dump(self.tables[table], f, indent=1, default=str)
 
     def delete(self, table, params):
+        pass
+
+    def patch(self, table, params, data):
         pass

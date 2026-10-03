@@ -310,6 +310,17 @@ def main():
                                     "model": C.model_snapshot(),
                                     "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
                                     "notes": f"prices {psrc.name}, fundamentals {fsrc.name}"}], "scan_date")
+        # analyst price targets for the Triage & confirmation list (best effort — never fails the scan)
+        if watched and not a.dry_run:
+            try:
+                from sources.yahoo import analyst_targets
+                now = dt.datetime.now(dt.timezone.utc).isoformat()
+                tg = analyst_targets(sorted(watched))
+                for sym, t in tg.items():
+                    store.patch("scan_watch", {"symbol": f"eq.{sym}"}, {**t, "target_at": now})
+                log(f"Price targets refreshed for {len(tg)}/{len(watched)} watched stocks")
+            except Exception as e:  # noqa: BLE001
+                log(f"Price targets skipped: {e}")
         log(f"Done: {len(uni)} screened, {len(res)} scored, {len(qualified)} qualified, {new_signals} new signals")
         for x in res[:C.TOP_N]:
             log(f"  {x['s']['score']:3d}  {x['u']['symbol']:6s} {x['cls'] or '':13s} {x['sector']}")
