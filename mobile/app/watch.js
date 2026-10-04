@@ -156,6 +156,47 @@ function enrich(r){
 const clsTag=c=>c?`<span class="tag cls-${c.toLowerCase()}" data-tip="cls.${c}">${c}</span>`:'';
 
 /* ---------- screen ---------- */
+/* ---------- sorting (same behaviour as the Growth scanner): click a heading on the web, "Sort" sheet in the app ----------
+   one sort per page (Triage & confirmation / Observation); null = default (best since added first) */
+const SIG_ORDER={Emerging:1,Confirmed:2,Extended:3,Deteriorating:4};
+const WSORTS={s:['Stock',x=>x.symbol],a:['Date added',x=>x.added_at],p:['Price',x=>x.price],d:['Today',x=>x.day],sn:['Since added',x=>x.since],
+  tg:['Target',x=>x.target_mean!=null?Number(x.target_mean):null],up:['Upside',x=>x.upside],sc:['Score',x=>x.score],c:['Signal',x=>x.cls?SIG_ORDER[x.cls]||9:null],
+  n:['Notes',x=>x.notes?x.notes.toLowerCase():null]};
+const W_ASC={s:1,c:1,n:1};
+W.sorts={triage:null,observe:null};
+const pageKey=obs=>obs?'observe':'triage';
+function wsorted(list,obs){
+  const st=W.sorts[pageKey(obs)];
+  if(!st)return list.sort((a,b)=>(b.since??-1e9)-(a.since??-1e9));
+  const f=WSORTS[st.col][1],d=st.dir==='asc'?1:-1;
+  return list.sort((a,b)=>{const x=f(a),y=f(b);
+    if(x==null&&y==null)return 0; if(x==null)return 1; if(y==null)return -1;   // blanks always last
+    return x<y?-d:x>y?d:0;});
+}
+W.sortBy=(k,obs)=>{const key=pageKey(obs),cur=W.sorts[key];
+  W.sorts[key]=cur&&cur.col===k?{col:k,dir:cur.dir==='desc'?'asc':'desc'}:{col:k,dir:W_ASC[k]?'asc':'desc'};App.render(false);};
+W.sortTri=k=>W.sortBy(k,false); W.sortObs=k=>W.sortBy(k,true);
+W.sortReset=obs=>{W.sorts[pageKey(obs)]=null;App.render(false);};
+W.sortSheet=obs=>{
+  const key=pageKey(obs),cur=W.sorts[key]||{col:'',dir:'desc'};
+  App.openSheet({title:'Sort list',body:`<div class="form-sec">Sort by</div><div class="chips">
+      <button class="chip ${!W.sorts[key]?'on':''}" data-sc="">Default</button>${Object.entries(WSORTS).filter(([k])=>k!=='n').map(([k,[l]])=>`<button class="chip ${cur.col===k?'on':''}" data-sc="${k}">${l}</button>`).join('')}</div>
+    <div class="form-sec">Order</div><div class="opts"><button data-sd="desc" class="${cur.dir==='desc'?'on':''}">↓ High to low / Z→A</button><button data-sd="asc" class="${cur.dir==='asc'?'on':''}">↑ Low to high / A→Z</button></div>
+    <p class="tiny" style="margin-top:12px">Default = best performer since added first. Applies to each list on this page.</p>`,
+    foot:`<button class="btn btn-p" id="wSortGo">Apply</button>`});
+  let col=cur.col,dir=cur.dir;
+  H.$('#shBody').onclick=e=>{const c=e.target.closest('[data-sc]'),d=e.target.closest('[data-sd]');
+    if(c){col=c.dataset.sc;if(col)dir=W_ASC[col]?'asc':'desc';H.$('#shBody').querySelectorAll('[data-sc]').forEach(b=>b.classList.toggle('on',b===c));
+      H.$('#shBody').querySelectorAll('[data-sd]').forEach(b=>b.classList.toggle('on',b.dataset.sd===dir));}
+    if(d){dir=d.dataset.sd;H.$('#shBody').querySelectorAll('[data-sd]').forEach(b=>b.classList.toggle('on',b===d));}};
+  H.$('#wSortGo').onclick=()=>{W.sorts[key]=col?{col,dir}:null;App.closeSheet();App.render(false);};
+};
+/* phone rows: show the sorted value under the price when it isn't already on the row */
+function wSortNote(x,obs){
+  const st=W.sorts[pageKey(obs)],k=st&&st.col;
+  return k==='up'?`${pc(x.upside)} <span class="dim">upside</span>`:k==='d'?H.pill(x.day):k==='sc'?(x.score==null?'<span class="dim">no score</span>':`<span class="dim">score</span> ${x.score}`):
+    k==='tg'?(x.target_mean?`<span class="dim">target</span> ${mo(x.symbol,x.target_mean)}`:'<span class="dim">no target</span>'):'';
+}
 function renderLists(el,LIST,obs){
   if(W.status==='idle')W.load();
   if(App.scanner&&App.scanner.status==='idle')App.scanner.load();
@@ -177,24 +218,27 @@ function renderLists(el,LIST,obs){
       `<div class="card muted-card" style="margin-top:14px"><div class="val">Nothing tagged yet</div>
       <p class="sub" style="margin-top:8px;font-size:14px;line-height:1.5">Open a stock in the <a class="link" href="#more/scanner">Growth scanner</a> and tap <b>Add to Triage</b>, or use <b>+ Add</b> for any US ticker.</p></div></div>`;
     el.innerHTML=html;return;}
+  const st=W.sorts[pageKey(obs)];
+  html+=wide?(st?`<div class="sc-sortnote tiny">Sorted by <b>${WSORTS[st.col][0]}</b> ${st.dir==='asc'?'↑':'↓'} · <button class="link" onclick="App.watch.sortReset(${obs})">Reset to default</button></div>`:''):
+    `<div class="sc-sortnote"><button class="link" onclick="App.watch.sortSheet(${obs})">Sort: ${st?WSORTS[st.col][0]+' '+(st.dir==='asc'?'↑':'↓'):'Default'}</button></div>`;
   LIST.forEach(([k,l,sub])=>{
-    const list=all.filter(x=>x.stage===k).sort((a,b)=>(b.since??-1e9)-(a.since??-1e9));
+    const list=wsorted(all.filter(x=>x.stage===k),obs);
     html+=`<div class="${wide?'dt-note':'sec'}"><h2>${l}${H.tip('w.'+k)}</h2><span class="note">${list.length} stock${list.length!==1?'s':''} · ${sub}</span></div>`;
     if(!list.length){html+=`<div class="card muted-card"><div class="tiny">${k==='triage'?'Nothing waiting for research.':'Nothing waiting for confirmation — promote a stock from Triage when your research checks out.'}</div></div>`;return;}
     if(wide){
-      html+='<div class="sc-dt">'+H.table([{k:'s',label:'Stock'},{k:'a',label:obs?'Added':'Tagged'},{k:'p',label:'Price now',cls:'n'},{k:'d',label:'Today',cls:'n'},
-        {k:'sn',label:(obs?'Since added':'Since tagged')+H.tip('w.since'),cls:'n'},{k:'tg',label:'Target'+H.tip('w.target'),cls:'n'},{k:'up',label:'Upside'+H.tip('w.upside'),cls:'n'},{k:'sc',label:'Score'+H.tip('w.score'),cls:'n'},{k:'c',label:'Signal now'+H.tip('signal')},{k:'n',label:'Notes'}],
+      html+='<div class="sc-dt">'+H.table([{k:'s',label:'Stock',sort:1},{k:'a',label:obs?'Added':'Tagged',sort:1},{k:'p',label:'Price now',cls:'n',sort:1},{k:'d',label:'Today',cls:'n',sort:1},
+        {k:'sn',label:(obs?'Since added':'Since tagged')+H.tip('w.since'),cls:'n',sort:1},{k:'tg',label:'Target'+H.tip('w.target'),cls:'n',sort:1},{k:'up',label:'Upside'+H.tip('w.upside'),cls:'n',sort:1},{k:'sc',label:'Score'+H.tip('w.score'),cls:'n',sort:1},{k:'c',label:'Signal now'+H.tip('signal'),sort:1},{k:'n',label:'Notes',sort:1}],
         list.map(x=>({on:`App.watch.open('${x.symbol}')`,cells:{
           s:`<div class="t-main">${H.esc(x.symbol.replace(/\.KL$/,''))}${isKL(x.symbol)?' <span class="tag myr">Bursa</span>':''}${held(x.symbol)?' <span class="tag myr">Held</span>':''}</div><div class="t-sub" title="${H.esc(x.sector||'')}">${H.esc(x.name||'')}</div>`,
           a:`${H.dateShort(x.added_at)}<div class="t-sub">${x.days}d ago</div>`,p:x.price==null?(W.pxBusy?'<span class="spin-i"></span>':'—'):mo(x.symbol,x.price),
           d:H.pill(x.day),sn:`<b>${pc(x.since)}</b><div class="t-sub">from ${mo(x.symbol,x.added_price)}</div>`,tg:tgCell(x),up:pc(x.upside),sc:x.score==null?'<span class="dim">—</span>':`<b>${x.score}</b> <span class="t-sub" style="display:inline">${x.added_score!=null?'from '+x.added_score:''}</span>`,
-          c:clsTag(x.cls)||'<span class="dim">—</span>',n:x.notes?`<span class="t-sub" title="${H.esc(x.notes)}" style="display:inline-block;max-width:130px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom">${H.esc(x.notes)}</span>`:''}})))+'</div>';
+          c:clsTag(x.cls)||'<span class="dim">—</span>',n:x.notes?`<span class="t-sub" title="${H.esc(x.notes)}" style="display:inline-block;max-width:130px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom">${H.esc(x.notes)}</span>`:''}})),{sort:W.sorts[pageKey(obs)]||{},onSort:obs?'App.watch.sortObs':'App.watch.sortTri'})+'</div>';
     }else{
       html+=`<div class="list">${list.map(x=>`<button class="lrow" onclick="App.watch.open('${x.symbol}')">
         <div class="sc-badge ${x.score==null?'mid':x.score>=80?'hi':x.score>=60?'ok':x.score>=45?'mid':'lo'}">${x.score??'–'}</div>
         <div class="main-col"><div class="t1">${H.esc(x.symbol.replace(/\.KL$/,''))} ${isKL(x.symbol)?'<span class="tag myr">Bursa</span>':''}${clsTag(x.cls)}</div>
           <div class="t2">${x.target_mean?`target ${mo(x.symbol,x.target_mean)} (${pcTxt(x.upside)})`:H.esc(x.name||'')} · ${x.days}d · from ${mo(x.symbol,x.added_price)}</div></div>
-        <div class="end"><div class="v">${x.price==null?(W.pxBusy?'<span class="spin-i"></span>':'—'):mo(x.symbol,x.price)}</div><div class="s">${pc(x.since)} <span class="dim">since</span></div></div></button>`).join('')}</div>`;
+        <div class="end"><div class="v">${x.price==null?(W.pxBusy?'<span class="spin-i"></span>':'—'):mo(x.symbol,x.price)}</div><div class="s">${wSortNote(x,obs)||`${pc(x.since)} <span class="dim">since</span>`}</div></div></button>`).join('')}</div>`;
     }
   });
   html+=`<p class="tiny sc-foot">${W.pxAt?`Live prices ${new Date(W.pxAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} (about 15 min delayed). `:''}Score and signal are from the latest nightly scan. Price targets are the Wall Street analyst consensus (via Yahoo Finance)${W.ptState==='missing'?' — <b>deploy the price-target Edge Function to see them</b>':W.ptState==='nocols'?' — <b>run mobile/supabase/price-targets.sql to save them</b>':''}. A watchlist is for research — not a buy list.</p></div>`;
