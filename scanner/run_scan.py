@@ -28,6 +28,7 @@ from sources import fundamentals_source, price_source  # noqa: E402
 from store import DryStore, Store  # noqa: E402
 
 BENCH = "^IXIC"   # NASDAQ Composite
+BENCH_KL = "^KLSE"   # FBM KLCI — benchmark for Bursa stocks on the watchlists
 
 
 def log(*a):
@@ -97,10 +98,13 @@ def refresh_fundamentals(store, fsrc, wanted: dict, last_run: dt.date | None, to
 
 
 # ------------------------------------------------------------------ one evaluation date
-def evaluate(asof: dt.date, ts: int, uni: list, prices: dict, bench, cache: dict, hist: dict, point_in_time: bool):
+def evaluate(asof: dt.date, ts: int, uni: list, prices: dict, bench, cache: dict, hist: dict, point_in_time: bool,
+             bench_kl=None, watched: set | None = None):
     """Score every stock as of one date. hist: symbol -> {date_iso: score} for score-change maths."""
     a_iso = asof.isoformat()
     b = bench.upto(ts) if point_in_time else bench
+    bkl = (bench_kl.upto(ts) if point_in_time else bench_kl) if bench_kl else b
+    watched = watched or set()
     stage = []
     excluded: dict = {}
     for u in uni:
@@ -112,19 +116,24 @@ def evaluate(asof: dt.date, ts: int, uni: list, prices: dict, bench, cache: dict
             h = h.upto(ts)
             if not h.close or bar_date(h.t[-1]) < asof - dt.timedelta(days=7):
                 continue
-        t = T.indicators(h, b)
+        kl = u.get("market") == "Bursa"
+        t = T.indicators(h, bkl if kl else b)
         fc = cache.get(u.get("cik") or "") or {}
         f = FM.metrics(fc.get("facts"), a_iso)
         uu = {**u, "sic": fc.get("sic"), "late_filings": fc.get("late_filings") or []}
         if point_in_time:
             uu["financial_status"] = ""   # today's listing status says nothing about the past
-        reason = S.exclusion(uu, f, t, a_iso)
+        reason = S.exclusion(uu, f, t, a_iso) if not kl else None
+        flag = None
+        if reason and u["symbol"] in watched:      # watchlist stocks are always scored, with a note
+            flag, reason = f"Normally filtered out of the scan ({reason.replace('_', ' ')}) — scored because it's on your watchlist", None
         if reason:
             excluded[reason] = excluded.get(reason, 0) + 1
             continue
         mcap = f["shares"] * t["price"] if f.get("shares") and t.get("price") else None
-        stage.append({"u": uu, "f": f, "t": t, "sector": sector(fc.get("sic")), "mcap": mcap,
-                      "ps": S._ps(f, mcap), "name": fc.get("name") or u["name"]})
+        stage.append({"u": uu, "f": f, "t": t, "sector": "Bursa" if kl else sector(fc.get("sic")), "mcap": mcap,
+                      "ps": S._ps(f, mcap), "name": fc.get("name") or u["name"], "kl": kl, "flag": flag,
+                      "extra": bool(u.get("extra"))})
     # sector medians for relative valuation
     by_sec: dict = {}
     for x in stage:
@@ -147,7 +156,7 @@ def evaluate(asof: dt.date, ts: int, uni: list, prices: dict, bench, cache: dict
     out = []
     for x in stage:
         sym = x["u"]["symbol"]
-        ctx = {"market_cap": x["mcap"], "ps": x["ps"], "sector_ps": med.get(x["sector"], overall)}
+        ctx = {"market_cap": x["mcap"], "ps": x["ps"], "sector_ps": med.get(x["sector"], overall), "price_only": x["kl"]}
         s = S.score(x["f"], x["t"], ctx)
         s1, s3 = back(sym, 28, 12), back(sym, 88, 16)
         ctx["score_chg_1m"] = s["score"] - s1 if s1 is not None else None
@@ -181,6 +190,7 @@ def metrics_payload(x) -> dict:
         "off_high": r2(t.get("off_high")), "vol_ratio": r2(t.get("vol_ratio_best10"), 2),
         "updown_vol": r2(t.get("updown_vol"), 2), "dollar_vol_20d": round(t.get("dollar_vol_20d") or 0),
         "market_category": x["u"].get("market_category"),
+        "watch_only": bool(x.get("extra")),   # on a watchlist but outside the NASDAQ universe (hidden from scanner lists)
     }
 
 
@@ -208,11 +218,36 @@ def main():
         uni = uni[:a.limit]
     log(f"  {len(uni)} NASDAQ common stocks")
 
+    # ---- stocks on Triage & confirmation / Observation that aren't on NASDAQ (NYSE etc., Bursa .KL) ----
+    try:
+        watch_rows = store.select("scan_watch", {"select": "symbol,name"})
+    except Exception as e:  # noqa: BLE001 — table may not exist yet
+        print(f"  watchlist not read ({e})")
+        watch_rows = []
+    watched = {w["symbol"] for w in watch_rows}
+    have = {u["symbol"] for u in uni}
+    extras = []
+    for w in watch_rows:
+        sym = w["symbol"]
+        if sym in have or a.symbols:
+            continue
+        if sym.endswith(".KL"):
+            extras.append({"symbol": sym, "name": w.get("name") or sym, "market": "Bursa", "cik": None,
+                           "financial_status": "", "market_category": "", "extra": True})
+        else:
+            m = tmap.get(sym) or tmap.get(sym.replace(".", "-")) or {}
+            extras.append({"symbol": sym, "name": w.get("name") or m.get("name") or sym, "market": "US",
+                           "cik": m.get("cik"), "financial_status": "", "market_category": "", "extra": True})
+    if extras:
+        uni = uni + extras
+        log(f"  + {len(extras)} watchlist stocks outside NASDAQ ({sum(1 for x in extras if x['market'] == 'Bursa')} Bursa)")
+
     days = 400 + a.backfill_weeks * 7
     bench = psrc.history(BENCH, days)
     if not bench or not bench.close:
         raise SystemExit("Could not load the NASDAQ Composite — aborting")
     scan_date = bar_date(bench.t[-1])
+    bench_kl = psrc.history(BENCH_KL, days) if any(u.get("market") == "Bursa" for u in uni) else None
     log(f"Scan date {scan_date} · prices…")
     prices = psrc.many([u["symbol"] for u in uni], days, workers=C.PRICE_WORKERS,
                        progress=lambda d, n: log(f"  prices {d}/{n}"))
@@ -245,7 +280,8 @@ def main():
             for k in range(a.backfill_weeks, 0, -1):
                 asof = scan_date - dt.timedelta(days=7 * k)
                 ts = int(dt.datetime.combine(asof, dt.time(23, 59), dt.timezone.utc).timestamp())
-                res, _ = evaluate(asof, ts, uni, prices, bench, cache, hist, point_in_time=True)
+                res, _ = evaluate(asof, ts, uni, prices, bench, cache, hist, point_in_time=True,
+                                  bench_kl=bench_kl, watched=watched)
                 rows = [{"scan_date": asof.isoformat(), "symbol": x["u"]["symbol"], "score": x["s"]["score"],
                          "classification": x["cls"], "backfilled": True} for x in res]
                 for r in rows:
@@ -254,7 +290,8 @@ def main():
                 log(f"  backfill {asof}: {len(rows)} scored")
 
         # ---- today ----
-        res, excluded = evaluate(scan_date, bench.t[-1] + 86400, uni, prices, bench, cache, hist, point_in_time=False)
+        res, excluded = evaluate(scan_date, bench.t[-1] + 86400, uni, prices, bench, cache, hist, point_in_time=False,
+                                 bench_kl=bench_kl, watched=watched)
         res.sort(key=lambda x: x["s"]["score"], reverse=True)
         d_iso = scan_date.isoformat()
 
@@ -263,22 +300,18 @@ def main():
             for r in store.select("scan_scores", {"select": "symbol,score,classification",
                                                   "scan_date": f"eq.{prev_ok[0]['scan_date']}"}):
                 prev_cls[r["symbol"]] = r
-        qualified = [x for x in res if x["s"]["score"] >= C.QUALIFY_SCORE]
+        core = [x for x in res if not x["extra"]]          # NASDAQ universe only, for the tiles
+        qualified = [x for x in core if x["s"]["score"] >= C.QUALIFY_SCORE]
         new_signals = 0
         if prev_ok:
-            for x in res:
+            for x in core:
                 p = prev_cls.get(x["u"]["symbol"])
                 newly_q = x["s"]["score"] >= C.QUALIFY_SCORE and (not p or p["score"] < C.QUALIFY_SCORE)
                 moved = x["cls"] in ("Emerging", "Confirmed") and (not p or p.get("classification") != x["cls"])
                 if newly_q or moved:
                     new_signals += 1
 
-        # stocks on the Triage & confirmation list always keep their full detail row
-        try:
-            watched = {r["symbol"] for r in store.select("scan_watch", {"select": "symbol"})}
-        except Exception as e:  # noqa: BLE001 — table may not exist yet
-            print(f"  watchlist not read ({e})")
-            watched = set()
+        # stocks on the watchlists (Triage & confirmation, Observation) always keep their full detail row
         detail, history = [], []
         for x in res:
             sym, s = x["u"]["symbol"], x["s"]
@@ -294,7 +327,10 @@ def main():
                 "score_chg_1m": x["chg_1m"], "score_chg_3m": x["chg_3m"], "classification": x["cls"],
                 "discovery": x["discovery"], "fund_score": s["fund_score"], "mom_score": s["mom_score"],
                 "breakdown": {**s["breakdown"], "_scale": s["scale"]}, "metrics": metrics_payload(x),
-                "reasons": x["reasons"], "flags": S.soft_flags(x["f"], t)})
+                "reasons": x["reasons"],
+                "flags": ([x["flag"]] if x.get("flag") else []) + (
+                    ["Bursa stock: price-based score only (trend, momentum, volume vs FBM KLCI) — no SEC filings"]
+                    if x.get("kl") else S.soft_flags(x["f"], t))})
         # analyst consensus targets for every stored stock (best effort; needs mobile/supabase/price-targets.sql)
         if detail and not a.dry_run and os.environ.get("SCANNER_TARGETS", "1") != "0":
             try:
@@ -329,7 +365,7 @@ def main():
             store.delete("scan_scores", {"scan_date": f"lt.{runs[-1]['scan_date']}"})
         store.delete("scan_history", {"scan_date": f"lt.{(scan_date - dt.timedelta(days=C.KEEP_HISTORY_DAYS)).isoformat()}"})
 
-        store.upsert("scan_runs", [{"scan_date": d_iso, "status": "ok", "screened": len(uni), "scored": len(res),
+        store.upsert("scan_runs", [{"scan_date": d_iso, "status": "ok", "screened": sum(1 for u in uni if not u.get("extra")), "scored": len(core),
                                     "qualified": len(qualified), "new_signals": new_signals, "excluded": excluded,
                                     "model": C.model_snapshot(),
                                     "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),

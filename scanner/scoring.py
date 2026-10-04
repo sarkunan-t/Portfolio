@@ -165,6 +165,9 @@ def score(f: dict, t: dict, ctx: dict) -> dict:
         if not spec["available"] or key not in FUNCS:
             bd[key] = {"pts": None, "max": w, "note": "No data source yet"}
             continue
+        if ctx.get("price_only") and spec["group"] == "fund":   # Bursa: no SEC filings → price-based score
+            bd[key] = {"pts": None, "max": w, "note": "No SEC filings for Bursa stocks"}
+            continue
         frac, note = FUNCS[key](f, t, ctx)
         frac = max(0.0, min(1.0, frac))
         pts = round(frac * w, 1)
@@ -174,7 +177,7 @@ def score(f: dict, t: dict, ctx: dict) -> dict:
         grp[spec["group"]][0] += frac * w
         grp[spec["group"]][1] += w
     return {"score": round(tot / avail * 100) if avail else 0, "breakdown": bd,
-            "fund_score": round(grp["fund"][0] / grp["fund"][1] * 100) if grp["fund"][1] else 0,
+            "fund_score": round(grp["fund"][0] / grp["fund"][1] * 100) if grp["fund"][1] else None,
             "mom_score": round(grp["mom"][0] / grp["mom"][1] * 100) if grp["mom"][1] else 0,
             "scale": round(100 / avail, 3) if avail else 1}
 
@@ -280,12 +283,12 @@ def classify(f: dict, t: dict, s: dict, ctx: dict) -> tuple[str | None, list[str
         early.append("Crossed above the 50-day average recently")
     if m50 and t.get("ma50_20d_ago") and m50 > t["ma50_20d_ago"]:
         early.append("50-day average turning up")
-    if improving and early and s["fund_score"] >= 50:
+    if improving and early and (s["fund_score"] or 0) >= 50:
         return "Emerging", improving + early
     return None, []
 
 
 def is_discovery(mcap, s, cls) -> bool:
     return bool(mcap and C.DISCOVERY_MIN_CAP <= mcap <= C.DISCOVERY_MAX_CAP
-                and s["fund_score"] >= C.DISCOVERY_MIN_FUND and s["mom_score"] < C.DISCOVERY_MAX_MOM
+                and (s["fund_score"] or 0) >= C.DISCOVERY_MIN_FUND and s["mom_score"] < C.DISCOVERY_MAX_MOM
                 and cls != "Deteriorating")

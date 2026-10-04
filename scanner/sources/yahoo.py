@@ -19,6 +19,8 @@ class YahooPrices(PriceSource):
     @staticmethod
     def yahoo_symbol(symbol: str) -> str:
         # Nasdaq uses "." for share classes in some feeds; Yahoo wants "-" (e.g. BRK.B -> BRK-B)
+        if symbol.endswith(".KL") or symbol.startswith("^"):
+            return symbol                                  # Bursa (1155.KL) and indices are used as-is
         return symbol.replace(".", "-").replace("$", "-P")
 
     def history(self, symbol: str, days: int) -> PriceHistory | None:

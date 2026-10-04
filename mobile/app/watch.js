@@ -290,7 +290,7 @@ W.open=sym=>{
       ${kv(obs?'Price when added':'Price when tagged',usd(r.added_price))}
       ${kv(H.lt(obs?'Since added':'Since tagged','w.since'),pc(x.since))}
       ${W.heldIn(sym).length?kv('Holdings',`<span class="tag myr">Held</span> ${H.esc(W.heldIn(sym).join(', '))}`):''}
-      ${kv(H.lt('Score','w.score'),x.score==null?`<span class="dim">${isKL(sym)?'scanner covers NASDAQ only':'not in latest scan'}</span>`:`${x.score} ${r.added_score!=null?`<span class="dim">(was ${r.added_score}, ${x.dScore>=0?'+':'−'}${Math.abs(x.dScore)})</span>`:''}`)}
+      ${kv(H.lt('Score','w.score'),x.score==null?`<span class="dim">scored from the next nightly scan${isKL(sym)?' (price-based for Bursa)':''}</span>`:`${x.score} ${r.added_score!=null?`<span class="dim">(was ${r.added_score}, ${x.dScore>=0?'+':'−'}${Math.abs(x.dScore)})</span>`:''}`)}
       ${kv(H.lt('Signal','signal'),`${clsTag(x.cls)||'—'}${r.added_class&&r.added_class!==x.cls?` <span class="dim">was ${H.esc(r.added_class)}</span>`:''}`)}
     </div>
     ${targetCard(r,x,sym)}

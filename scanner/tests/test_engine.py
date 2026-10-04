@@ -228,10 +228,67 @@ def test_dry_run():
               open(os.path.join(out, "sample.json"), "w"), default=str)
 
 
+def test_watchlist_extras():
+    """Watchlist stocks outside NASDAQ (NYSE + Bursa) are scored; Bursa price-only; tiles stay NASDAQ-only."""
+    import run_scan
+    import universe
+    from sources.base import FundamentalsSource, PriceSource
+    from store import DryStore
+
+    syms = [f"N{i:02d}" for i in range(12)]
+
+    class FakeF(FundamentalsSource):
+        name = "fake"
+        def ticker_map(self):
+            m = {s: {"cik": str(i + 1).zfill(10), "name": f"{s} Corp", "exchange": "Nasdaq"} for i, s in enumerate(syms)}
+            m["NYSEX"] = {"cik": "0000000099", "name": "Nyse Example", "exchange": "NYSE"}
+            return m
+        def changed_since(self, since, until=None):
+            return {}
+        def fetch(self, cik):
+            rev = [100 * 1.08 ** k for k in range(12)]
+            cf = compact_facts(fake_companyfacts([x * 1e6 for x in rev], [x * 1e5 for x in rev], [x * 1.2e5 for x in rev]))
+            return {"name": "X", "sic": "7372", "facts": cf, "late_filings": [], "last_filed": TODAY.isoformat()}
+
+    class FakeP(PriceSource):
+        name = "fake"
+        def history(self, symbol, days):
+            seed = sum(map(ord, symbol))
+            base = 15000 if symbol.startswith("^") else 30
+            return make_prices(symbol, n=420, drift=0.001, vol=0.012, seed=seed, base=base, volume=3e6)
+
+    class WatchStore(DryStore):
+        def select(self, table, params=None, page=1000):
+            if table == "scan_watch":
+                return [{"symbol": "NYSEX", "name": "Nyse Example"}, {"symbol": "1155.KL", "name": "MALAYAN BANKING"},
+                        {"symbol": "N03", "name": "N03 Corp"}]
+            return super().select(table, params, page)
+
+    run_scan.fundamentals_source = lambda: FakeF()
+    run_scan.price_source = lambda: FakeP()
+    run_scan.DryStore = WatchStore
+    universe.requests = None
+    out = os.path.join(os.path.dirname(HERE), "out")
+    shutil.rmtree(out, ignore_errors=True)
+    sys.argv = ["run_scan.py", "--dry-run"]
+    run_scan.main()
+    scores = {r["symbol"]: r for r in json.load(open(os.path.join(out, "scan_scores.json")))}
+    run = json.load(open(os.path.join(out, "scan_runs.json")))[-1]
+    assert "NYSEX" in scores and "1155.KL" in scores, sorted(scores)
+    kl = scores["1155.KL"]
+    assert kl["fund_score"] is None and kl["sector"] == "Bursa", kl
+    assert all(v["pts"] is None for k, v in kl["breakdown"].items() if k in ("revenue_growth", "valuation"))
+    assert any("Bursa" in f for f in kl["flags"]), kl["flags"]
+    assert scores["NYSEX"]["fund_score"] is not None
+    assert run["screened"] == len(syms), run["screened"]
+    print(f"watchlist extras ok: 1155.KL score {kl['score']} (price-only), NYSEX score {scores['NYSEX']['score']}, screened {run['screened']}")
+
+
 if __name__ == "__main__":
     test_parsers()
     test_quarters_and_ttm()
     test_exclusions()
     test_technicals_and_score()
     test_dry_run()
+    test_watchlist_extras()
     print("ALL OK")

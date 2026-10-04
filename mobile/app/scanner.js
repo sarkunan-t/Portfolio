@@ -5,7 +5,7 @@
 (function(){
 const H=App.h;
 H.icon.radar='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/><circle cx="12" cy="12" r="1"/></svg>';
-const LIST_COLS='symbol,name,sector,price,chg_pct,market_cap,score,score_chg_1m,score_chg_3m,classification,discovery,fund_score,mom_score';
+const LIST_COLS='symbol,name,sector,price,chg_pct,market_cap,score,score_chg_1m,score_chg_3m,classification,discovery,fund_score,mom_score,wo:metrics->watch_only';
 const TARGET_COLS=',target_mean,target_high,target_low,analysts,rating,upside';   // needs mobile/supabase/price-targets.sql
 /* analyst target: stored by the nightly scan, or fetched live (App.pt / price-target Edge Function) until it is */
 const tgtOf=r=>{if(r.target_mean!=null)return {mean:Number(r.target_mean),low:r.target_low,high:r.target_high,analysts:r.analysts};
@@ -93,7 +93,8 @@ async function loadPrice(sym){
 
 /* ---------- helpers ---------- */
 const held=()=>{try{return new Set(App.calc.positions().filter(p=>p.market==='US').map(p=>String(p.ticker).toUpperCase()));}catch(e){return new Set();}};
-const usd=(v,d)=>v==null||!isFinite(v)?'—':`$${fmt(v,d!=null?d:(Math.abs(v)<10?3:2))}`;
+const usd=(v,d)=>usdG(v,d);
+const usdG=(v,d)=>v==null||!isFinite(v)?'—':`$${fmt(v,d!=null?d:(Math.abs(v)<10?3:2))}`;
 const big=v=>{if(v==null||!isFinite(v))return '—';const a=Math.abs(v),s=v<0?'−':'';
   return a>=1e12?`${s}$${(a/1e12).toFixed(2)}T`:a>=1e9?`${s}$${(a/1e9).toFixed(2)}B`:a>=1e6?`${s}$${(a/1e6).toFixed(1)}M`:a>=1e3?`${s}$${(a/1e3).toFixed(0)}k`:`${s}$${fmt(a,0)}`;};
 const pc=(v,d=0)=>v==null||!isFinite(v)?'<span class="dim">—</span>':`<span class="${v>=0?'up':'down'}">${v>=0?'+':'−'}${fmt(Math.abs(v*100),d)}%</span>`;
@@ -107,7 +108,7 @@ const dateTxt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('en-GB',{weekday:'
 function filtered(ignoreCls){
   const f=App.state.filters.scanner||{};
   const pass=(g,v)=>!f[g]||!f[g].length||f[g].includes(String(v));
-  let list=S.rows.filter(r=>pass('sector',r.sector||'Other')&&(ignoreCls||pass('cls',r.classification||'None')));
+  let list=S.rows.filter(r=>!r.wo&&!/\.KL$/.test(r.symbol)&&pass('sector',r.sector||'Other')&&(ignoreCls||pass('cls',r.classification||'None')));   // watchlist-only stocks (NYSE, Bursa) stay out of scanner lists
   if(S.view==='discovery')return list.filter(r=>r.discovery).sort((a,b)=>b.fund_score-a.fund_score);
   if(S.view==='rising')return list.filter(r=>r.score>=Math.min(S.min,50)&&r.score_chg_3m!=null&&r.score_chg_3m>0)
     .sort((a,b)=>b.score_chg_3m-a.score_chg_3m||b.score-a.score).slice(0,50);
@@ -290,6 +291,7 @@ function bindWatchFoot(sym){
 }
 S.open=async sym=>{
   const r=S.rows.find(x=>x.symbol===sym);if(!r)return;
+  const usd=/\.KL$/.test(sym)?(v=>v==null||!isFinite(v)?'—':'RM '+fmt(v,3)):usdG;
   const head=`<div data-nomask><div class="dhead"><div><div class="dprice">${usd(r.price)}</div>
       <div class="sub">${H.esc(r.sector||'')} · ${big(r.market_cap)} market cap</div></div>${H.pill(r.chg_pct)}</div>
     <div class="chips" style="gap:6px;margin-bottom:12px">${clsTag(r.classification)}${r.discovery?discTag:''}${held().has(sym)?'<span class="tag myr">You hold this</span>':''}${App.watch?App.watch.tag(sym):''}</div>`;
@@ -307,7 +309,7 @@ S.open=async sym=>{
   H.$('#shBody').innerHTML=head+`
     <div class="card sc-scorecard"><div class="sc-big"><div class="sc-badge xl ${band(d.score)}">${d.score}</div>
       <div><div class="lbl">Score out of 100${H.tip('score')}</div><div class="sub">1 month${H.tip('chg1m')} ${d.score_chg_1m!=null?pts(d.score_chg_1m):'<span class="dim">—</span>'} · 3 months${H.tip('chg3m')} ${d.score_chg_3m!=null?pts(d.score_chg_3m):'<span class="dim">—</span>'}</div>
-      <div class="sc-sub2"><span>Fundamentals${H.tip('fund')} <b>${d.fund_score}</b></span><span>Momentum${H.tip('mom')} <b>${d.mom_score}</b></span></div></div></div>
+      <div class="sc-sub2"><span>Fundamentals${H.tip('fund')} <b>${d.fund_score??'n/a'}</b></span><span>Momentum${H.tip('mom')} <b>${d.mom_score}</b></span></div></div></div>
       <div id="scHist" class="mc-wrap">${App.skeleton(1)}</div></div>
     ${reasons}${flags}
     <div class="card"><div class="form-sec">Score breakdown <button class="link" style="float:right;text-transform:none;letter-spacing:0" onclick="App.glossary.sheet()">How scores work</button></div>${breakdownHTML(d.breakdown)}</div>
