@@ -84,7 +84,7 @@ App.screens.home={
     const al=App.state.alerts.slice(0,wide?6:4);
     let alerts=`<div class="sec"><h2>Price alerts</h2><a class="link" href="#more/alerts">See all</a></div>`;
     alerts+=al.length?`<div class="list">${al.map(App.more.alertRow).join('')}</div>`:
-      `<div class="card muted-card"><div class="tiny">No alerts yet. You'll get one when a holding moves −3% or +5% vs previous close during market hours.</div></div>`;
+      `<div class="card muted-card"><div class="tiny">No alerts yet. You'll get one when a holding or watched stock moves −3% or +5%, a watched stock hits its analyst target, or its scan signal changes.</div></div>`;
 
     let html;
     if(wide)html=`<div class="dash-top">${hero}<div class="stack">${App.nw.strip()}${assets.replace('<div class="sec">','<div class="sec" style="margin-top:0">')}</div></div>`+kpis+

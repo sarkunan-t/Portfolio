@@ -2,7 +2,7 @@
    Loaded on every page inside the Android app (see build-www.sh), never on the web.
    After sign-in it asks for notification permission, gets this device's FCM token
    and saves it to Supabase (push_tokens), so the price-alerts Edge Function can
-   push "▼ -3% / ▲ +5%" alerts to the tablet even when the app is closed. */
+   push price, target and signal alerts to the tablet even when the app is closed. */
 (function(){
   const cap=window.Capacitor;
   if(!cap||!cap.isNativePlatform||!cap.isNativePlatform()||!window.capacitorExports)return;
@@ -10,9 +10,10 @@
   const Push=window.capacitorExports.registerPlugin('PushNotifications');
   const LS_KEY='ms_push_token';
 
-  // tapping an alert opens Current Positions
-  Push.addListener('pushNotificationActionPerformed',()=>{
-    location.hash='#holdings/open';
+  // tapping an alert opens the screen it's about (data.route, e.g. #more/triage); holdings → Current Positions
+  Push.addListener('pushNotificationActionPerformed',a=>{
+    const r=a&&a.notification&&a.notification.data&&a.notification.data.route;
+    location.hash=/^#[a-z]+(\/[a-z]+)?$/.test(r||'')?r:'#holdings/open';
   });
   // alert arriving while the app is open: also show it in-app
   Push.addListener('pushNotificationReceived',n=>{
@@ -33,7 +34,7 @@
     if(!session)return;                               // only once signed in (RLS needs the user)
     try{
       await Push.createChannel({id:'price-alerts',name:'Price alerts',
-        description:'Holding moves of -3% / +5% vs previous close',
+        description:'Holding and watchlist moves of -3% / +5%, analyst targets reached, scan signal changes',
         importance:5,visibility:1,vibration:true,lights:true,lightColor:'#0AA79F'});
     }catch(e){}
     let perm=await Push.checkPermissions();

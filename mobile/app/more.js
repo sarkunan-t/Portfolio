@@ -2,13 +2,34 @@
 (function(){
 const H=App.h, C=App.calc;
 App.more={};
+const LIST_LBL={observation:'Observation',triage:'Triage',confirmation:'Confirmation'};
 App.more.alertRow=a=>{
   const down=a.direction==='down', cur=a.currency==='MYR'?'RM ':a.currency==='USD'?'US$':(a.currency||'')+' ';
-  const name=a.market==='Bursa'?(TICKER_NAME[a.ticker]||a.ticker):a.ticker;
-  return `<button class="lrow" onclick="${a.ticker?`App.holdings.openStock('${a.ticker}','${a.market}')`:''}">
+  const kl=a.market==='Bursa', dp=kl?3:2;
+  const name=kl?(TICKER_NAME[a.ticker]||a.ticker):a.ticker||a.symbol;
+  const lst=a.list?` <span class="tag">${LIST_LBL[a.list]||H.esc(a.list)}</span>`:'';
+  const on=`App.more.alertOpen('${H.esc(a.symbol||'')}','${H.esc(a.ticker||'')}','${H.esc(a.market||'')}','${H.esc(a.list||'')}','${H.esc(a.route||'')}')`;
+  if(a.direction==='target'||a.direction==='signal'||a.direction==='score'){
+    const ic={target:'🎯',signal:'⇄',score:'±'}[a.direction];
+    const end=a.direction==='score'&&a.pct!=null?`<span class="pill-chg ${a.pct>0?'up':'down'}">${a.pct>0?'▲':'▼'} ${Math.abs(Math.round(a.pct))} pts</span>`:
+      a.direction==='target'?'<span class="tag">Target</span>':'<span class="tag">Signal</span>';
+    return `<button class="lrow" onclick="${on}">
+      <div class="ico note">${ic}</div>
+      <div class="main-col"><div class="t1">${H.esc(name)}${lst}</div><div class="t2" style="white-space:normal">${H.esc(String(a.message||'').replace(/^[^:·]+:\s*/,'').replace(/^\S+ hit target · /,'Target reached · ').replace(/ · (Observation|Triage|Confirmation)$/,''))}<br>${H.date(a.alert_date)}</div></div>
+      <div class="end">${end}</div></button>`;
+  }
+  return `<button class="lrow" onclick="${on}">
     <div class="ico ${down?'sell':'buy'}">${down?'▼':'▲'}</div>
-    <div class="main-col"><div class="t1">${H.esc(name)}</div><div class="t2">${H.date(a.alert_date)} · ${cur}${fmt(a.price,a.market==='Bursa'?3:2)} (prev ${fmt(a.prev_close,a.market==='Bursa'?3:2)})</div></div>
+    <div class="main-col"><div class="t1">${H.esc(name)}${lst}</div><div class="t2">${H.date(a.alert_date)} · ${cur}${fmt(a.price,dp)} (prev ${fmt(a.prev_close,dp)})</div></div>
     <div class="end">${H.pill(Number(a.pct))}</div></button>`;
+};
+/* tapping an alert: watchlist stock → its sheet (or its list), holding → the stock */
+App.more.alertOpen=(sym,ticker,market,list,route)=>{
+  if(list){
+    if(App.watch&&App.watch.get&&App.watch.get(sym))return App.watch.open(sym);
+    location.hash=route||(list==='observation'?'#more/observe':'#more/triage');return;
+  }
+  if(ticker)App.holdings.openStock(ticker,market);
 };
 
 /* ---- quote lookup (uses the same "quote" Edge Function as prices) ---- */
@@ -54,7 +75,7 @@ function renderQuote(el){
 function renderAlerts(el){
   const a=App.state.alerts;
   if(App.state.alertsStatus==='loading'){el.innerHTML=App.skeleton(4);return;}
-  el.innerHTML=`<div class="notice info" style="margin-top:0">You're alerted when a holding moves <b>−3%</b> or <b>+5%</b> vs its previous close, checked every 15 min during Bursa and US hours. Once per stock per day in each direction.</div>`+
+  el.innerHTML=`<div class="notice info" style="margin-top:0">You're alerted when a <b>holding</b> or a stock on <b>Observation / Triage &amp; confirmation</b> moves <b>−3%</b> or <b>+5%</b> vs its previous close (checked every 15 min in Bursa and US hours, once per stock per day each way). Watched stocks also alert when they <b>reach their average analyst target</b> (once per 30 days), and after the nightly scan when their <b>signal changes</b> or their <b>score moves 10+ points</b>.</div>`+
     (a.length?`<div class="list" style="margin-top:12px">${a.map(App.more.alertRow).join('')}</div>`:'<div class="empty">No alerts yet.</div>');
 }
 const placeholder=(title,text,cols)=>`<div class="card muted-card"><div class="val">${title} — coming soon</div><p class="sub" style="margin-top:8px;font-size:14px">${text}</p>
@@ -66,7 +87,7 @@ function renderMenu(el){
   const wide=App.wide();
   el.innerHTML=(wide?'':`<div class="list menu">
       ${item('#more/quote',H.icon.search,'myr','Quote lookup','Any stock, Bursa, US, SGX, HK, crypto')}
-      ${item('#more/alerts',H.icon.bell,'div','Price alerts',`${App.state.alerts.length} recent · −3% / +5% rule`)}
+      ${item('#more/alerts',H.icon.bell,'div','Price alerts',`${App.state.alerts.length} recent · moves, targets, signals`)}
     </div>
     <div class="sec"><h2>Research</h2></div>
     <div class="list menu">

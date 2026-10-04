@@ -195,6 +195,41 @@ def metrics_payload(x) -> dict:
 
 
 # ------------------------------------------------------------------ main
+WATCH_ROUTE = {"observation": "#more/observe", "triage": "#more/triage", "confirmation": "#more/triage"}
+WATCH_LABEL = {"observation": "Observation", "triage": "Triage", "confirmation": "Confirmation"}
+SCORE_ALERT_PTS = 10   # a watched stock's score moving this much in one scan triggers an alert
+
+
+def watch_change_alerts(res: list, prev_cls: dict, watch_rows: list, d_iso: str) -> list:
+    """Alert rows for watched stocks whose signal changed, or whose score moved SCORE_ALERT_PTS+,
+    since the previous scan. pushed=False → the price-alerts Edge Function sends them."""
+    stage = {w["symbol"]: (w.get("stage") or "triage") for w in watch_rows}
+    out = []
+    for x in res:
+        sym = x["u"]["symbol"]
+        if sym not in stage:
+            continue
+        p = prev_cls.get(sym)
+        if not p:
+            continue
+        kl = sym.endswith(".KL")
+        ticker = sym[:-3] if kl else sym
+        lst = stage[sym]
+        base = {"symbol": sym, "ticker": ticker, "market": "Bursa" if kl else "US", "alert_date": d_iso,
+                "price": x["t"].get("price"), "currency": "MYR" if kl else "USD",
+                "list": lst, "route": WATCH_ROUTE.get(lst, "#more/triage"), "pushed": False}
+        score, old_score = x["s"]["score"], p.get("score")
+        old_c, new_c = p.get("classification"), x["cls"]
+        if old_c != new_c and (old_c or new_c):
+            out.append({**base, "direction": "signal", "pct": None,
+                        "message": f"{ticker}: {old_c or 'No signal'} → {new_c or 'No signal'} (score {score}) · {WATCH_LABEL.get(lst, lst)}"})
+        if old_score is not None and abs(score - old_score) >= SCORE_ALERT_PTS:
+            d = score - old_score
+            out.append({**base, "direction": "score", "pct": d,
+                        "message": f"{ticker}: score {old_score} → {score} ({'+' if d > 0 else ''}{d}) · {WATCH_LABEL.get(lst, lst)}"})
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -220,7 +255,7 @@ def main():
 
     # ---- stocks on Triage & confirmation / Observation that aren't on NASDAQ (NYSE etc., Bursa .KL) ----
     try:
-        watch_rows = store.select("scan_watch", {"select": "symbol,name"})
+        watch_rows = store.select("scan_watch", {"select": "symbol,name,stage"})
     except Exception as e:  # noqa: BLE001 — table may not exist yet
         print(f"  watchlist not read ({e})")
         watch_rows = []
@@ -381,6 +416,15 @@ def main():
                 log(f"Price targets refreshed for {len(tg)}/{len(watched)} watched stocks")
             except Exception as e:  # noqa: BLE001
                 log(f"Price targets skipped: {e}")
+        # watchlist alerts: signal changes and big score moves since the previous scan (needs watch-alerts.sql)
+        if watched and prev_cls and not a.dry_run:
+            try:
+                wa = watch_change_alerts(res, prev_cls, watch_rows, d_iso)
+                if wa:
+                    store.upsert("price_alerts", wa, "symbol,direction,alert_date", ignore=True)  # never re-push on a re-run
+                log(f"Watchlist alerts: {len(wa)} signal/score changes queued for push")
+            except Exception as e:  # noqa: BLE001
+                log(f"Watchlist alerts skipped (run mobile/supabase/watch-alerts.sql?): {e}")
         log(f"Done: {len(uni)} screened, {len(res)} scored, {len(qualified)} qualified, {new_signals} new signals")
         for x in res[:C.TOP_N]:
             log(f"  {x['s']['score']:3d}  {x['u']['symbol']:6s} {x['cls'] or '':13s} {x['sector']}")

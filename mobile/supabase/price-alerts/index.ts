@@ -1,8 +1,12 @@
 // ===== Markets Suite — price-alerts Edge Function =====
-// Called every 15 min (Mon–Fri) by pg_cron. For every stock you currently hold it
-// compares the live price with the previous close and pushes an alert to the
-// Android app when the move is  <= -3%  or  >= +5%.
+// Called every 15 min (Mon–Fri) by pg_cron. It pushes alerts to the Android app for:
+//   1. Holdings      — live price vs previous close  <= -3%  or  >= +5%
+//   2. Watchlists    — Observation / Triage / Confirmation stocks you don't hold:
+//                      the same -3% / +5% moves, plus "target reached" when the price
+//                      gets to the average analyst target (at most once per 30 days)
+//   3. Scan changes  — signal / score changes the nightly scanner logged with pushed = false
 // Each stock alerts at most once per trading day per direction (price_alerts table).
+// Needs mobile/supabase/watch-alerts.sql to have been run once.
 //
 // Secrets (Supabase → Edge Functions → Secrets):
 //   CRON_SECRET          random string, must match the x-cron-secret header in the cron job
@@ -14,6 +18,11 @@
 const DROP_PCT = -3;   // alert when change vs previous close is at or below this
 const RISE_PCT = 5;    // alert when change vs previous close is at or above this
 const FRESH_MIN = 30;  // only alert on prices traded in the last 30 min (market open)
+const WATCH_DROP_PCT = -3;   // same rule for watchlist stocks (change here if you want it looser)
+const WATCH_RISE_PCT = 5;
+const TARGET_REPEAT_DAYS = 30; // "target reached" at most once per 30 days per stock
+const LIST_ROUTE: Record<string, string> = { observation: "#more/observe", triage: "#more/triage", confirmation: "#more/triage" };
+const LIST_LABEL: Record<string, string> = { observation: "Observation", triage: "Triage", confirmation: "Confirmation" };
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -99,7 +108,7 @@ async function fcmAccessToken(sa: any): Promise<string> {
   return d.access_token;
 }
 
-async function pushAll(title: string, body: string) {
+async function pushAll(title: string, body: string, route = "#holdings/open") {
   const saRaw = Deno.env.get("FCM_SERVICE_ACCOUNT");
   if (!saRaw) throw new Error("FCM_SERVICE_ACCOUNT secret is not set");
   const sa = JSON.parse(saRaw);
@@ -116,6 +125,7 @@ async function pushAll(title: string, body: string) {
         message: {
           token,
           notification: { title, body },
+          data: { route },
           android: { priority: "HIGH", notification: { channel_id: "price-alerts", color: "#0AA79F" } },
         },
       }),
@@ -141,7 +151,7 @@ Deno.serve(async (req) => {
   try {
     if (opts.test) {
       return json(await pushAll("✅ UnicornHunter alerts are on",
-        `You'll be alerted when a holding moves ${DROP_PCT}% or +${RISE_PCT}% vs previous close.`));
+        `You'll be alerted when a holding or watched stock moves ${DROP_PCT}% or +${RISE_PCT}% vs previous close, hits its analyst target, or changes signal.`));
     }
 
     const holdings = await currentHoldings();
@@ -149,6 +159,19 @@ Deno.serve(async (req) => {
     const checked: any[] = [];
     const alerts: string[] = [];
 
+    // insert one alert row; returns false when it was already logged (same symbol/direction/day)
+    const logAlert = async (row: Record<string, unknown>) => {
+      const inserted: any[] = await rest("price_alerts?on_conflict=symbol,direction,alert_date", {
+        method: "POST",
+        headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
+        body: JSON.stringify(row),
+      });
+      return !!inserted?.length;
+    };
+    const dayOf = (q: { time: number; tz: string }) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: q.tz }).format(new Date(q.time * 1000));
+
+    // ---- 1. holdings ----
     for (const h of holdings) {
       const q = await quote(h.symbol);
       if (!q || !q.prev) { checked.push({ symbol: h.symbol, status: "no quote" }); continue; }
@@ -161,24 +184,85 @@ Deno.serve(async (req) => {
       if (!direction) continue;
 
       // trading day in the exchange's own timezone → once per day per direction
-      const alertDate = new Intl.DateTimeFormat("en-CA", { timeZone: q.tz }).format(new Date(q.time * 1000));
-      const inserted: any[] = await rest("price_alerts?on_conflict=symbol,direction,alert_date", {
-        method: "POST",
-        headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
-        body: JSON.stringify({
-          symbol: h.symbol, ticker: h.ticker, market: h.market, direction,
-          pct: +pct.toFixed(2), price: q.price, prev_close: q.prev, currency: q.ccy, alert_date: alertDate,
-        }),
+      const ok = await logAlert({
+        symbol: h.symbol, ticker: h.ticker, market: h.market, direction,
+        pct: +pct.toFixed(2), price: q.price, prev_close: q.prev, currency: q.ccy, alert_date: dayOf(q),
+        route: "#holdings/open",
       });
-      if (!inserted?.length) continue; // already alerted today
+      if (!ok) continue; // already alerted today
 
       const label = h.market === "Bursa" ? `${h.name} (${h.ticker})` : h.ticker;
       const title = direction === "down" ? `▼ ${label} ${pct.toFixed(1)}%` : `▲ ${label} +${pct.toFixed(1)}%`;
       const body = `${ccyLabel(q.ccy)}${fmt(q.price, h.market === "Bursa" ? 3 : 2)} · prev close ${ccyLabel(q.ccy)}${fmt(q.prev, h.market === "Bursa" ? 3 : 2)} · you hold ${fmt(h.qty, 0)}`;
-      await pushAll(title, body);
+      await pushAll(title, body, "#holdings/open");
       alerts.push(title);
     }
-    return json({ holdings: holdings.length, alerts, checked });
+
+    // ---- 2. watchlists (stocks you don't hold) ----
+    const held = new Set(holdings.map((h) => h.symbol));
+    let watch: any[] = [];
+    try {
+      watch = await rest("scan_watch?select=symbol,name,stage,target_mean,target_ccy&limit=500");
+    } catch (_) { watch = []; } // table missing → skip
+    for (const w of watch) {
+      if (held.has(w.symbol)) continue;
+      const kl = /\.KL$/.test(w.symbol);
+      const ticker = kl ? w.symbol.replace(/\.KL$/, "") : w.symbol;
+      const market = kl ? "Bursa" : "US";
+      const q = await quote(w.symbol);
+      if (!q || !q.prev) { checked.push({ symbol: w.symbol, list: w.stage, status: "no quote" }); continue; }
+      const pct = ((q.price - q.prev) / q.prev) * 100;
+      const fresh = nowSec - q.time < FRESH_MIN * 60;
+      checked.push({ symbol: w.symbol, list: w.stage, price: q.price, pct: +pct.toFixed(2), open: fresh });
+      if (!fresh) continue;
+
+      const route = LIST_ROUTE[w.stage] ?? "#more/triage";
+      const listLbl = LIST_LABEL[w.stage] ?? "Watchlist";
+      const label = kl && w.name ? `${w.name} (${ticker})` : ticker;
+      const dp = kl ? 3 : 2;
+      const base = { symbol: w.symbol, ticker, market, price: q.price, prev_close: q.prev, currency: q.ccy,
+        alert_date: dayOf(q), list: w.stage, route };
+
+      const direction = pct <= WATCH_DROP_PCT ? "down" : pct >= WATCH_RISE_PCT ? "up" : null;
+      if (direction) {
+        const title = direction === "down" ? `▼ ${label} ${pct.toFixed(1)}%` : `▲ ${label} +${pct.toFixed(1)}%`;
+        if (await logAlert({ ...base, direction, pct: +pct.toFixed(2), message: `${listLbl}: ${title}` })) {
+          await pushAll(title, `${listLbl} · ${ccyLabel(q.ccy)}${fmt(q.price, dp)} · prev close ${ccyLabel(q.ccy)}${fmt(q.prev, dp)}`, route);
+          alerts.push(title);
+        }
+      }
+
+      const tgt = Number(w.target_mean);
+      if (tgt > 0 && q.price >= tgt) {
+        const since = new Date(Date.now() - TARGET_REPEAT_DAYS * 86400000).toISOString().slice(0, 10);
+        const recent: any[] = await rest(
+          `price_alerts?select=id&symbol=eq.${encodeURIComponent(w.symbol)}&direction=eq.target&alert_date=gte.${since}&limit=1`);
+        if (!recent.length) {
+          const title = `🎯 ${label} reached its analyst target`;
+          const msg = `${ccyLabel(q.ccy)}${fmt(q.price, dp)} ≥ avg target ${ccyLabel(q.ccy)}${fmt(tgt, dp)}`;
+          if (await logAlert({ ...base, direction: "target", pct: +(((q.price - tgt) / tgt) * 100).toFixed(2),
+                               message: `${label} hit target · ${msg}` })) {
+            await pushAll(title, `${listLbl} · ${msg} — time to re-check the thesis`, route);
+            alerts.push(title);
+          }
+        }
+      }
+    }
+
+    // ---- 3. scan changes logged by the nightly scanner ----
+    let pending: any[] = [];
+    try {
+      pending = await rest("price_alerts?select=id,symbol,ticker,direction,message,route,list&pushed=eq.false&order=created_at.asc&limit=30");
+    } catch (_) { pending = []; } // columns missing → watch-alerts.sql not run yet
+    for (const p of pending) {
+      const title = p.direction === "signal" ? `📡 ${p.ticker || p.symbol} signal changed`
+        : p.direction === "score" ? `📊 ${p.ticker || p.symbol} score moved` : `${p.ticker || p.symbol}`;
+      await pushAll(title, p.message || "", p.route || "#more/triage");
+      await rest(`price_alerts?id=eq.${p.id}`, { method: "PATCH", body: JSON.stringify({ pushed: true }) });
+      alerts.push(title);
+    }
+
+    return json({ holdings: holdings.length, watch: watch.length, pendingSent: pending.length, alerts, checked });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

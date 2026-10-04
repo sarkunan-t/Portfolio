@@ -284,6 +284,26 @@ def test_watchlist_extras():
     print(f"watchlist extras ok: 1155.KL score {kl['score']} (price-only), NYSEX score {scores['NYSEX']['score']}, screened {run['screened']}")
 
 
+def test_watch_change_alerts():
+    """Signal change and 10+ point score moves on watched stocks become unpushed alert rows."""
+    import run_scan
+    mk = lambda sym, score, cls: {"u": {"symbol": sym}, "s": {"score": score}, "cls": cls, "t": {"price": 10.0}}
+    res = [mk("NVDA", 74, "Confirmed"), mk("1155.KL", 50, "Emerging"), mk("AAPL", 40, None), mk("MSFT", 80, "Extended")]
+    prev = {"NVDA": {"score": 70, "classification": "Emerging"}, "1155.KL": {"score": 62, "classification": "Emerging"},
+            "AAPL": {"score": 41, "classification": None}, "MSFT": {"score": 20, "classification": None}}
+    rows = run_scan.watch_change_alerts(res, prev, [{"symbol": "NVDA", "stage": "triage"},
+                                                    {"symbol": "1155.KL", "stage": "observation"},
+                                                    {"symbol": "AAPL", "stage": "confirmation"}], "2026-10-05")
+    by = {(r["symbol"], r["direction"]): r for r in rows}
+    assert set(by) == {("NVDA", "signal"), ("1155.KL", "score")}, by.keys()   # MSFT not watched, AAPL unchanged
+    assert by[("NVDA", "signal")]["message"].startswith("NVDA: Emerging → Confirmed (score 74)")
+    assert by[("NVDA", "signal")]["route"] == "#more/triage" and by[("NVDA", "signal")]["pushed"] is False
+    sc = by[("1155.KL", "score")]
+    assert sc["ticker"] == "1155" and sc["market"] == "Bursa" and sc["pct"] == -12 and sc["route"] == "#more/observe"
+    assert len({tuple(sorted(r)) for r in rows}) == 1   # same keys on every row (PostgREST bulk insert)
+    print("watch change alerts ok:", [r["message"] for r in rows])
+
+
 if __name__ == "__main__":
     test_parsers()
     test_quarters_and_ttm()
@@ -291,4 +311,5 @@ if __name__ == "__main__":
     test_technicals_and_score()
     test_dry_run()
     test_watchlist_extras()
+    test_watch_change_alerts()
     print("ALL OK")

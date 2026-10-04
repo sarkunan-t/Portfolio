@@ -44,12 +44,13 @@ class Store:
                 return out
             off += page
 
-    def upsert(self, table, rows: list[dict], on_conflict: str, batch=500):
+    def upsert(self, table, rows: list[dict], on_conflict: str, batch=500, ignore=False):
+        res = "ignore-duplicates" if ignore else "merge-duplicates"
         for i in range(0, len(rows), batch):
             chunk = _clean(rows[i:i + batch])
             r = self.s.post(self.base + table, params={"on_conflict": on_conflict},
                             data=json.dumps(chunk),
-                            headers={"Prefer": "resolution=merge-duplicates,return=minimal"}, timeout=120)
+                            headers={"Prefer": f"resolution={res},return=minimal"}, timeout=120)
             if r.status_code not in (200, 201, 204):
                 raise RuntimeError(f"upsert {table}: {r.status_code} {r.text[:300]}")
 
@@ -76,7 +77,7 @@ class DryStore:
     def select(self, table, params=None, page=1000):
         return list(self.tables.get(table, []))
 
-    def upsert(self, table, rows, on_conflict, batch=500):
+    def upsert(self, table, rows, on_conflict, batch=500, ignore=False):
         self.tables.setdefault(table, []).extend(_clean(rows))
         with open(os.path.join(self.folder, f"{table}.json"), "w") as f:
             json.dump(self.tables[table], f, indent=1, default=str)
