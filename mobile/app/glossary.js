@@ -69,6 +69,7 @@ const G=App.gloss={
   'm.vol':{t:'Best up-day volume',d:'The highest volume on a rising day in the last 2 weeks, compared with the 50-day average.',g:'1.5× or more suggests institutions buying.'},
   'm.dv':{t:'Avg traded value / day',d:'Average dollars traded per day over 20 days. Below $1M a day is excluded as too illiquid.'},
   /* ---- triage & confirmation ---- */
+  'w.observation':{t:'Observation',d:'Any US or Bursa stock you add by hand to keep an eye on — no research commitment yet. Same live price, analyst target and (for NASDAQ stocks) scanner score as Triage.',g:'Move it to Triage when you decide to research it properly. Stocks you already hold or have on Triage & confirmation can\'t be added.'},
   'w.triage':{t:'Triage',d:'Stocks you\'ve tagged to research: read the filings, check the story, write your thesis in the notes.',g:'Promote to Confirmation when the research checks out — or remove it.'},
   'w.confirmation':{t:'Confirmation',d:'Research done; waiting for the setup to confirm — e.g. an Emerging signal turning Confirmed, a breakout on volume, or the next earnings report.',g:'Write in the notes exactly what would make you act, and what would make you drop it.'},
   'w.since':{t:'Since tagged',d:'Price change since the day you added the stock — a quick check on whether your instinct was early or late.'},

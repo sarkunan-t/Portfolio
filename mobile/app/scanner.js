@@ -277,14 +277,15 @@ function watchFoot(sym){
   const W=App.watch;if(!W)return '';
   const st=W.stageOf(sym);
   if(!st)return `<button class="btn btn-p" id="scWatch" data-act2="add">＋ Add to Triage</button>`;
-  return `<button class="btn btn-s" id="scWatchOpen">${st==='triage'?'In Triage':'In Confirmation'} · manage</button>`+
-    (st==='triage'?`<button class="btn btn-p" id="scWatch" data-act2="confirm">Move to Confirmation ›</button>`:'');
+  return `<button class="btn btn-s" id="scWatchOpen">In ${st==='triage'?'Triage':st==='observation'?'Observation':'Confirmation'} · manage</button>`+
+    (st==='triage'?`<button class="btn btn-p" id="scWatch" data-act2="confirm">Move to Confirmation ›</button>`:
+     st==='observation'?`<button class="btn btn-p" id="scWatch" data-act2="triage">Move to Triage ›</button>`:'');
 }
 function bindWatchFoot(sym){
   const b=H.$('#scWatch'),o=H.$('#scWatchOpen');
   if(o)o.onclick=()=>App.watch.open(sym);
   if(b)b.onclick=async()=>{b.disabled=true;
-    if(b.dataset.act2==='add')await App.watch.add(sym);else await App.watch.move(sym,'confirmation');
+    if(b.dataset.act2==='add')await App.watch.add(sym);else await App.watch.move(sym,b.dataset.act2==='triage'?'triage':'confirmation');
     if(App.sheetIsOpen()&&H.$('#shTitle').textContent===sym){H.$('#shFoot').innerHTML=watchFoot(sym);bindWatchFoot(sym);}};
 }
 S.open=async sym=>{

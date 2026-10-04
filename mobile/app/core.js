@@ -42,7 +42,7 @@ H.month=d=>new Date(d+'T00:00:00').toLocaleDateString('en-GB',{month:'long',year
 H.today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 H.stockLabel=(ticker,market,name)=>market==='Bursa'?(name&&name!==ticker?name:(TICKER_NAME[ticker]||ticker)):ticker;
 H.stockSub=(ticker,market,name)=>market==='Bursa'?ticker:(TICKER_NAME[ticker]||name||'');
-H.wtag=(ticker,market)=>market==='Bursa'||!App.watch?'':App.watch.tag(String(ticker||'').toUpperCase());   // Triage / Confirmation tag (US stocks)
+H.wtag=(ticker,market)=>!App.watch?'':App.watch.tag(String(ticker||'').toUpperCase()+(market==='Bursa'?'.KL':''));   // Triage / Confirmation tag (US stocks)
 H.ccyTag=c=>`<span class="tag ${c==='USD'?'usd':'myr'}">${c}</span>`;
 H.eqMyr=(ccy,v,signed)=>{const r=H.fx();return ccy==='USD'&&v!=null&&r?`≈ ${signed?H.money('MYR',v*r,true):H.money('MYR',v*r)}`:'';};
 H.icon={
@@ -109,7 +109,7 @@ const WEBNAV=[
     ['activity','trades','Trades','swap'],['activity','dividends','Dividends','pct'],['activity','funds','Funds','fx']]},
   {group:'Insights',items:[['insights','pnl','P&L by year','insights'],['insights','cash','Cash by wallet','wallet'],['insights','capital','Capital','flow'],['insights','dividends','Dividend stats','pct']]},
   {group:'Other assets',items:[['more','metals','Metals','gold'],['more','crypto','Crypto','coin'],['more','asnb','ASNB','unit']]},
-  {group:'Research',items:[['more','scanner','Growth scanner','radar'],['more','triage','Triage & confirmation','flag'],['more','quote','Quote lookup','search'],['more','alerts','Price alerts','bell']]}
+  {group:'Research',items:[['more','scanner','Growth scanner','radar'],['more','triage','Triage & confirmation','flag'],['more','observe','Observation','eye'],['more','quote','Quote lookup','search'],['more','alerts','Price alerts','bell']]}
 ];
 const WEBNAV_EXTRA=[['more','menu','Settings']];   // reached from the gear in the sidebar footer
 App.webNavItem=()=>{const t=App.state.tab,sg=App.state.seg[t];
@@ -279,7 +279,7 @@ App.refreshPrices=async()=>{
   if(App.metalsMarket&&App.metals&&App.metals.view==='market')App.metalsMarket.load(true);
   if(App.nw&&App.state.tab==='home'&&App.state.seg.home==='trend')App.nw.load(true);
   if(App.scanner&&App.state.tab==='more'&&App.state.seg.more==='scanner')App.scanner.load(true);
-  if(App.watch&&App.state.tab==='more'&&App.state.seg.more==='triage'){App.watch.load();App.watch.loadPrices(true);}
+  if(App.watch&&App.state.tab==='more'&&(App.state.seg.more==='triage'||App.state.seg.more==='observe')){App.watch.load();App.watch.loadPrices(true);}
   await refreshPrices();
 };
 App.reloadAll=()=>{App.reloadShares();App.loadFunds();App.loadAlerts();App.metals&&App.metals.load();App.crypto&&App.crypto.load();App.asnb&&App.asnb.load();if(App.nw)App.nw.at=0;if(App.scanner)App.scanner.at=0;};
