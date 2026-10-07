@@ -120,3 +120,4 @@ body.wide .g4{grid-template-columns:repeat(4,minmax(0,1fr));}
 body.wide .view>.card:has(#qForm),body.wide .view>.notice{max-width:760px;}
 body.wide .view>.card:has(#qForm)~*{max-width:760px;}
 body.wide .view>.card:has(#qForm)~#taBox{max-width:1200px;}
+.t-nm{display:inline-block;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;}

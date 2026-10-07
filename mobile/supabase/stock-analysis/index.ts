@@ -10,6 +10,11 @@
 //        stats: { marketCap, pe, forwardPe, peg, eps, divYield, beta, profitMargin, revenueGrowth, earningsGrowth,
 //                 debtToEquity, roe, sector, industry, earningsDate, target, targetHigh, targetLow, analysts, rating, ... } }
 //
+// 3) { action: "ext", symbols: ["NVDA","AAPL"] }   (US stocks; max 40)
+//    → { NVDA: { state: "PRE"|"REGULAR"|"POST"|"CLOSED"…, prevClose, regular, regularTime,
+//                pre: { price, change, pct, time } | null, post: { price, change, pct, time } | null }, … }
+//    Pre-market (4:00–9:30 am New York) and after-hours (4:00–8:00 pm) prices for Open positions.
+//
 // 2) { action: "ai", symbol: "NVDA", facts: { ... } }   (facts = the numbers the app already computed)
 //    → { text: "…markdown-ish analysis…", model }
 //    Needs the secret ANTHROPIC_API_KEY (Supabase → Edge Functions → Secrets). Without it the reply is
@@ -29,7 +34,7 @@ const json = (body: unknown, status = 200) =>
 // ---------- price history (Yahoo chart API, no key needed) ----------
 async function chart(symbol: string, q: string) {
   for (const host of ["query1", "query2"]) {
-    const r = await fetch(`https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${q}&includePrePost=false&events=div%2Csplit`,
+    const r = await fetch(`https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${q}${q.includes("includePrePost") ? "" : "&includePrePost=false"}&events=div%2Csplit`,
       { headers: { "User-Agent": UA, Accept: "application/json" } });
     if (!r.ok) { await r.body?.cancel(); continue; }
     const d = await r.json();
@@ -120,6 +125,39 @@ async function stats(symbol: string, retry = true): Promise<Record<string, unkno
   };
 }
 
+
+// ---------- pre-market / after-hours (Yahoo v7 quote with crumb; chart API as fallback) ----------
+async function extQuotes(symbols: string[], retry = true): Promise<Record<string, unknown>> {
+  const s = await getSession();
+  const fields = "marketState,regularMarketPrice,regularMarketTime,regularMarketPreviousClose,preMarketPrice,preMarketChange,preMarketChangePercent,preMarketTime,postMarketPrice,postMarketChange,postMarketChangePercent,postMarketTime";
+  const r = await fetch(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols.join(","))}&fields=${fields}&crumb=${encodeURIComponent(s.crumb)}`,
+    { headers: { "User-Agent": UA, cookie: s.cookie, Accept: "application/json" } });
+  if ((r.status === 401 || r.status === 403) && retry) { await getSession(true); return extQuotes(symbols, false); }
+  if (!r.ok) { await r.body?.cancel(); throw new Error(`Yahoo ${r.status}`); }
+  const d = await r.json();
+  const out: Record<string, unknown> = {};
+  for (const q of d?.quoteResponse?.result || []) {
+    const side = (p: string) => q[p + "Price"] != null
+      ? { price: q[p + "Price"], change: q[p + "Change"] ?? null, pct: q[p + "ChangePercent"] ?? null, time: q[p + "Time"] ?? null } : null;
+    out[q.symbol] = { state: q.marketState ?? null, prevClose: q.regularMarketPreviousClose ?? null, regular: q.regularMarketPrice ?? null,
+      regularTime: q.regularMarketTime ?? null, pre: side("preMarket"), post: side("postMarket") };
+  }
+  return out;
+}
+// fallback for one symbol: today's 5-minute bars including pre/post, split by the trading periods
+async function extFromChart(symbol: string) {
+  const res = await chart(symbol, "range=1d&interval=5m&includePrePost=true");
+  const m = res.meta || {}, tp = m.currentTradingPeriod || {}, ts: number[] = res.timestamp || [], c = res.indicators?.quote?.[0]?.close || [];
+  const prev = m.chartPreviousClose ?? m.previousClose ?? null, reg = tp.regular || {};
+  const lastIn = (a: number, b: number) => { for (let i = ts.length - 1; i >= 0; i--) if (ts[i] >= a && ts[i] < b && c[i] != null) return [ts[i], c[i]]; return null; };
+  const mk = (x: number[] | null, base: number | null) => x && base ? { price: x[1], change: x[1] - base, pct: (x[1] / base - 1) * 100, time: x[0] } : null;
+  const now = Date.now() / 1000;
+  const regClose = m.regularMarketPrice ?? null;
+  const state = now < (reg.start ?? 0) ? "PRE" : now < (reg.end ?? 0) ? "REGULAR" : "POST";
+  return { state, prevClose: prev, regular: regClose, regularTime: m.regularMarketTime ?? null,
+    pre: mk(lastIn(tp.pre?.start ?? 0, reg.start ?? 0), prev), post: state === "POST" ? mk(lastIn(reg.end ?? 0, tp.post?.end ?? 0), regClose) : null };
+}
+
 // ---------- AI read (Anthropic Messages API) ----------
 async function aiRead(symbol: string, facts: unknown) {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
@@ -151,6 +189,20 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
     const body = await req.json().catch(() => ({}));
+    if (body.action === "ext") {
+      const list = [...new Set(((body.symbols || []) as string[]).map((x) => String(x).toUpperCase().trim()))]
+        .filter((x) => SYMBOL.test(x) && !/\.KL$|-USD$|^\^|=/.test(x)).slice(0, 40);
+      if (!list.length) return json({});
+      let out: Record<string, unknown> = {};
+      try { out = await extQuotes(list); } catch (_) { out = {}; }
+      const missing = list.filter((x) => !out[x]);
+      for (let i = 0; i < missing.length; i += 6) {
+        await Promise.all(missing.slice(i, i + 6).map(async (x) => {
+          try { out[x] = await extFromChart(x); } catch (e) { out[x] = { error: String((e as Error).message || e) }; }
+        }));
+      }
+      return json(out);
+    }
     const symbol = String(body.symbol || "").toUpperCase().trim();
     if (!SYMBOL.test(symbol)) return json({ error: "Bad symbol" }, 400);
 

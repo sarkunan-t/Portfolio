@@ -271,6 +271,7 @@ App.loadAlerts=async()=>{
 };
 App.reloadShares=()=>{priceCache={};App.state.loadingPrices=true;App.refreshView();loadShares();};
 App.refreshPrices=async()=>{
+  if(App.ext)App.ext.at=0;
   if(App.state.loadingPrices)return;
   App.state.loadingPrices=true;App.refreshView();
   if(App.metals&&App.metals.status==='ok')App.metals.loadSpot();

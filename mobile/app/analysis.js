@@ -349,6 +349,33 @@ function md(s){
 // redraw at the new width when the window is resized
 let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(mounted&&mounted.el.isConnected&&TA.cache[mounted.sym]&&TA.cache[mounted.sym].status==='ok')paint();},200);});
 
+
+/* ---------- pre-market / after-hours prices for US stocks (Open positions) ----------
+   App.ext.ensure(['NVDA','AAPL']) fetches via stock-analysis {action:'ext'}; App.ext.view('NVDA') →
+   {kind:'pre'|'post', price, pct, time} or null. Refetched at most every 3 minutes (or on ⟳ refresh). */
+const EX=App.ext={cache:{},at:0,busy:false,state:''};
+EX.ensure=async syms=>{
+  const us=[...new Set(syms)].filter(s=>s&&!/\.KL$|-USD$|^\^|=/.test(s));
+  if(!us.length||EX.busy||EX.state==='missing')return;
+  if(Date.now()-EX.at<3*60*1000&&us.every(s=>s in EX.cache))return;
+  EX.busy=true;
+  try{
+    for(let i=0;i<us.length;i+=40){
+      const {data,error}=await sb.functions.invoke('stock-analysis',{body:{action:'ext',symbols:us.slice(i,i+40)}});
+      if(error){let st=0;try{st=error.context&&error.context.status;}catch(e){}if(st===404)EX.state='missing';throw error;}
+      us.slice(i,i+40).forEach(s=>{EX.cache[s]=data&&data[s]&&!data[s].error?data[s]:null;});
+    }
+    EX.at=Date.now();if(EX.state!=='missing')EX.state='ok';
+  }catch(e){console.warn('pre/after-hours',e);if(EX.state!=='missing')EX.state='error';}
+  EX.busy=false;App.refreshView();
+};
+EX.view=sym=>{const q=EX.cache[sym];if(!q)return null;
+  const st=String(q.state||'').toUpperCase(),postFirst=/POST|CLOSED/.test(st)&&q.post;
+  const x=postFirst?q.post:q.pre||null;if(!x||x.price==null)return null;
+  return {kind:postFirst?'post':'pre',price:x.price,pct:x.pct,time:x.time,live:st==='PRE'&&!postFirst||st==='POST'&&postFirst,state:st};};
+EX.label=v=>v?(v.kind==='pre'?'Pre-market':'After hours'):'';
+EX.time=t=>t?new Date(t*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'';
+
 /* ---------- glossary entries (ⓘ tips) ---------- */
 if(App.gloss)Object.assign(App.gloss,{
   'ta.stage':{t:'Trend',d:'Where the price sits against its 50-day and 200-day averages and whether those are rising. Uptrend = price above a rising 50-day, which is above a rising 200-day.',g:'Most successful buys happen in an Uptrend or a Pullback in an uptrend. Downtrends tend to keep going down.'},
@@ -360,6 +387,7 @@ if(App.gloss)Object.assign(App.gloss,{
   'ta.atr':{t:'Volatility (ATR 14)',d:'Average True Range over 14 days, as % of the price — the typical daily swing.',g:'Under 2% = calm, 2–4% normal for growth stocks, over 4% = volatile. Useful to set a stop-loss outside normal daily noise (e.g. 2× ATR).'},
   'ta.vol':{t:'Volume',d:'Last session\'s volume vs its 50-day average, the 5-day average vs the 50-day, and up/down volume: total volume on up days ÷ volume on down days over 50 sessions.',g:'Up/down above 1.25 = accumulation (buyers more active); under 0.8 = distribution. Breakouts on 1.5×+ average volume are more reliable.'},
   'ta.levels':{t:'Support / resistance',d:'The lowest low and highest high of the last 60 trading days.',g:'A break above resistance on strong volume is a common entry trigger; a break below support is a warning.'},
+  'ta.ext':{t:'Pre-market / after hours',d:'US stocks also trade before the open (4:00–9:30 am New York = 4:00–9:30 pm Malaysia, an hour later when the US is on winter time) and after the close (4:00–8:00 pm New York). Shows the latest extended-hours price and its change vs the last regular close. From about 4 pm New York onwards it switches to the after-hours price.',g:'A preview of how the stock may open — thin volume, so moves can reverse at the opening bell. Bursa has no pre-market trading price, so it shows — for Malaysian stocks.'},
   'ta.rs':{t:'Relative strength vs index',d:'The stock\'s return minus the index\'s return (S&P 500 for US stocks, FBM KLCI for Bursa) over 3, 6 and 12 months, in percentage points.',g:'Leaders beat the market. Positive and rising = outperformer; negative = laggard.'}
 });
 })();
