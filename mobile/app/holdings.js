@@ -29,10 +29,21 @@ function extCell(p){
   if(!v)return App.ext.busy&&!(p.sym in App.ext.cache)?'<span class="spin-i"></span>':'<span class="dim">—</span>';
   return `${fmt(v.price,2)} <span class="${v.pct>=0?'up':'down'}" style="font-weight:700">${v.pct>=0?'+':'−'}${fmt(Math.abs(v.pct||0),2)}%</span><div class="t-sub">${v.kind==='pre'?'Pre':'After'} ${App.ext.time(v.time)}${v.live?' · live':''}</div>`;
 }
+/* value at the pre-market / after-hours price (falls back to the regular value when there's no extended price) */
+const extVal=p=>{const v=App.ext&&p.market!=='Bursa'?App.ext.view(p.sym):null;return v&&v.price!=null&&p.units?{v:p.units*v.price,kind:v.kind}:null;};
+function extValCell(p){
+  const e=extVal(p);if(!e)return '<span class="dim">—</span>';const d=p.value!=null?e.v-p.value:null;
+  return `<b>${fmt(e.v)}</b>${d!=null?`<div class="t-sub"><span class="${d>=0?'up':'down'}">${d>=0?'+':'−'}${fmt(Math.abs(d))}</span></div>`:''}`;
+}
+function extTotal(l,t){
+  let any=false,sum=0;for(const p of l){const e=extVal(p);if(e){any=true;sum+=e.v;}else if(p.value!=null)sum+=p.value;}
+  if(!any||t.value==null)return '<span class="dim">—</span>';const d=sum-t.value;
+  return `${fmt(sum)}<div class="t-sub"><span class="${d>=0?'up':'down'}">${d>=0?'+':'−'}${fmt(Math.abs(d))} (${d>=0?'+':'−'}${fmt(Math.abs(d/t.value*100),2)}%)</span></div>`;
+}
 function extLine(p){
   if(p.market==='Bursa'||!App.ext)return '';
   const v=App.ext.view(p.sym);if(!v)return '';
-  return `<div class="pos-meta" style="margin-top:4px">${App.ext.label(v)} <b>${p.ccy} ${fmt(v.price,2)}</b> <span class="${v.pct>=0?'up':'down'}" style="font-weight:700">${v.pct>=0?'+':'−'}${fmt(Math.abs(v.pct||0),2)}%</span> · ${App.ext.time(v.time)}${v.live?' <span class="tag usd">live</span>':''}</div>`;
+  return `<div class="pos-meta" style="margin-top:4px">${App.ext.label(v)} <b>${p.ccy} ${fmt(v.price,2)}</b> <span class="${v.pct>=0?'up':'down'}" style="font-weight:700">${v.pct>=0?'+':'−'}${fmt(Math.abs(v.pct||0),2)}%</span> · ${App.ext.time(v.time)}${v.live?' <span class="tag usd">live</span>':''}${(e=>e&&p.value!=null?`<br>Value at that price <b>${p.ccy} ${fmt(e.v)}</b> <span class="${e.v>=p.value?'up':'down'}">(${e.v>=p.value?'+':'−'}${fmt(Math.abs(e.v-p.value))})</span>`:'')(extVal(p))}</div>`;
 }
 function posCard(p,grand){
   const usd=p.ccy==='USD', my=C.toMyr(p.ccy,p.value), w=grand&&my!=null?my/grand*100:null;
@@ -92,11 +103,12 @@ const hs={col:'value',dir:'desc'};
 App.holdings.sort=k=>{hs.dir=hs.col===k&&hs.dir==='desc'?'asc':'desc';hs.col=k;App.render(false);};
 const SORTV={stock:p=>p.label.toLowerCase(),wallet:p=>p.wallet,units:p=>p.units,avg:p=>p.avg,price:p=>p.price??-1e18,day:p=>p.dayPct??-1e18,
   ext:p=>{const v=App.ext&&App.ext.view(p.sym);return v&&v.pct!=null?v.pct:-1e18;},
+  extv:p=>{const e=extVal(p);return e?e.v:-1e18;},
   cost:p=>p.cost,value:p=>C.toMyr(p.ccy,p.value)??-1e18,pnl:p=>p.pnl??-1e18,pct:p=>p.pnlPct??-1e18,up:p=>upside(p)??-1e18};
 function openTables(by,T,grand){
   const f=SORTV[hs.col]||SORTV.value, d=hs.dir==='asc'?1:-1;
   const cols=[{k:'stock',label:'Stock',sort:1},{k:'units',label:'Units',cls:'n',sort:1},
-    {k:'price',label:'Price',cls:'n',sort:1},{k:'day',label:'Today',cls:'n',sort:1,hide:1},{k:'ext',label:'Pre / after'+H.tip('ta.ext'),cls:'n',sort:1},{k:'value',label:'Value',cls:'n',sort:1},
+    {k:'price',label:'Price',cls:'n',sort:1},{k:'day',label:'Today',cls:'n',sort:1,hide:1},{k:'ext',label:'Pre / after'+H.tip('ta.ext'),cls:'n',sort:1},{k:'value',label:'Value',cls:'n',sort:1},{k:'extv',label:'Pre value'+H.tip('ta.extv'),cls:'n',sort:1},
     {k:'pnl',label:'P&amp;L',cls:'n',sort:1},{k:'up',label:'Upside'+H.tip('w.upside'),cls:'n',sort:1},{k:'w',label:'Weight',cls:'n'}];
   return ['MYR','USD'].map(ccy=>{
     const l=by[ccy];if(!l.length)return '';const t=T[ccy];
@@ -106,9 +118,9 @@ function openTables(by,T,grand){
         stock:`<div class="t-main">${H.esc(p.label)} ${H.wtag(p.ticker,p.market)}</div><div class="t-sub"><span class="t-nm" title="${H.esc(p.subl)}">${H.esc(p.subl)}</span> <span class="tag ${p.ccy==='USD'?'usd':'myr'}">${p.wallet}</span></div>`,
         up:(()=>{const t=tgt(p),u=upside(p);return t&&u!=null?`<b class="${u>=0?'up':'down'}">${u>=0?'+':'−'}${fmt(Math.abs(u),0)}%</b><div class="t-sub">${fmt(t.mean,dp)}${t.analysts?' · '+t.analysts:''}</div>`:
           App.pt&&App.pt.busy&&!App.pt.get(p.sym)&&!(p.sym in App.pt.cache&&App.pt.cache[p.sym])?'<span class="spin-i"></span>':'<span class="dim">—</span>';})(),
-        units:`${fmt(p.units,p.units%1?4:0)}<div class="t-sub">avg ${fmt(p.avg,dp)}</div>`,price:p.price==null?(p.state==='loading'?'<span class="spin-i"></span>':'—'):`${fmt(p.price,dp)}<div class="t-sub" style="margin-top:3px">${H.pill(p.dayPct)}</div>`,ext:extCell(p),value:`${p.value==null?'—':`<b>${fmt(p.value)}</b>`}<div class="t-sub">cost ${fmt(p.cost)}</div>`,pnl:p.pnl==null?'—':`${H.money(p.ccy,p.pnl,true).replace(p.ccy+' ','')}<div class="t-sub">${H.pct(p.pnlPct)}</div>`,w:w==null?'—':`<div class="wcell"><div class="wbar"><i style="width:${Math.min(w*2,100)}%"></i></div>${fmt(w,1)}%</div>`}};});
+        units:`${fmt(p.units,p.units%1?4:0)}<div class="t-sub">avg ${fmt(p.avg,dp)}</div>`,price:p.price==null?(p.state==='loading'?'<span class="spin-i"></span>':'—'):`${fmt(p.price,dp)}<div class="t-sub" style="margin-top:3px">${H.pill(p.dayPct)}</div>`,ext:extCell(p),extv:extValCell(p),value:`${p.value==null?'—':`<b>${fmt(p.value)}</b>`}<div class="t-sub">cost ${fmt(p.cost)}</div>`,pnl:p.pnl==null?'—':`${H.money(p.ccy,p.pnl,true).replace(p.ccy+' ','')}<div class="t-sub">${H.pct(p.pnlPct)}</div>`,w:w==null?'—':`<div class="wcell"><div class="wbar"><i style="width:${Math.min(w*2,100)}%"></i></div>${fmt(w,1)}%</div>`}};});
     return `<div class="dt-note"><h2>${ccy==='MYR'?'Bursa · MYR':'US · USD'}</h2><span class="note">${t.n} position${t.n!==1?'s':''} · ${t.value==null?'—':H.money(ccy,t.value)}${ccy==='USD'&&t.value!=null&&H.fx()?' · '+H.eqMyr('USD',t.value):''}</span></div>`+
-      H.table(cols.filter(c=>!c.hide&&(ccy!=='MYR'||c.k!=='ext')),rows,{sort:hs,onSort:'App.holdings.sort',foot:{stock:'Total',value:`${t.value==null?'—':fmt(t.value)}<div class="t-sub">cost ${fmt(t.cost)}</div>`,pnl:t.pnl==null?'—':`${H.money(ccy,t.pnl,true).replace(ccy+' ','')}<div class="t-sub">${H.pct(t.pnlPct)}</div>`}});
+      H.table(cols.filter(c=>!c.hide&&(ccy!=='MYR'||(c.k!=='ext'&&c.k!=='extv'))),rows,{sort:hs,onSort:'App.holdings.sort',foot:{stock:'Total',extv:ccy==='MYR'?'':extTotal(l,t),value:`${t.value==null?'—':fmt(t.value)}<div class="t-sub">cost ${fmt(t.cost)}</div>`,pnl:t.pnl==null?'—':`${H.money(ccy,t.pnl,true).replace(ccy+' ','')}<div class="t-sub">${H.pct(t.pnlPct)}</div>`}});
   }).join('')+`<div class="tiny" style="margin:14px 2px 0">One row per stock per wallet. Cost is each wallet's average cost over its full history. Click a row for details, or a column heading to sort. Upside = average Wall Street analyst target vs today's price (via Yahoo Finance)${App.pt&&App.pt.state==='missing'?' — deploy the price-target Edge Function to see it':''}.${H.fx()?` USD converted to MYR at ${fmt(H.fx(),4)}.`:''}</div>`;
 }
 
