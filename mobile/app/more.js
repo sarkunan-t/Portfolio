@@ -36,41 +36,80 @@ App.more.alertOpen=(sym,ticker,market,list,route)=>{
 const EXCH=[['','US'],['.KL','Bursa'],['.SI','SGX'],['.HK','HK'],['.L','London'],['.AX','ASX'],['-USD','Crypto']];
 let qState={exch:'.KL',last:null,err:'',busy:false};
 const recents=()=>{try{return JSON.parse(localStorage.getItem('ql_recents')||'[]');}catch(e){return [];}};
-const saveRecent=(sym,ex)=>{try{let r=recents().filter(x=>x.symbol!==sym);r.unshift({symbol:sym,exchange:ex});localStorage.setItem('ql_recents',JSON.stringify(r.slice(0,10)));}catch(e){}};
-async function lookup(raw,ex){
+const saveRecent=(sym,ex,name)=>{try{let r=recents().filter(x=>!(x.symbol===sym&&(x.exchange||'')===(ex||'')));r.unshift({symbol:sym,exchange:ex,name:name||null});localStorage.setItem('ql_recents',JSON.stringify(r.slice(0,10)));}catch(e){}};
+/* Bursa short name → numeric code (MAYBANK → 1155): known stocks first, then Yahoo search via stock-analysis */
+function localBursa(n){
+  n=n.replace(/\.KL$/,'').toUpperCase();
+  const L=typeof BURSA_STOCKS!=='undefined'?BURSA_STOCKS:[];
+  const hit=L.find(s=>s.name.toUpperCase()===n);if(hit)return {code:hit.code,name:hit.name};
+  if(typeof TICKER_NAME!=='undefined')for(const [c,nm] of Object.entries(TICKER_NAME))if(/^\d/.test(c)&&String(nm).toUpperCase()===n)return {code:c,name:nm};
+  const tx=(App.state&&App.state.tx)||(typeof allTx!=='undefined'?allTx:[]);
+  for(const t of tx||[])if(t&&t.market==='Bursa'&&String(t.company_name||'').toUpperCase()===n)return {code:t.ticker,name:t.company_name};
+  return null;
+}
+async function searchSym(q,market){
+  const {data,error}=await sb.functions.invoke('stock-analysis',{body:{action:'search',q,market}});
+  if(error)throw new Error(String(error.message||error));
+  return (data&&data.results)||[];
+}
+async function lookup(raw,ex,knownName){
   let t=String(raw||'').trim().toUpperCase();if(!t)return;
-  const sym=ex==='-USD'?(t.endsWith('-USD')?t:t+'-USD'):(ex&&!t.endsWith(ex)?t+ex:t);
-  qState={...qState,busy:true,err:'',last:null,exch:ex,input:t};App.render(false);
+  qState={...qState,busy:true,err:'',last:null,cands:null,exch:ex,input:t};App.render(false);
+  let name=knownName||null;
   try{
+    // Bursa: accept the stock name (MAYBANK, TENAGA, PBBANK…) as well as the code
+    if(ex==='.KL'&&!/^\d/.test(t.replace(/\.KL$/,''))){
+      const loc=localBursa(t);
+      if(loc){t=loc.code;name=loc.name;}
+      else{
+        const res=await searchSym(t.replace(/\.KL$/,''),'KL');
+        const exact=res.find(r=>String(r.name).toUpperCase()===t.replace(/\.KL$/,''));
+        const pick=exact||(res.length===1?res[0]:null);
+        if(pick){t=pick.symbol.replace(/\.KL$/,'');name=pick.name;}
+        else if(res.length){qState.cands=res;qState.busy=false;App.render(false);return;}
+        else throw new Error(`No Bursa stock called "${t}" — try its 4-digit code (e.g. 1155 for Maybank).`);
+      }
+    }
+    const sym=ex==='-USD'?(t.endsWith('-USD')?t:t+'-USD'):(ex&&!t.endsWith(ex)?t+ex:t);
     const data=await invokeQuote({symbols:[sym]});
     const q=data&&(data[sym]||data[sym.toUpperCase()]);
-    if(!q||q.error||q.price==null)throw new Error(q&&q.error?q.error:'No price found for '+sym);
-    qState.last={sym,...q};saveRecent(t.replace(ex,''),ex);
+    if(!q||q.error||q.price==null){
+      // not a ticker? try it as a company name and offer matches
+      let res=[];try{res=await searchSym(String(raw).trim(),ex==='.KL'?'KL':ex===''?'US':'');}catch(e){}
+      res=res.filter(r=>r.symbol!==sym);
+      if(res.length){qState.cands=res;qState.busy=false;App.render(false);return;}
+      throw new Error(q&&q.error?q.error:'No price found for '+sym);
+    }
+    if(!name&&ex==='.KL'&&typeof TICKER_NAME!=='undefined')name=TICKER_NAME[t]||null;
+    qState.last={sym,name,...q};qState.input=name&&ex==='.KL'?name:t;saveRecent(t.replace(ex,''),ex,name);
   }catch(e){qState.err=e.message||'Lookup failed';}
   qState.busy=false;App.render(false);
 }
 App.more.lookup=lookup;
 function renderQuote(el){
   const q=qState.last, dp=q&&q.prevClose?((q.price-q.prevClose)/q.prevClose*100):null;
-  let html=`<div class="card"><form id="qForm"><label class="fld"><span>Ticker</span>
-      <input id="qT" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. 1155, AAPL, BTC" value="${H.esc(qState.input||'')}"></label>
+  let html=`<div class="card"><form id="qForm"><label class="fld"><span>${qState.exch==='.KL'?'Stock name or code':'Ticker'}</span>
+      <input id="qT" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="e.g. MAYBANK or 1155, AAPL, BTC" value="${H.esc(qState.input||'')}"></label>
     <div class="lbl" style="margin-bottom:6px">Exchange</div>
     <div class="chips">${EXCH.map(([v,l])=>`<button type="button" class="chip ${qState.exch===v?'on':''}" data-ex="${v}">${l}</button>`).join('')}</div>
     <button class="btn btn-p" style="width:100%;margin-top:14px" type="submit">${qState.busy?'<span class="spin-i"></span> Looking up…':'Get price'}</button></form>
-    ${qState.exch==='.KL'?'<div class="tiny" style="margin-top:8px">Bursa uses numeric codes — e.g. 1155 Maybank, 5347 Tenaga.</div>':''}</div>`;
+    ${qState.exch==='.KL'?'<div class="tiny" style="margin-top:8px">Type the Bursa stock name (MAYBANK, TENAGA, PBBANK) or its code (1155, 5347).</div>':''}</div>`;
   if(qState.err)html+=`<div class="notice warn">${H.esc(qState.err)}</div>`;
+  if(qState.cands&&qState.cands.length)html+=`<div class="card"><div class="lbl" style="margin-bottom:8px">Did you mean…</div><div class="list" style="box-shadow:none">${qState.cands.map((c,i)=>`<button class="lrow" data-cand="${i}"><div class="main-col"><div class="t1">${H.esc(c.name||c.symbol)} <span class="dim" style="font-weight:600">${H.esc(c.symbol.replace(/\.KL$/,''))}</span></div><div class="t2">${H.esc(c.longName||'')}${c.exchange?' · '+H.esc(c.exchange):''}</div></div><div class="end">›</div></button>`).join('')}</div></div>`;
   if(q){const cur=q.currency||'';
-    html+=`<div class="card"><div class="dhead"><div><div class="lbl">${H.esc(q.sym)} ${/^[A-Z0-9.\-]+$/.test(q.sym)&&!/\.|-USD/.test(q.sym)?H.wtag(q.sym,"US"):""}</div><div class="dprice">${cur} ${fmt(q.price,q.price<10?3:2)}</div>
+    html+=`<div class="card"><div class="dhead"><div><div class="lbl">${q.name?`<b>${H.esc(q.name)}</b> · `:''}${H.esc(q.sym)} ${/^[A-Z0-9.\-]+$/.test(q.sym)&&!/\.|-USD/.test(q.sym)?H.wtag(q.sym,"US"):""}</div><div class="dprice">${cur} ${fmt(q.price,q.price<10?3:2)}</div>
       <div class="sub">${q.prevClose?`prev close ${fmt(q.prevClose,q.price<10?3:2)}`:''}</div></div>${H.pill(dp)}</div>
       <div class="tiny">Yahoo Finance · about 15 min delayed · ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div></div>
       <div id="taBox"></div>`;}
   const r=recents();
-  if(r.length)html+=`<div class="sec"><h2>Recent</h2></div><div class="chips">${r.map(x=>`<button class="chip" data-rs="${H.esc(x.symbol)}" data-rx="${H.esc(x.exchange||'')}">${H.esc(x.symbol)}${x.exchange?`<span class="dim">${H.esc(x.exchange)}</span>`:''}</button>`).join('')}</div>`;
+  if(r.length)html+=`<div class="sec"><h2>Recent</h2></div><div class="chips">${r.map(x=>`<button class="chip" data-rs="${H.esc(x.symbol)}" data-rx="${H.esc(x.exchange||'')}" data-rn="${H.esc(x.name||'')}">${H.esc(x.name&&x.exchange==='.KL'?x.name:x.symbol)}${x.exchange?`<span class="dim">${H.esc(x.exchange==='.KL'?x.symbol:x.exchange)}</span>`:''}</button>`).join('')}</div>`;
   el.innerHTML=html;
   const f=document.getElementById('qForm');
   f.onsubmit=e=>{e.preventDefault();lookup(document.getElementById('qT').value,qState.exch);};
   f.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>{qState.exch=b.dataset.ex;qState.input=document.getElementById('qT').value;App.render(false);});
-  el.querySelectorAll('[data-rs]').forEach(b=>b.onclick=()=>lookup(b.dataset.rs,b.dataset.rx));
+  el.querySelectorAll('[data-rs]').forEach(b=>b.onclick=()=>lookup(b.dataset.rs,b.dataset.rx,b.dataset.rn||null));
+  el.querySelectorAll('[data-cand]').forEach(b=>b.onclick=()=>{const c=qState.cands[+b.dataset.cand],kl=/\.KL$/.test(c.symbol),cr=/-USD$/.test(c.symbol);
+    lookup(kl?c.symbol.replace(/\.KL$/,''):cr?c.symbol.replace(/-USD$/,''):c.symbol,kl?'.KL':cr?'-USD':(/\./.test(c.symbol)?'':qState.exch==='.KL'?'':qState.exch),c.name);});
   const tb=document.getElementById('taBox');if(tb&&q&&App.ta)App.ta.mount(tb,q.sym);
 }
 

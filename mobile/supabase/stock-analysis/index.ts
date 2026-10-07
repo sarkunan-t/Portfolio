@@ -15,6 +15,10 @@
 //                pre: { price, change, pct, time } | null, post: { price, change, pct, time } | null }, … }
 //    Pre-market (4:00–9:30 am New York) and after-hours (4:00–8:00 pm) prices for Open positions.
 //
+// 4) { action: "search", q: "MAYBANK", market: "KL" | "US" | "" }
+//    → { results: [{ symbol: "1155.KL", name: "MAYBANK", longName: "Malayan Banking Berhad", exchange: "KLS" }, …] }
+//    Finds the Yahoo symbol for a Bursa short name (MAYBANK → 1155.KL) or a company name (nvidia → NVDA).
+//
 // 2) { action: "ai", symbol: "NVDA", facts: { ... } }   (facts = the numbers the app already computed)
 //    → { text: "…markdown-ish analysis…", model }
 //    Needs the secret ANTHROPIC_API_KEY (Supabase → Edge Functions → Secrets). Without it the reply is
@@ -158,6 +162,20 @@ async function extFromChart(symbol: string) {
     pre: mk(lastIn(tp.pre?.start ?? 0, reg.start ?? 0), prev), post: state === "POST" ? mk(lastIn(reg.end ?? 0, tp.post?.end ?? 0), regClose) : null };
 }
 
+
+// ---------- symbol search (Bursa short names → numeric codes, company names → tickers) ----------
+async function search(q: string, market: string) {
+  const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=15&newsCount=0&listsCount=0&enableFuzzyQuery=true`;
+  let r = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+  if (!r.ok) { await r.body?.cancel(); r = await fetch(url.replace("query2", "query1"), { headers: { "User-Agent": UA, Accept: "application/json" } }); }
+  if (!r.ok) throw new Error(`Yahoo search ${r.status}`);
+  const d = await r.json();
+  let list = ((d?.quotes || []) as any[]).filter((x) => x.symbol && /EQUITY|ETF|REIT|CRYPTOCURRENCY|MUTUALFUND/i.test(x.quoteType || "EQUITY"));
+  if (market === "KL") list = list.filter((x) => /\.KL$/.test(x.symbol));
+  else if (market === "US") list = list.filter((x) => !/\./.test(x.symbol) && /NMS|NYQ|NGM|NCM|ASE|PCX|BTS|NAS|NYS/i.test(x.exchange || "NMS"));
+  return list.slice(0, 10).map((x) => ({ symbol: x.symbol, name: x.shortname ?? x.longname ?? x.symbol, longName: x.longname ?? null, exchange: x.exchDisp ?? x.exchange ?? null }));
+}
+
 // ---------- AI read (Anthropic Messages API) ----------
 async function aiRead(symbol: string, facts: unknown) {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
@@ -189,6 +207,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
     const body = await req.json().catch(() => ({}));
+    if (body.action === "search") {
+      const q = String(body.q || "").trim().slice(0, 60);
+      if (!q) return json({ results: [] });
+      try { return json({ results: await search(q, String(body.market || "")) }); }
+      catch (e) { return json({ results: [], error: String((e as Error).message || e) }); }
+    }
     if (body.action === "ext") {
       const list = [...new Set(((body.symbols || []) as string[]).map((x) => String(x).toUpperCase().trim()))]
         .filter((x) => SYMBOL.test(x) && !/\.KL$|-USD$|^\^|=/.test(x)).slice(0, 40);
