@@ -62,7 +62,8 @@ function renderQuote(el){
   if(q){const cur=q.currency||'';
     html+=`<div class="card"><div class="dhead"><div><div class="lbl">${H.esc(q.sym)} ${/^[A-Z0-9.\-]+$/.test(q.sym)&&!/\.|-USD/.test(q.sym)?H.wtag(q.sym,"US"):""}</div><div class="dprice">${cur} ${fmt(q.price,q.price<10?3:2)}</div>
       <div class="sub">${q.prevClose?`prev close ${fmt(q.prevClose,q.price<10?3:2)}`:''}</div></div>${H.pill(dp)}</div>
-      <div class="tiny">Yahoo Finance · about 15 min delayed · ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div></div>`;}
+      <div class="tiny">Yahoo Finance · about 15 min delayed · ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div></div>
+      <div id="taBox"></div>`;}
   const r=recents();
   if(r.length)html+=`<div class="sec"><h2>Recent</h2></div><div class="chips">${r.map(x=>`<button class="chip" data-rs="${H.esc(x.symbol)}" data-rx="${H.esc(x.exchange||'')}">${H.esc(x.symbol)}${x.exchange?`<span class="dim">${H.esc(x.exchange)}</span>`:''}</button>`).join('')}</div>`;
   el.innerHTML=html;
@@ -70,6 +71,7 @@ function renderQuote(el){
   f.onsubmit=e=>{e.preventDefault();lookup(document.getElementById('qT').value,qState.exch);};
   f.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>{qState.exch=b.dataset.ex;qState.input=document.getElementById('qT').value;App.render(false);});
   el.querySelectorAll('[data-rs]').forEach(b=>b.onclick=()=>lookup(b.dataset.rs,b.dataset.rx));
+  const tb=document.getElementById('taBox');if(tb&&q&&App.ta)App.ta.mount(tb,q.sym);
 }
 
 function renderAlerts(el){
