@@ -3,7 +3,8 @@
    units held (transactions) × that day's closing price (+ USD→MYR at that day's rate),
    plus metals (pure grams × futures price → MYR/g). Prices come from the "metal-chart"
    Edge Function (Yahoo daily closes). Today's point uses the live prices the app already has.
-   Net worth here = shares + metals at market value (same as the Home hero). Cash is not included. */
+   Net worth here = shares + wallet cash + metals + crypto + ASNB (same as the Home hero).
+   Wallet cash per day = deposits − withdrawals − purchases + sales + dividends paid into the wallet, USD at that day's rate. */
 (function(){
 const H=App.h, C=App.calc, OZ=31.1034768, DAYMS=86400000;
 const METAL_SYM={Gold:'GC=F',Silver:'SI=F',Platinum:'PL=F',Palladium:'PA=F'};
@@ -58,7 +59,7 @@ function days(from,to){const out=[];let d=new Date(from+'T00:00:00Z');const end=
 
 let memo=null,memoKey='';
 N.build=()=>{
-  const k=[N.at,transactions.length,transactions.reduce((a,t)=>a+(Number(t.quantity)||0),0),((App.metals&&App.metals.rows)||[]).length,((App.crypto&&App.crypto.rows)||[]).length,((App.asnb&&App.asnb.rows)||[]).length,((App.asnb&&App.asnb.rows)||[]).reduce((a,r)=>a+(Number(r.units)||0)+(Number(r.nav)||0),0),
+  const k=[N.at,App.state.fundsStatus,(App.state.funds||[]).length,(App.state.funds||[]).reduce((a,f)=>a+(Number(f.amount)||0),0),transactions.length,transactions.reduce((a,t)=>a+(Number(t.quantity)||0),0),((App.metals&&App.metals.rows)||[]).length,((App.crypto&&App.crypto.rows)||[]).length,((App.asnb&&App.asnb.rows)||[]).length,((App.asnb&&App.asnb.rows)||[]).reduce((a,r)=>a+(Number(r.units)||0)+(Number(r.nav)||0),0),
     App.crypto&&App.crypto.spotAt?App.crypto.spotAt.getTime():0,App.state.pricesAt?App.state.pricesAt.getTime():0,App.metals&&App.metals.spotAt?App.metals.spotAt.getTime():0,H.fx()||0,H.today()].join('|');
   if(memo&&memoKey===k)return memo;
   memoKey=k;memo=buildTimeline();return memo;
@@ -145,6 +146,23 @@ function buildTimeline(){
     S.crypto[di]=cs;S.asnb[di]=as;
     if(cs!=null||as!=null){S.nw[di]=(S.nw[di]||0)+(cs||0)+(as||0);S.cost[di]=(S.cost[di]||0)+cc+ac;}
   }
+  // wallet cash — cumulative deposits/withdrawals, trade settlements and wallet dividends (same rules as Insights → Cash by wallet)
+  S.cash=new Array(n).fill(null);
+  if(App.state.fundsStatus==='ok'){
+    const ev=[];
+    (App.state.funds||[]).forEach(f=>{const ccy=f.currency||'MYR';if((ccy!=='MYR'&&ccy!=='USD')||!f.txn_date)return;const a=Number(f.amount)||0;
+      ev.push([f.txn_date,ccy,(f.txn_type==='Deposit'||f.txn_type==='Transfer In')?a:-a]);});
+    transactions.forEach(t=>{const st=txSettle(t);if((st.ccy!=='MYR'&&st.ccy!=='USD')||!t.tx_date)return;ev.push([t.tx_date,st.ccy,t.tx_type==='Buy'?-st.amt:st.amt]);});
+    allocateDividends(dividends,transactions).forEach(x=>{if(x.toWallet&&x.div.payout_date&&(x.ccy==='MYR'||x.ccy==='USD'))ev.push([x.div.payout_date,x.ccy,x.amount]);});
+    ev.sort((a,b)=>a[0].localeCompare(b[0]));
+    let j=0,m=0,u=0,started=false;
+    for(let di=0;di<n;di++){
+      while(j<ev.length&&ev[j][0]<=D[di]){const e=ev[j++];if(e[1]==='MYR')m+=e[2];else u+=e[2];started=true;}
+      if(!started)continue;
+      const v=m+u*fxArr[di];S.cash[di]=v;
+      S.nw[di]=(S.nw[di]||0)+v;S.cost[di]=(S.cost[di]||0)+v;   // cash counts at face value on both lines
+    }
+  }
   const holdings=[...stocks,...metals,...coins,...funds];
   holdings.forEach(h=>{h.active=h.v[n-1]!=null&&h.v[n-1]>0;});
   return {D,S,holdings,hasMetals:metals.length>0,hasCrypto:coins.length>0,hasAsnb:funds.length>0};
@@ -178,6 +196,7 @@ function periods(tl,g){
 /* ---------- series catalogue & colours ---------- */
 function catalogue(tl){
   const list=[{id:'nw',label:'Net worth',grp:'t'},{id:'cost',label:'Money invested',grp:'t'},{id:'shares',label:'Shares',grp:'t'}];
+  if(tl.S.cash&&tl.S.cash.some(v=>v!=null))list.push({id:'cash',label:'Wallet cash',grp:'t'});
   if(tl.hasMetals)list.push({id:'metals',label:'Metals',grp:'t'});
   if(tl.hasCrypto)list.push({id:'crypto',label:'Crypto',grp:'t'});
   if(tl.hasAsnb)list.push({id:'asnb',label:'ASNB',grp:'t'});
@@ -421,7 +440,7 @@ N.render=el=>{
       <div class="lbl" style="margin:12px 0 6px">Lines on the chart · tap to show or hide</div>
       <div class="chips nw-series">${cat.map(s=>{const on=N.on.includes(s.id);
         return `<button class="chip sc ${on?'on':''}" data-ser="${H.esc(s.id)}">${on?`<i class="sw ${s.id==='cost'?'dash':''}" style="background:${colorOf(s.id)}"></i>`:'<i class="sw off"></i>'}${H.esc(s.label)}</button>`;}).join('')}</div>
-      <div class="tiny" style="margin-top:10px">${N.mode==='pct'?'% change compares each line with its own value at the start of the period, so holdings of different sizes can be compared.':'Net worth = shares + metals + crypto + ASNB at market value. “Money invested” = what you paid for what you still hold, so the gap between the two lines is your unrealised gain.'}</div>
+      <div class="tiny" style="margin-top:10px">${N.mode==='pct'?'% change compares each line with its own value at the start of the period, so holdings of different sizes can be compared.':'Net worth = shares + wallet cash + metals + crypto + ASNB at market value. “Money invested” = what you paid for what you still hold plus the cash in your wallets, so the gap between the two lines is your unrealised gain.'}</div>
     </div>`;
     // period table
     const rows=[];for(let j=P.idx.length-1;j>=0;j--){const i=P.idx[j],pi=j>0?P.idx[j-1]:null,v=tl.S.nw[i],pv=pi!=null?tl.S.nw[pi]:null;

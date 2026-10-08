@@ -176,6 +176,18 @@ C.walletCash=()=>{
   });
 };
 
+/* ---- uninvested cash across all wallets, in MYR (counts towards net worth) ---- */
+C.cashTotal=()=>{
+  if(App.state.fundsStatus!=='ok')return {ok:false,myr:0,MYR:0,USD:0,n:0};
+  const r=H.fx(),W=C.walletCash().filter(a=>a.active);
+  const t={ok:true,MYR:0,USD:0,n:W.length,usdPending:false};
+  W.forEach(a=>{t[a.ccy]+=a.bal;});
+  t.neg=W.filter(a=>a.bal<-0.5).map(a=>a.key);
+  if(t.USD&&!r)t.usdPending=true;
+  t.myr=t.MYR+(r?t.USD*r:0);
+  return t;
+};
+
 /* ---- funds balances (funds page) ---- */
 C.fundBalances=(asOf,netShares)=>{
   const bal={};const cell=c=>{const k=c||'—';if(!bal[k])bal[k]={MYR:0,USD:0};return bal[k];};

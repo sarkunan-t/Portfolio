@@ -19,14 +19,15 @@ App.screens.home={
     const pos=C.positions(), {c}=C.combined(pos), k=C.kpis(), r=H.fx();
     const shares=c.value!=null?c.value:c.cost;
     const CL=App.classTotals(), extra=CL.filter(x=>x.on), mt=extra.length?true:null;
-    const nw=shares+extra.reduce((s,x)=>s+x.t.value,0);
+    const cash=C.cashTotal();
+    const nw=shares+cash.myr+extra.reduce((s,x)=>s+x.t.value,0);
     const dayCls=c.day>=0?'up':'down';
 
     // hero
     const hero=`<div class="card hero">
       <div class="lbl">Estimated net worth</div>
       <div class="big">MYR ${fmt(nw)}</div>
-      <div class="sub">${c.value!=null?(extra.length?'Shares + '+extra.map(x=>x.key==='asnb'?'ASNB':x.label.toLowerCase()).join(' + ')+' at market value':'Shares at live market value'):'Shares at cost — prices loading'}${r&&c.value!=null?` · ≈ USD ${fmt(nw/r)}`:''}</div>
+      <div class="sub">${c.value!=null?('Shares'+(cash.ok?' + cash':'')+extra.map(x=>' + '+(x.key==='asnb'?'ASNB':x.label.toLowerCase())).join('')+' at market value'):'Shares at cost — prices loading'}${r&&c.value!=null?` · ≈ USD ${fmt(nw/r)}`:''}</div>
       ${App.nw.mini(c.value!=null?nw:null)}
       <a class="hero-link" href="#home/trend">See trend &amp; health ›</a>
       ${c.dayBase?`<div class="chg ${dayCls}">${c.day>=0?'▲':'▼'} ${c.day>=0?'+':'−'}MYR ${fmt(Math.abs(c.day))} (${fmt(Math.abs(c.dayPct),2)}%) today</div>`:''}
@@ -52,6 +53,7 @@ App.screens.home={
     const assets=`<div class="sec"><h2>Assets &amp; liabilities</h2></div>
     <div class="grid g2 gw2" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
       <button class="stat tap" style="text-align:left" onclick="App.go('holdings','open')"><div class="lbl">Share holdings</div><div class="val">MYR ${H.k(shares)}</div><div class="sub">${c.n} open positions</div></button>
+      <button class="stat tap" style="text-align:left" onclick="App.go('insights','cash')"><div class="lbl">Cash in wallets</div><div class="val ${cash.myr<0?'down':''}">${cash.ok?`MYR ${cash.myr<0?'−':''}${H.k(Math.abs(cash.myr))}`:'…'}</div><div class="sub">${!cash.ok?(App.state.fundsStatus==='error'?'deposits not loaded':'loading'):`${cash.n} wallet${cash.n!==1?'s':''}${cash.USD?` · incl. USD ${H.k(cash.USD)}`:''}${cash.usdPending?' (rate pending)':''}${cash.neg&&cash.neg.length?` · <span style="color:var(--warn)">⚠ ${cash.neg.join(', ')} negative</span>`:''}`}</div></button>
       ${CL.map(x=>x.on?`<button class="stat tap" style="text-align:left" onclick="App.go('more','${x.key}')"><div class="lbl">${x.label}</div><div class="val">MYR ${H.k(x.t.value)}</div><div class="sub">${x.t.atCost?'at cost':x.t.pnlPct==null?`${x.t.n} held`:`${x.t.pnl>=0?'+':'−'}MYR ${H.k(Math.abs(x.t.pnl))} (${x.t.pnlPct>=0?'+':'−'}${fmt(Math.abs(x.t.pnlPct||0),1)}%)`}</div></button>`
         :`<button class="stat tap muted-card" style="text-align:left" onclick="App.go('more','${x.key}')"><div class="lbl">${x.label}</div><div class="val dim">${x.m.status==='missing'?'Not set up':x.m.status==='ok'?'None yet':'…'}</div><div class="sub">${x.sub}</div></button>`).join('')}
       <div class="stat muted-card"><div class="lbl" style="color:var(--down)">Liabilities</div><div class="val dim">Not set up</div><div class="sub">loans &amp; debt</div></div>
@@ -91,7 +93,7 @@ App.screens.home={
     if(wide)html=`<div class="dash-top">${hero}<div class="stack">${App.nw.strip()}${assets.replace('<div class="sec">','<div class="sec" style="margin-top:0">')}</div></div>`+kpis+
       `<div class="dash-two" style="margin-top:30px"><div>${movers||'<div class="card muted-card"><div class="tiny">No live prices yet.</div></div>'}</div><div>${alerts}</div></div>`;
     else html=hero+App.nw.strip()+kpis+assets+movers+alerts;
-    html+=`<div class="tiny" style="margin:18px 2px 0;">Net worth = shares${extra.map(x=>' + '+(x.key==='asnb'?'ASNB':x.label.toLowerCase())).join('')} at market value. Cash${CL.filter(x=>!x.on).map(x=>', '+x.label).join('')} and liabilities not included.${r?` USD converted at ${fmt(r,4)} (${kpiFxSrc}).`:''}</div>`;
+    html+=`<div class="tiny" style="margin:18px 2px 0;">Net worth = shares at market value + cash left in your trading wallets (deposits − purchases + sales + dividends paid into the wallet)${extra.map(x=>' + '+(x.key==='asnb'?'ASNB':x.label.toLowerCase())).join('')}. ${CL.filter(x=>!x.on).map(x=>x.label).concat(['Liabilities']).join(', ').replace(/^./,c=>c.toUpperCase())} not included.${cash.ok?'':' Cash is missing until deposits load.'}${r?` USD converted at ${fmt(r,4)} (${kpiFxSrc}).`:''}</div>`;
     el.innerHTML=html;
     App.nw.bindMini(el);
   }
