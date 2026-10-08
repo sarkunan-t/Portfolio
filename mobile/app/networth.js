@@ -326,6 +326,68 @@ N.strip=()=>{   // compact line for the Home overview
     <div class="hs-c">${c.r?`<span class="rag r"><b>✕</b>${c.r}</span>`:''}${c.a?`<span class="rag a"><b>!</b>${c.a}</span>`:''}<span class="rag g"><b>✓</b>${c.g}</span>${H.icon.chev}</div></button>`;
 };
 
+
+/* ---------- mini chart inside the Home "Estimated net worth" card ----------
+   Same daily timeline as Trend & health. Day = last 30 daily closes, Week = 26 week-ends,
+   Month = 24 month-ends, Year = every year-end. The last point is today's live net worth. */
+const MINI={day:['Day',30,'past 30 days'],week:['Week',26,'past 26 weeks'],month:['Month',24,'past 2 years'],year:['Year',99,'since you started']};
+try{const g=localStorage.getItem('nw_mini');if(MINI[g])N.mg=g;}catch(e){}
+N.mg=N.mg||'month';
+function miniSeries(liveNw){
+  const tl=N.build();if(!tl)return null;
+  const g=N.mg,lim=MINI[g][1],first=tl.S.nw.findIndex(v=>v!=null);if(first<0)return null;
+  const idx=[],keys=[];
+  for(let i=first;i<tl.D.length;i++){const k=bucketKey(tl.D[i],g);if(keys[keys.length-1]===k)idx[idx.length-1]=i;else{keys.push(k);idx.push(i);}}
+  const I=idx.slice(-(lim+1));          // +1 so the change covers the full window
+  const pts=I.map(i=>({d:tl.D[i],v:tl.S.nw[i]})).filter(p=>p.v!=null);
+  if(liveNw!=null&&pts.length)pts[pts.length-1].v=liveNw;
+  return pts;
+}
+N.mini=liveNw=>{
+  const chips=`<div class="hc-seg">${Object.entries(MINI).map(([k,[l]])=>`<button type="button" class="${N.mg===k?'on':''}" data-mg="${k}">${l}</button>`).join('')}</div>`;
+  if(N.status==='loading'||N.status==='idle')return `<div class="hero-chart">${chips}<div class="hc-skel"></div></div>`;
+  if(N.status==='missing'||N.status==='outdated')return `<div class="hero-chart"><div class="hc-note">Chart needs the updated <b>metal-chart</b> function — see Trend &amp; health.</div></div>`;
+  if(N.status!=='ok')return N.status==='error'?`<div class="hero-chart"><div class="hc-note">Couldn't load history. <button type="button" class="hc-retry" onclick="App.nw.load(true)">Retry</button></div></div>`:'';
+  const pts=miniSeries(liveNw);
+  if(!pts||pts.length<2)return `<div class="hero-chart">${chips}<div class="hc-note">Not enough history yet.</div></div>`;
+  const W=600,Hh=110,vs=pts.map(p=>p.v);let mn=Math.min(...vs),mx=Math.max(...vs);const pad=(mx-mn)*0.12||mx*0.01;mn-=pad;mx+=pad;
+  const X=i=>i/(pts.length-1)*W,Y=v=>Hh-(v-mn)/(mx-mn)*Hh;
+  const line=pts.map((p,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join('');
+  const a=pts[0].v,b=pts[pts.length-1].v,d=b-a,dp=a?d/a*100:null,up=d>=0;
+  N._mini=pts;
+  return `<div class="hero-chart">
+    <div class="hc-top"><div class="hc-chg ${up?'up':'down'}">${up?'▲ +':'▼ −'}MYR ${fmt(Math.abs(d))}${dp!=null?` (${up?'+':'−'}${fmt(Math.abs(dp),1)}%)`:''} <span>${N.mg==='year'?'since end '+pts[0].d.slice(0,4):MINI[N.mg][2]}</span></div>${chips}</div>
+    <div class="hc-wrap"><div class="hc-tip" hidden></div><div class="hc-dot" hidden></div>
+      <svg viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" class="hc-svg" aria-label="Net worth ${MINI[N.mg][2]}">
+        <defs><linearGradient id="hcFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7ff0d8" stop-opacity=".35"/><stop offset="1" stop-color="#7ff0d8" stop-opacity="0"/></linearGradient></defs>
+        <path d="${line}L${W},${Hh}L0,${Hh}Z" fill="url(#hcFill)"/>
+        <path d="${line}" fill="none" stroke="#9ff0e8" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+      </svg></div>
+    <div class="hc-x"><span>${miniLbl(pts[0].d)}</span><span>${miniLbl(pts[pts.length-1].d,true)}</span></div>
+  </div>`;
+};
+function miniLbl(d,last){
+  if(last&&d===H.today())return 'Today';
+  const t=new Date(d+'T00:00:00');
+  return N.mg==='day'||N.mg==='week'?t.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}):N.mg==='month'?t.toLocaleDateString('en-GB',{month:'short',year:'numeric'}):String(t.getFullYear());
+}
+N.bindMini=root=>{
+  root.querySelectorAll('[data-mg]').forEach(b=>b.onclick=e=>{e.stopPropagation();N.mg=b.dataset.mg;try{localStorage.setItem('nw_mini',N.mg);}catch(x){}App.render(false);});
+  const wrap=root.querySelector('.hc-wrap');if(!wrap||!N._mini)return;
+  const pts=N._mini,tip=wrap.querySelector('.hc-tip'),dot=wrap.querySelector('.hc-dot');
+  const vs=pts.map(p=>p.v);let mn=Math.min(...vs),mx=Math.max(...vs);const pad=(mx-mn)*0.12||mx*0.01;mn-=pad;mx+=pad;
+  const show=e=>{const r=wrap.getBoundingClientRect(),f=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),i=Math.round(f*(pts.length-1)),p=pts[i];
+    const x=i/(pts.length-1)*r.width,y=(1-(p.v-mn)/(mx-mn))*r.height;
+    dot.hidden=false;dot.style.left=x+'px';dot.style.top=y+'px';
+    const lab=N.mg==='day'?new Date(p.d+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'}):
+      N.mg==='week'?'Week ending '+new Date(p.d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):
+      N.mg==='month'?new Date(p.d+'T00:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'}):'End of '+p.d.slice(0,4);
+    tip.innerHTML=`<b>${H.mask('MYR '+fmt(p.v))}</b><span>${i===pts.length-1?'Now':lab}</span>`;tip.hidden=false;
+    tip.style.left=Math.min(Math.max(x-tip.offsetWidth/2,0),r.width-tip.offsetWidth)+'px';};
+  const hide=()=>{tip.hidden=true;dot.hidden=true;};
+  wrap.addEventListener('pointerdown',show);wrap.addEventListener('pointermove',show);wrap.addEventListener('pointerleave',hide);wrap.addEventListener('pointercancel',hide);
+};
+
 /* ---------- screen ---------- */
 N.render=el=>{
   if(!App.state.sharesLoaded||App.classes().some(c=>c.m.status==='loading')){el.innerHTML=`<div class="skel" style="height:320px;border-radius:20px"></div>`+App.skeleton(3);return;}

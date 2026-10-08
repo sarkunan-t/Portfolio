@@ -467,3 +467,23 @@ textarea{width:100%;font:inherit;font-size:15px;border:1px solid var(--edge);bor
 .ta-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;}
 .ta-grid>div>.card:first-child{margin-top:0;}
 .kv span:last-child .dim{font-weight:600;}
+
+/* ---- net worth mini chart (Home hero) ---- */
+.hero-chart{margin-top:14px;}
+.hc-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+.hc-chg{font-size:13px;font-weight:800;}
+.hc-chg.up{color:#7ff0b7;}.hc-chg.down{color:#ffb4ab;}
+.hc-chg span{color:rgba(255,255,255,.6);font-weight:600;margin-left:4px;}
+.hc-seg{display:inline-flex;background:rgba(255,255,255,.08);border-radius:10px;padding:3px;gap:2px;margin-left:auto;}
+.hc-seg button{border:0;background:none;color:rgba(255,255,255,.72);font:inherit;font-size:12px;font-weight:800;padding:5px 10px;border-radius:8px;cursor:pointer;}
+.hc-seg button.on{background:rgba(255,255,255,.18);color:#fff;}
+.hc-wrap{position:relative;height:110px;touch-action:pan-y;cursor:crosshair;}
+.hc-svg{display:block;width:100%;height:100%;}
+.hc-tip{position:absolute;top:2px;background:#fff;color:var(--dark);border-radius:9px;padding:5px 9px;font-size:12px;line-height:1.3;white-space:nowrap;pointer-events:none;display:flex;flex-direction:column;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:2;}
+.hc-tip[hidden],.hc-dot[hidden]{display:none;}
+.hc-tip span{color:var(--dim);font-weight:600;font-size:11px;}
+.hc-dot{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:#9ff0e8;border:2px solid #0a2e2a;pointer-events:none;}
+.hc-x{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.55);font-weight:600;margin-top:4px;}
+.hc-skel{height:110px;border-radius:12px;background:rgba(255,255,255,.06);margin-top:8px;}
+.hc-note{font-size:12.5px;color:rgba(255,255,255,.7);margin-top:8px;}
+.hc-retry{background:none;border:0;color:#9ff0e8;font-weight:800;cursor:pointer;padding:0;font:inherit;}

@@ -27,6 +27,7 @@ App.screens.home={
       <div class="lbl">Estimated net worth</div>
       <div class="big">MYR ${fmt(nw)}</div>
       <div class="sub">${c.value!=null?(extra.length?'Shares + '+extra.map(x=>x.key==='asnb'?'ASNB':x.label.toLowerCase()).join(' + ')+' at market value':'Shares at live market value'):'Shares at cost — prices loading'}${r&&c.value!=null?` · ≈ USD ${fmt(nw/r)}`:''}</div>
+      ${App.nw.mini(c.value!=null?nw:null)}
       <a class="hero-link" href="#home/trend">See trend &amp; health ›</a>
       ${c.dayBase?`<div class="chg ${dayCls}">${c.day>=0?'▲':'▼'} ${c.day>=0?'+':'−'}MYR ${fmt(Math.abs(c.day))} (${fmt(Math.abs(c.dayPct),2)}%) today</div>`:''}
       <div class="hero-split">
@@ -92,6 +93,7 @@ App.screens.home={
     else html=hero+App.nw.strip()+kpis+assets+movers+alerts;
     html+=`<div class="tiny" style="margin:18px 2px 0;">Net worth = shares${extra.map(x=>' + '+(x.key==='asnb'?'ASNB':x.label.toLowerCase())).join('')} at market value. Cash${CL.filter(x=>!x.on).map(x=>', '+x.label).join('')} and liabilities not included.${r?` USD converted at ${fmt(r,4)} (${kpiFxSrc}).`:''}</div>`;
     el.innerHTML=html;
+    App.nw.bindMini(el);
   }
 };
 })();
