@@ -10,10 +10,11 @@ function kpiTile(label,o,signed,k,extra=''){
 }
 
 App.screens.home={
-  title:seg=>seg==='trend'?'Trend & health':'Home',
-  segs:[{id:'overview',label:'Overview'},{id:'trend',label:'Trend & health'}],
+  title:seg=>seg==='trend'?'Trend & health':seg==='ops'?'Operations':'Home',
+  segs:[{id:'overview',label:'Overview'},{id:'ops',label:'Operations'},{id:'trend',label:'Trend & health'}],
   render(el,seg){
     if(seg==='trend'){App.nw.render(el);return;}
+    if(seg==='ops'){App.ops.render(el);return;}
     if(App.state.sharesLoaded)setTimeout(()=>App.nw.load(),50);
     if(!App.state.sharesLoaded){el.innerHTML=`<div class="skel" style="height:190px;border-radius:20px;margin-bottom:12px"></div>`+App.skeleton(4);return;}
     const pos=C.positions(), {c}=C.combined(pos), k=C.kpis(), r=H.fx();

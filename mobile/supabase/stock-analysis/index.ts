@@ -19,6 +19,9 @@
 //    → { results: [{ symbol: "1155.KL", name: "MAYBANK", longName: "Malayan Banking Berhad", exchange: "KLS" }, …] }
 //    Finds the Yahoo symbol for a Bursa short name (MAYBANK → 1155.KL) or a company name (nvidia → NVDA).
 //
+// 5) { action: "profile", symbols: ["NVDA","1155.KL"] }   (max 40)
+//    → { NVDA: { sector, industry, name } | { error }, … }   Powers Home → Operations (heatmap grouping).
+//
 // 2) { action: "ai", symbol: "NVDA", facts: { ... } }   (facts = the numbers the app already computed)
 //    → { text: "…markdown-ish analysis…", model }
 //    Needs the secret ANTHROPIC_API_KEY (Supabase → Edge Functions → Secrets). Without it the reply is
@@ -130,6 +133,20 @@ async function stats(symbol: string, retry = true): Promise<Record<string, unkno
 }
 
 
+// ---------- sector / industry only (light quoteSummary) ----------
+async function profile(symbol: string, retry = true): Promise<Record<string, unknown>> {
+  const s = await getSession();
+  const r = await fetch(`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=assetProfile,price&crumb=${encodeURIComponent(s.crumb)}`,
+    { headers: { "User-Agent": UA, cookie: s.cookie, Accept: "application/json" } });
+  if ((r.status === 401 || r.status === 403) && retry) { await getSession(true); return profile(symbol, false); }
+  if (!r.ok) { await r.body?.cancel(); return { error: `Yahoo ${r.status}` }; }
+  const d = await r.json();
+  const x = d?.quoteSummary?.result?.[0];
+  if (!x) return { error: "No profile" };
+  const ap = x.assetProfile || {}, pr = x.price || {};
+  return { sector: ap.sector ?? null, industry: ap.industry ?? null, name: pr.longName ?? pr.shortName ?? null };
+}
+
 // ---------- pre-market / after-hours (Yahoo v7 quote with crumb; chart API as fallback) ----------
 async function extQuotes(symbols: string[], retry = true): Promise<Record<string, unknown>> {
   const s = await getSession();
@@ -223,6 +240,17 @@ Deno.serve(async (req) => {
       for (let i = 0; i < missing.length; i += 6) {
         await Promise.all(missing.slice(i, i + 6).map(async (x) => {
           try { out[x] = await extFromChart(x); } catch (e) { out[x] = { error: String((e as Error).message || e) }; }
+        }));
+      }
+      return json(out);
+    }
+    if (body.action === "profile") {
+      const list = [...new Set(((body.symbols || []) as string[]).map((x) => String(x).toUpperCase().trim()))]
+        .filter((x) => SYMBOL.test(x)).slice(0, 40);
+      const out: Record<string, unknown> = {};
+      for (let i = 0; i < list.length; i += 6) {
+        await Promise.all(list.slice(i, i + 6).map(async (x) => {
+          try { out[x] = await profile(x); } catch (e) { out[x] = { error: String((e as Error).message || e) }; }
         }));
       }
       return json(out);
