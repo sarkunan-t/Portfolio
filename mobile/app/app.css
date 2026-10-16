@@ -521,9 +521,29 @@ textarea{width:100%;font:inherit;font-size:15px;border:1px solid var(--edge);bor
 .ops-sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px;vertical-align:middle;}
 .ops-bar{display:inline-block;width:60px;height:6px;border-radius:3px;background:var(--edge2);margin-right:8px;vertical-align:middle;overflow:hidden;}
 .ops-bar i{display:block;height:100%;background:var(--teal);}
-.tm-st{display:flex;flex-direction:column;align-items:center;gap:1px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.22);
-  font-family:'IBM Plex Mono',monospace;font-weight:600;line-height:1.3;max-width:100%;}
-.tm-st>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-.tm-st i{font-style:normal;font-family:'Mulish',sans-serif;font-weight:700;opacity:.7;margin-right:5px;font-size:.88em;text-transform:uppercase;letter-spacing:.04em;}
-.tm-st i.arr{margin:0 4px;opacity:.6;}
-.tm-st b{font-weight:600;opacity:.85;}
+.tm-card{display:grid;grid-template-columns:auto 1fr;column-gap:10px;row-gap:2px;align-items:baseline;margin-top:7px;padding:6px 8px;
+  border-radius:7px;background:rgba(0,0,0,.24);text-align:left;line-height:1.3;max-width:100%;}
+.tm-card .k{font-weight:700;font-size:.82em;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.62);}
+.tm-card .v{font-family:'IBM Plex Mono',monospace;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tm-pnl{grid-column:1 / -1;display:grid;grid-template-columns:auto 1fr auto;column-gap:8px;align-items:baseline;margin-top:3px;padding-top:4px;
+  border-top:1px solid rgba(255,255,255,.16);}
+.tm-pnl .v{font-weight:700;}
+.tm-pnl.u .v,.tm-chip.u{color:#b9ffcf;} .tm-pnl.d .v,.tm-chip.d{color:#ffd0d0;}
+.tm-pnl .pp{font-family:'IBM Plex Mono',monospace;font-size:.85em;font-weight:600;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.14);}
+.tm-chip{margin-top:5px;padding:2px 7px;border-radius:5px;background:rgba(0,0,0,.26);font-family:'IBM Plex Mono',monospace;font-weight:700;white-space:nowrap;
+  max-width:calc(100% - 6px);overflow:hidden;text-overflow:ellipsis;}
+
+/* ---------- Quote lookup: TradingView section ---------- */
+.tv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.tv-sym{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;margin-top:2px;}
+.tv-logo{width:34px;height:34px;border-radius:9px;background:#131722;color:#fff;font-weight:800;font-size:13px;display:grid;place-items:center;flex-shrink:0;}
+.tv-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+@media (min-width:900px){.tv-links{grid-template-columns:repeat(5,minmax(0,1fr));}}
+.tv-link{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--edge);border-radius:11px;text-decoration:none;color:var(--ink);background:#fff;min-width:0;}
+.tv-link b{font-size:14px;font-weight:800;color:var(--deep);}
+.tv-link span{font-size:11.5px;color:var(--dim);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tv-link:hover{border-color:var(--teal);background:var(--teal-bg);}
+.tv-link.main{grid-column:1 / -1;background:var(--dark);border-color:var(--dark);}
+.tv-link.main b{color:#fff;font-size:15px;} .tv-link.main span{color:rgba(255,255,255,.7);}
+@media (min-width:900px){.tv-link.main{grid-column:auto;}}
+.tv-gauge{margin-top:12px;min-height:400px;}

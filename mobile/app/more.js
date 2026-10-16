@@ -86,6 +86,32 @@ async function lookup(raw,ex,knownName){
   qState.busy=false;App.render(false);
 }
 App.more.lookup=lookup;
+/* ---- TradingView: map a Yahoo symbol → TradingView symbol, links + embedded technicals gauge ---- */
+App.tv={
+  sym(y){y=String(y||'').toUpperCase();
+    const m=[[/\.KL$/,'MYX'],[/\.SI$/,'SGX'],[/\.HK$/,'HKEX'],[/\.L$/,'LSE'],[/\.AX$/,'ASX']].find(([re])=>re.test(y));
+    if(m){let t=y.replace(m[0],'');if(m[1]==='HKEX')t=String(parseInt(t,10)||t);return m[1]+':'+t;}
+    if(/-USD$/.test(y))return 'CRYPTO:'+y.replace(/-USD$/,'')+'USD';
+    return y;},
+  url(y,page){const s=App.tv.sym(y), p=encodeURIComponent(s.replace(':','-'));
+    return page==='chart'?`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(s)}`:`https://www.tradingview.com/symbols/${p}/${page?page+'/':''}`;},
+  section(y){
+    const L=[['forecast','Price forecast','Analyst targets & rating'],['technicals','Technicals','Buy / sell signals'],['chart','Full chart','Draw & add indicators'],
+      ['financials-overview','Financials','Revenue, earnings'],['news','News','Latest headlines']];
+    return `<div class="card tv-card"><div class="tv-head"><div><div class="lbl">Analyse on TradingView</div><div class="tv-sym">${H.esc(App.tv.sym(y))}</div></div>
+        <span class="tv-logo">TV</span></div>
+      <div class="tv-links">${L.map(([pg,t,s],i)=>`<a class="tv-link ${i===0?'main':''}" href="${App.tv.url(y,pg)}" target="_blank" rel="noopener">
+        <b>${t} ↗</b><span>${s}</span></a>`).join('')}</div>
+      <div class="tv-gauge" data-tvsym="${H.esc(App.tv.sym(y))}"></div>
+      <div class="tiny" style="margin-top:8px">Opens TradingView in your browser. The gauge is TradingView's daily technical summary (moving averages + oscillators), not a guarantee of direction.</div></div>`;},
+  mountGauge(root){
+    const box=root&&root.querySelector('.tv-gauge');if(!box||box.dataset.on)return;box.dataset.on='1';
+    box.innerHTML='<div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>';
+    const sc=document.createElement('script');sc.async=true;
+    sc.src='https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js';
+    sc.textContent=JSON.stringify({interval:'1D',width:'100%',isTransparent:true,height:400,symbol:box.dataset.tvsym,showIntervalTabs:true,displayMode:'single',locale:'en',colorTheme:'light'});
+    box.firstChild.appendChild(sc);}
+};
 function renderQuote(el){
   const q=qState.last, dp=q&&q.prevClose?((q.price-q.prevClose)/q.prevClose*100):null;
   let html=`<div class="card"><form id="qForm"><label class="fld"><span>${qState.exch==='.KL'?'Stock name or code':'Ticker'}</span>
@@ -100,6 +126,7 @@ function renderQuote(el){
     html+=`<div class="card"><div class="dhead"><div><div class="lbl">${q.name?`<b>${H.esc(q.name)}</b> · `:''}${H.esc(q.sym)} ${/^[A-Z0-9.\-]+$/.test(q.sym)&&!/\.|-USD/.test(q.sym)?H.wtag(q.sym,"US"):""}</div><div class="dprice">${cur} ${fmt(q.price,q.price<10?3:2)}</div>
       <div class="sub">${q.prevClose?`prev close ${fmt(q.prevClose,q.price<10?3:2)}`:''}</div></div>${H.pill(dp)}</div>
       <div class="tiny">Yahoo Finance · about 15 min delayed · ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div></div>
+      ${App.tv.section(q.sym)}
       <div id="taBox"></div>`;}
   const r=recents();
   if(r.length)html+=`<div class="sec"><h2>Recent</h2></div><div class="chips">${r.map(x=>`<button class="chip" data-rs="${H.esc(x.symbol)}" data-rx="${H.esc(x.exchange||'')}" data-rn="${H.esc(x.name||'')}">${H.esc(x.name&&x.exchange==='.KL'?x.name:x.symbol)}${x.exchange?`<span class="dim">${H.esc(x.exchange==='.KL'?x.symbol:x.exchange)}</span>`:''}</button>`).join('')}</div>`;
@@ -110,6 +137,7 @@ function renderQuote(el){
   el.querySelectorAll('[data-rs]').forEach(b=>b.onclick=()=>lookup(b.dataset.rs,b.dataset.rx,b.dataset.rn||null));
   el.querySelectorAll('[data-cand]').forEach(b=>b.onclick=()=>{const c=qState.cands[+b.dataset.cand],kl=/\.KL$/.test(c.symbol),cr=/-USD$/.test(c.symbol);
     lookup(kl?c.symbol.replace(/\.KL$/,''):cr?c.symbol.replace(/-USD$/,''):c.symbol,kl?'.KL':cr?'-USD':(/\./.test(c.symbol)?'':qState.exch==='.KL'?'':qState.exch),c.name);});
+  if(q)App.tv.mountGauge(el);
   const tb=document.getElementById('taBox');if(tb&&q&&App.ta)App.ta.mount(tb,q.sym);
 }
 

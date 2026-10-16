@@ -161,26 +161,33 @@ function squarify(items,x,y,w,h){
 const px=v=>Math.round(v*10)/10+'px';
 const esc=H.esc;
 const pxDec=r=>r.market==='Bursa'?3:2;
-const pnlTxt=(r,short)=>r.pnlN==null?'—':`${r.pnlN>=0?'+':'−'}${r.ccy} ${fmt(Math.abs(r.pnlN),short||Math.abs(r.pnlN)>=1e4?0:2)}`;
+const kNum=v=>{const a=Math.abs(v);return a>=1e6?fmt(a/1e6,2)+'M':a>=1e4?fmt(a/1e3,1)+'k':fmt(a,a>=100?0:2);};
+const pnlAmt=r=>r.pnlN==null?'—':`${r.pnlN>=0?'+':'−'}${r.ccy} ${kNum(r.pnlN)}`;
+const pctTxt=(v,d=1)=>v==null?'':`${v>=0?'+':'−'}${fmt(Math.abs(v),d)}%`;
 function tileHtml(r,R){
   const m=metric(r), w=R.w, h=R.h, area=w*h;
-  const fs=Math.max(9,Math.min(30,Math.sqrt(area)/5.2)), ps=Math.max(9,fs*.62);
+  const fs=Math.max(9,Math.min(28,Math.sqrt(area)/5.6)), ps=Math.max(9,fs*.6);
   const name=r.market==='Bursa'?r.label:r.ticker;
   const show=w>34&&h>20, showPct=w>40&&h>fs*1.9+6;
-  // key stats (price in → now, qty, P&L) when the tile has room
-  const sf=Math.max(10,Math.min(13,fs*.45)), statsH=sf*1.3*3+8;
-  const showStats=showPct&&w>118&&h>fs*1.15+ps*1.2+statsH+10;
-  const d=pxDec(r);
-  const tip=`${r.label}${r.market==='Bursa'?' ('+r.ticker+')':' · '+(r.subl||'')}\nPrice in: ${r.avg==null?'—':r.ccy+' '+fmt(r.avg,d)}   Now: ${r.price==null?'—':r.ccy+' '+fmt(r.price,d)}\nQty: ${fmt(r.units,0)}${r.wallet?'  ('+r.wallet+')':''}\nP&L: ${App.state.hide?'••••':pnlTxt(r)} (${r.pnlPct==null?'—':(r.pnlPct>=0?'+':'')+fmt(r.pnlPct)+'%'})\nValue: ${App.state.hide?'MYR ••••':'MYR '+fmt(r.value)}\nToday: ${r.dayPct==null?'—':(r.dayPct>=0?'+':'')+fmt(r.dayPct)+'%'}\nSector: ${sectorOf(r)}\nIndustry: ${industryOf(r)}`;
-  const stats=showStats?`<span class="tm-st" style="font-size:${px(sf)}">
-      <span><i>In</i>${r.avg==null?'—':fmt(r.avg,d)}<i class="arr">→</i>${r.price==null?'—':fmt(r.price,d)}</span>
-      <span><i>Qty</i>${fmt(r.units,0)}</span>
-      <span><i>P&amp;L</i>${pnlTxt(r,w<230)}${r.pnlPct==null||w<175?'':` <b>(${r.pnlPct>=0?'+':''}${fmt(r.pnlPct,w<230?0:1)}%)</b>`}</span></span>`:'';
+  const head=fs*1.15+ps*1.25+6;
+  // full card: Avg / Last / Qty / P&L · compact: P&L chip only
+  const sf=Math.max(10.5,Math.min(12.5,fs*.48)), cardH=sf*1.55*4+14;
+  const full=showPct&&w>=132&&h>=head+cardH+8;
+  const chip=!full&&showPct&&w>=84&&h>=head+sf*1.9+8&&r.pnlN!=null;
+  const d=pxDec(r), up=r.pnlN!=null&&r.pnlN>=0;
+  const tip=`${r.label}${r.market==='Bursa'?' ('+r.ticker+')':' · '+(r.subl||'')}\nAvg cost: ${r.avg==null?'—':r.ccy+' '+fmt(r.avg,d)}\nLast: ${r.price==null?'—':r.ccy+' '+fmt(r.price,d)}\nQty: ${fmt(r.units,0)}${r.wallet?'  ('+r.wallet+')':''}\nP&L: ${App.state.hide?r.ccy+' ••••':pnlAmt(r)} (${pctTxt(r.pnlPct,2)||'—'})\nValue: ${App.state.hide?'MYR ••••':'MYR '+fmt(r.value)}\nToday: ${pctTxt(r.dayPct,2)||'—'}\nSector: ${sectorOf(r)}\nIndustry: ${industryOf(r)}`;
+  const row=(k,v,cls='')=>`<span class="k">${k}</span><span class="v ${cls}">${v}</span>`;
+  const card=full?`<span class="tm-card" style="font-size:${px(sf)};width:${px(Math.min(w-14,210))}">
+      ${row('Avg',r.avg==null?'—':fmt(r.avg,d))}
+      ${row('Last',r.price==null?'—':fmt(r.price,d))}
+      ${row('Qty',fmt(r.units,0))}
+      <span class="tm-pnl ${up?'u':'d'}"><span class="k">P&amp;L</span><span class="v">${pnlAmt(r)}</span>${w>=200&&r.pnlPct!=null?`<span class="pp">${pctTxt(r.pnlPct)}</span>`:''}</span>
+    </span>`:chip?`<span class="tm-chip ${up?'u':'d'}" style="font-size:${px(sf)}">${pnlAmt(r)}</span>`:'';
   return `<button class="tm-tile" style="left:${px(R.x)};top:${px(R.y)};width:${px(w)};height:${px(h)};background:${heat(m,scaleOf())}"
     title="${esc(tip)}" onclick="App.holdings.openStock('${esc(r.ticker)}','${esc(r.market)}')">
     ${show?`<span class="tm-n" style="font-size:${px(fs)}">${esc(name)}</span>`:''}
-    ${showPct?`<span class="tm-p" style="font-size:${px(ps)}">${m==null?'—':(m>=0?'+':'')+fmt(m,2)+'%'}</span>`:''}
-    ${stats}
+    ${showPct?`<span class="tm-p" style="font-size:${px(ps)}">${m==null?'—':pctTxt(m,2)}</span>`:''}
+    ${card}
   </button>`;
 }
 function drawNode(n,R,depth,out){
